@@ -1,0 +1,38 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      # SQLite database lives on a named volume (absolute path inside container).
+      DATABASE_URL: "file:/data/uwrtrainer.db"
+      # Required. Generate with: openssl rand -base64 32  (set in .env)
+      SESSION_SECRET: "${SESSION_SECRET:?set SESSION_SECRET in your .env}"
+      NODE_ENV: "production"
+    volumes:
+      - db-data:/data
+    expose:
+      - "3000"
+    # To run WITHOUT Caddy (e.g. behind your own reverse proxy), comment out the
+    # caddy service below and uncomment this to expose the app directly:
+    # ports:
+    #   - "3000:3000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      APP_DOMAIN: "${APP_DOMAIN:-localhost}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:

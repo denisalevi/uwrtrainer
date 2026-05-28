@@ -1,0 +1,8 @@
+# Reverse proxy with automatic HTTPS.
+# - Set APP_DOMAIN to your domain (e.g. uwr.example.com) in .env for a real
+#   Let's Encrypt certificate.
+# - Defaults to "localhost" (Caddy issues a local self-signed cert) for testing.
+{$APP_DOMAIN:localhost} {
+	encode gzip
+	reverse_proxy app:3000
+}
