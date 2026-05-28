@@ -1,0 +1,113 @@
+// UWR Trainer — data model.
+// Note: SQLite does not support Prisma enums, so "enum-like" fields are stored as
+// String and validated in the app via Zod/TS unions (see src/lib/constants.ts).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+/// A team member. role: "PLAYER" | "TRAINER" | "ADMIN". locale: "en" | "de".
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  name             String
+  passwordHash     String
+  role             String   @default("PLAYER")
+  locale           String   @default("en")
+  availabilityNote String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  plans        Plan[]       @relation("PlanOwner")
+  createdPlans Plan[]       @relation("PlanCreator")
+  sessionLogs  SessionLog[]
+}
+
+/// Team-wide recurring practice. tier: "PRIMARY" (mandatory) | "SECONDARY" | "OPTIONAL".
+model PracticeSlot {
+  id        String   @id @default(cuid())
+  label     String
+  dayOfWeek Int // 0=Sun .. 6=Sat
+  time      String? // "19:00"
+  tier      String   @default("SECONDARY")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  planItems   PlanItem[]
+  sessionLogs SessionLog[]
+}
+
+/// A player's agreed plan, versioned by validFrom/validTo (plans are revised ~monthly).
+model Plan {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation("PlanOwner", fields: [userId], references: [id], onDelete: Cascade)
+  validFrom   DateTime  @default(now())
+  validTo     DateTime?
+  createdById String?
+  createdBy   User?     @relation("PlanCreator", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+
+  items PlanItem[]
+
+  @@index([userId])
+}
+
+/// One commitment within a plan. category: "RUGBY" | "STRENGTH" | "CARDIO" | "MOBILITY".
+/// For RUGBY, practiceSlotId points at the specific team practice committed to.
+model PlanItem {
+  id                String        @id @default(cuid())
+  planId            String
+  plan              Plan          @relation(fields: [planId], references: [id], onDelete: Cascade)
+  category          String
+  practiceSlotId    String?
+  practiceSlot      PracticeSlot? @relation(fields: [practiceSlotId], references: [id])
+  targetPerWeek     Int           @default(1)
+  targetDurationMin Int?
+  note              String?
+
+  @@index([planId])
+}
+
+/// A logged training session. status: "DONE" | "MISSED". details holds type-specific
+/// JSON (strength sets/reps/weight, cardio zone, etc.) as a stringified payload.
+model SessionLog {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date           DateTime
+  category       String
+  status         String        @default("DONE")
+  durationMin    Int?
+  missReason     String?
+  practiceSlotId String?
+  practiceSlot   PracticeSlot? @relation(fields: [practiceSlotId], references: [id])
+  details        String? // JSON string
+  createdAt      DateTime      @default(now())
+
+  @@index([userId, date])
+  @@index([date])
+}
+
+/// Configurable leaderboard. Multiple can be enabled at once.
+/// metric: "ADHERENCE_POINTS" | "RUGBY_PRACTICES" | "PRIMARY_PRACTICES" | "STREAK".
+/// visibility: "TRAINERS_ONLY" | "EVERYONE".
+model Leaderboard {
+  id         String  @id @default(cuid())
+  metric     String  @unique
+  title      String
+  enabled    Boolean @default(false)
+  visibility String  @default("TRAINERS_ONLY")
+  sortOrder  Int     @default(0)
+}
+
+/// Generic key/value app settings (team name, scoring overrides, etc.).
+model Setting {
+  key   String @id
+  value String
+}
