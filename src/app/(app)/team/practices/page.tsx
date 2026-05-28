@@ -1,0 +1,102 @@
+import Link from "next/link";
+import { getServerT } from "@/lib/i18n/server";
+import { prisma } from "@/lib/db";
+import { addSlot, setSlotActive } from "@/app/actions/trainer";
+import { PRACTICE_TIERS } from "@/lib/constants";
+import type { DictKey } from "@/lib/i18n/dictionaries";
+import { Card, CardBody, Button, Badge, Input, Label, Select, SectionTitle, cn } from "@/components/ui";
+
+export default async function PracticesPage() {
+  const { t } = await getServerT();
+  const slots = await prisma.practiceSlot.findMany({ orderBy: [{ active: "desc" }, { dayOfWeek: "asc" }] });
+
+  return (
+    <div className="space-y-5">
+      <header>
+        <Link href="/settings" className="text-sm text-teal-700">
+          ← {t("set.title")}
+        </Link>
+        <h1 className="mt-1 text-2xl font-bold text-slate-900">{t("slots.title")}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t("slots.intro")}</p>
+      </header>
+
+      <section className="space-y-2">
+        <SectionTitle>{t("slots.add")}</SectionTitle>
+        <Card>
+          <CardBody>
+            <form action={addSlot} className="space-y-3">
+              <div>
+                <Label htmlFor="label">{t("slots.label")}</Label>
+                <Input id="label" name="label" placeholder={t("slots.labelPlaceholder")} required />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="dayOfWeek">{t("slots.day")}</Label>
+                  <Select id="dayOfWeek" name="dayOfWeek" defaultValue="2">
+                    {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                      <option key={d} value={d}>
+                        {t(`day.${d}` as DictKey)}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="time">{t("slots.time")}</Label>
+                  <Input id="time" name="time" placeholder="19:00" />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="tier">{t("slots.tier")}</Label>
+                <Select id="tier" name="tier" defaultValue="SECONDARY">
+                  {PRACTICE_TIERS.map((tier) => (
+                    <option key={tier} value={tier}>
+                      {t(`tier.${tier}` as DictKey)}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <Button type="submit" className="w-full">
+                {t("common.add")}
+              </Button>
+            </form>
+          </CardBody>
+        </Card>
+      </section>
+
+      <section className="space-y-2">
+        <SectionTitle>{t("slots.title")}</SectionTitle>
+        {slots.length === 0 ? (
+          <p className="text-sm text-slate-500">{t("slots.none")}</p>
+        ) : (
+          <Card>
+            <ul className="divide-y divide-slate-100">
+              {slots.map((s) => (
+                <li key={s.id} className={cn("flex items-center gap-3 px-4 py-3", !s.active && "opacity-50")}>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-slate-800">{s.label}</span>
+                      <Badge tone={s.tier === "PRIMARY" ? "teal" : "slate"}>
+                        {t(`tier.${s.tier}` as DictKey)}
+                      </Badge>
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      {t(`day.${s.dayOfWeek}` as DictKey)}
+                      {s.time ? ` · ${s.time}` : ""}
+                    </div>
+                  </div>
+                  <form action={setSlotActive}>
+                    <input type="hidden" name="slotId" value={s.id} />
+                    <input type="hidden" name="active" value={(!s.active).toString()} />
+                    <Button type="submit" variant={s.active ? "ghost" : "secondary"} size="sm">
+                      {s.active ? t("common.delete") : t("slots.active")}
+                    </Button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+      </section>
+    </div>
+  );
+}
