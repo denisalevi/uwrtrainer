@@ -10,23 +10,28 @@ services:
       NODE_ENV: "production"
     volumes:
       - db-data:/data
-    expose:
-      - "3000"
-    # To run WITHOUT Caddy (e.g. behind your own reverse proxy), comment out the
-    # caddy service below and uncomment this to expose the app directly:
-    # ports:
-    #   - "3000:3000"
+    # Exposed on localhost only. Point Tailscale Funnel (or your own reverse
+    # proxy) at this port. Host port is configurable via APP_PORT in .env.
+    # 3000 is unprivileged, so this works fine under rootless Docker.
+    ports:
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3000}:3000"
 
+  # OPTIONAL built-in HTTPS via Caddy, for exposing a public domain directly
+  # (NOT needed with Tailscale Funnel, which provides TLS itself).
+  # Start it with:  docker compose --profile caddy up -d --build
+  # Under rootless Docker, binding 80/443 needs extra setup — override with
+  # HTTP_PORT/HTTPS_PORT (e.g. 8080/8443) if you can't use privileged ports.
   caddy:
     image: caddy:2
+    profiles: ["caddy"]
     restart: unless-stopped
     depends_on:
       - app
     environment:
       APP_DOMAIN: "${APP_DOMAIN:-localhost}"
     ports:
-      - "80:80"
-      - "443:443"
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

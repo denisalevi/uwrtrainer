@@ -34,30 +34,61 @@ from a single Docker Compose stack.
 Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS · Prisma 7 with SQLite (libSQL
 driver adapter) · custom session auth (jose JWT + bcrypt) · serwist (PWA) · Docker + Caddy.
 
-## Deploy with Docker (recommended)
+## Deploy with Docker
 
 Requirements: Docker + Docker Compose (works with rootless Docker).
 
 ```bash
 # 1. Configure environment
 cp .env.example .env
-# edit .env:
-#   SESSION_SECRET=<output of: openssl rand -base64 32>
-#   APP_DOMAIN=uwr.example.com    # your domain (omit/localhost for local testing)
+# edit .env: set SESSION_SECRET=<output of: openssl rand -base64 32>
+#            (optionally change APP_PORT; default 3000, bound to 127.0.0.1)
 
-# 2. Build and start (app + Caddy with automatic HTTPS)
+# 2. Build and start the app (published on 127.0.0.1:${APP_PORT})
 docker compose up -d --build
 ```
 
-- Open `https://APP_DOMAIN` and **sign up** — the first account becomes the admin/trainer.
-- Migrations run automatically on start; the SQLite DB persists in the `db-data` volume.
-- Default leaderboards are created automatically (two on for everyone, two off for trainers).
+Migrations run automatically on start; the SQLite DB persists in the `db-data` volume.
+Default leaderboards are created automatically (two on for everyone, two off for trainers).
+**Sign up** to create the first account — it becomes the admin/trainer.
 
-> **Rootless Docker & ports 80/443:** Caddy needs ports 80/443 for HTTPS + ACME. Rootless
-> Docker may not bind privileged ports by default. Either allow it
+The app listens on an **unprivileged port (3000 by default)** bound to localhost, so there's
+nothing special to do under rootless Docker. Put HTTPS in front of it one of two ways:
+
+### Option A — Tailscale Funnel (recommended; no certificates to manage)
+
+Funnel provisions and auto-renews a Let's Encrypt cert for your machine's `*.ts.net` name and
+terminates TLS for you — you just point it at the local port. On the host (where `tailscaled`
+runs, *not* in the container):
+
+```bash
+# One-time tailnet setup:
+#  - Admin console → DNS: enable MagicDNS and HTTPS certificates
+#  - Admin console → Access controls: give this node the "funnel" nodeAttr
+tailscale funnel --bg 3000        # use your APP_PORT if you changed it
+tailscale funnel status           # shows the public https://<host>.<tailnet>.ts.net URL
+```
+
+Open the printed `https://<host>.<tailnet>.ts.net` URL. That's it — Tailscale handles the SSL.
+(Funnel forwards plain HTTP to localhost, but the public connection is HTTPS, so the app's
+secure session cookies work correctly.) To stop: `tailscale funnel --bg off`.
+
+> If you changed `APP_PORT`, point Funnel at that same port. Keep `APP_BIND=127.0.0.1` so the
+> app is only reachable via Funnel, not directly on your LAN.
+
+### Option B — Built-in Caddy (public domain, automatic HTTPS)
+
+Only if you're *not* using Funnel. Set `APP_DOMAIN` in `.env`, then:
+
+```bash
+docker compose --profile caddy up -d --build
+```
+
+> **Rootless Docker & ports 80/443:** Caddy needs 80/443 for HTTPS + ACME, which rootless
+> Docker may not bind by default. Either allow it
 > (`sudo setcap cap_net_bind_service=+ep $(which rootlesskit)` or lower
-> `net.ipv4.ip_unprivileged_port_start`), or run the app behind your existing reverse proxy:
-> comment out the `caddy` service in `docker-compose.yml` and uncomment the app `ports:` block.
+> `net.ipv4.ip_unprivileged_port_start`), or set `HTTP_PORT`/`HTTPS_PORT` in `.env` (e.g.
+> `8080`/`8443`) and front it with something that can.
 
 ### Backups
 
