@@ -52,6 +52,12 @@ Migrations run automatically on start; the SQLite DB persists in the `db-data` v
 Default leaderboards are created automatically (two on for everyone, two off for trainers).
 **Sign up** to create the first account — it becomes the admin/trainer.
 
+> **Protect signup on a public URL.** With Funnel the app is on the public internet, so set
+> `REGISTRATION_CODE` in `.env` (e.g. `openssl rand -hex 4`) before sharing the link. Every
+> signup — including the first/admin — then requires that code, so randoms can't register or
+> grab the admin account. Share the code with teammates; leave it empty only on a trusted/local
+> network.
+
 The app listens on an **unprivileged port (3000 by default)** bound to localhost, so there's
 nothing special to do under rootless Docker. Put HTTPS in front of it one of two ways:
 

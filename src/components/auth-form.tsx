@@ -7,7 +7,13 @@ import { useT } from "@/components/i18n-provider";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Button, Input, Label } from "@/components/ui";
 
-export function AuthForm({ mode }: { mode: "login" | "signup" }) {
+export function AuthForm({
+  mode,
+  requireCode = false,
+}: {
+  mode: "login" | "signup";
+  requireCode?: boolean;
+}) {
   const { t } = useT();
   const action = mode === "login" ? login : signup;
   const [state, formAction, pending] = useActionState<AuthState, FormData>(action, undefined);
@@ -35,6 +41,13 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         />
         {mode === "signup" && <p className="mt-1 text-xs text-slate-500">{t("auth.passwordHint")}</p>}
       </div>
+
+      {mode === "signup" && requireCode && (
+        <div>
+          <Label htmlFor="code">{t("auth.inviteCode")}</Label>
+          <Input id="code" name="code" autoComplete="off" placeholder={t("auth.inviteCodePlaceholder")} required />
+        </div>
+      )}
 
       {state?.error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">

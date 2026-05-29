@@ -38,6 +38,9 @@ export const en = {
   "auth.emailTaken": "That email is already registered.",
   "auth.genericError": "Something went wrong. Please try again.",
   "auth.passwordHint": "At least 8 characters.",
+  "auth.inviteCode": "Invite code",
+  "auth.inviteCodePlaceholder": "Code from your trainer",
+  "auth.badCode": "Invalid or missing invite code.",
 
   "nav.dashboard": "Home",
   "nav.log": "Log",
@@ -201,6 +204,9 @@ export const de: Record<DictKey, string> = {
   "auth.emailTaken": "Diese E-Mail ist bereits registriert.",
   "auth.genericError": "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
   "auth.passwordHint": "Mindestens 8 Zeichen.",
+  "auth.inviteCode": "Einladungscode",
+  "auth.inviteCodePlaceholder": "Code von deinem Trainer",
+  "auth.badCode": "Ungültiger oder fehlender Einladungscode.",
 
   "nav.dashboard": "Start",
   "nav.log": "Eintragen",

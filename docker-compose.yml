@@ -7,6 +7,8 @@ services:
       DATABASE_URL: "file:/data/uwrtrainer.db"
       # Required. Generate with: openssl rand -base64 32  (set in .env)
       SESSION_SECRET: "${SESSION_SECRET:?set SESSION_SECRET in your .env}"
+      # Optional: invite code required to sign up (recommended on a public URL).
+      REGISTRATION_CODE: "${REGISTRATION_CODE:-}"
       NODE_ENV: "production"
     volumes:
       - db-data:/data

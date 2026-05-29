@@ -4,10 +4,12 @@ export function AuthScreen({
   title,
   subtitle,
   mode,
+  requireCode = false,
 }: {
   title: string;
   subtitle: string;
   mode: "login" | "signup";
+  requireCode?: boolean;
 }) {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center px-5 py-10">
@@ -21,7 +23,7 @@ export function AuthScreen({
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold text-slate-900">{title}</h2>
-          <AuthForm mode={mode} />
+          <AuthForm mode={mode} requireCode={requireCode} />
         </div>
       </div>
     </main>

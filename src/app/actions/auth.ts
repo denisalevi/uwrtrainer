@@ -18,7 +18,13 @@ const SignupSchema = z.object({
   name: z.string().min(2).max(80).trim(),
   email: z.string().email().trim().toLowerCase(),
   password: z.string().min(8).max(200),
+  code: z.string().optional(),
 });
+
+/** Whether self-signup is gated by an invite code (REGISTRATION_CODE set). */
+export async function signupRequiresCode(): Promise<boolean> {
+  return !!process.env.REGISTRATION_CODE?.trim();
+}
 
 export async function login(_state: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = LoginSchema.safeParse({
@@ -44,10 +50,18 @@ export async function signup(_state: AuthState, formData: FormData): Promise<Aut
     name: formData.get("name"),
     email: formData.get("email"),
     password: formData.get("password"),
+    code: formData.get("code"),
   });
   if (!parsed.success) return { error: "auth.genericError" };
 
-  const { name, email, password } = parsed.data;
+  const { name, email, password, code } = parsed.data;
+
+  // Invite-code gate: when REGISTRATION_CODE is set, every signup needs it
+  // (including the first/admin account, so the public URL can't be claimed).
+  const requiredCode = process.env.REGISTRATION_CODE?.trim();
+  if (requiredCode && code?.trim() !== requiredCode) {
+    return { error: "auth.badCode" };
+  }
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return { error: "auth.emailTaken" };
