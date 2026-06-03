@@ -54,11 +54,17 @@ docker run -d --name uwr-dev -p 3000:3000 -v "$PWD":/app -v uwr-npm-cache-deb:/r
   scores, leaderboards, team summary): `src/lib/stats.ts`. Leaderboards are computed **on the
   fly** — there is no cache table, by design (robustness over micro-perf for a small team).
 - **Strength program** (pure, unit-tested): `src/lib/strength.ts` — a Wendler 5/3/1 engine
-  that also works with zero equipment (WEIGHTED / REPS / LEVELS modes). State persists in the
-  `StrengthProgram` model (`movements` is a JSON string). Action: `actions/strength.ts`; UI:
-  `/strength` page + `strength-wizard`/`strength-program` components. Model explained in
-  `TRAINING.md`. Server-action files export **only async functions** (pure helpers like
-  `incrementFor` live in `strength.ts`, not the action file) — webpack build enforces this.
+  that also works with zero equipment. Five movement patterns (push/pull/squat/hinge/press).
+  Setup is **per training day**: the `StrengthProgram` model holds `days` (JSON
+  `[{id,name,tools[],minutes}]` — equipment is a multi-select of tools per day) and `movements`
+  (JSON per-movement maxima: `{trainingMax?, repMax?, levelIndex?}`). `suggestionsForTools()`
+  builds each day's exercise options (weighted where the tools are loadable, bodyweight
+  otherwise; pull only with a bar). Exercise/lift names are **i18n keys** (`ex.*`/`lift.*`) the
+  engine returns and the UI translates. Actions: `actions/strength.ts`. UI: `/strength` (view +
+  `program-form` for setup/settings), `/strength/log` (`strength-workout-logger` — pick a
+  suggestion or type a custom exercise, debounced autosave via `saveStrengthWorkout`). Model
+  explained in `TRAINING.md`. Server-action files export **only async functions** (pure helpers
+  like `incrementFor`/`suggestionsForTools` live in `strength.ts`) — webpack build enforces this.
 - **i18n**: `src/lib/i18n/` — `en`/`de` dictionaries (flat dotted keys), server helper
   `getServerT()`, client `useT()` (`src/components/i18n-provider.tsx`). Locale is **per user**
   (`User.locale`), applied in the root layout.
