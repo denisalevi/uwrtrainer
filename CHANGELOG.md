@@ -11,6 +11,12 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-03
+
+### Added
+- **Warm-up & stretching reminders** on each strength session — a tap-to-done checkbox for
+  warm-up at the top and stretching at the bottom of the workout logger. Saved with the session.
+
 ## [0.9.0] - 2026-06-03
 
 ### Changed

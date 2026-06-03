@@ -16,6 +16,35 @@ type Line = { key: string; exerciseId: string; name: string; sets: SetVal[] };
 let uid = 0;
 const nextKey = () => `l${Date.now()}_${uid++}`;
 
+/** A tap-to-done reminder (warm-up / stretching), persisted with the session. */
+function ChecklistToggle({
+  done,
+  icon,
+  label,
+  onToggle,
+}: {
+  done: boolean;
+  icon: string;
+  label: string;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={cn(
+        "flex w-full items-center justify-between rounded-xl border px-3 py-3 text-sm font-medium",
+        done ? "border-teal-600 bg-teal-50 text-teal-800" : "border-slate-200 bg-white text-slate-600",
+      )}
+    >
+      <span>
+        {icon} {label}
+      </span>
+      <span className={done ? "text-teal-700" : "text-slate-300"}>{done ? "✓" : "○"}</span>
+    </button>
+  );
+}
+
 /** Preselect one editable line per configured exercise on the day. */
 function seedLines(day: LoggerDay | undefined): Line[] {
   if (!day) return [];
@@ -57,6 +86,8 @@ export function StrengthWorkoutLogger({
   const [durationMin, setDurationMin] = useState<string>(
     resume?.durationMin != null ? String(resume.durationMin) : "",
   );
+  const [warmup, setWarmup] = useState<boolean>(!!restored?.warmup);
+  const [stretch, setStretch] = useState<boolean>(!!restored?.stretch);
   const [logId, setLogId] = useState<string | undefined>(resume?.id);
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
 
@@ -71,6 +102,8 @@ export function StrengthWorkoutLogger({
       week,
       dayId,
       dayName: day?.name,
+      warmup,
+      stretch,
       exercises: lines.map((l) => ({
         name: l.name,
         sets: l.sets.map((s) => ({
@@ -200,6 +233,17 @@ export function StrengthWorkoutLogger({
         </div>
       )}
 
+      {/* Warm-up reminder */}
+      <ChecklistToggle
+        done={warmup}
+        icon="🔥"
+        label={t("strength.warmup")}
+        onToggle={() => {
+          setWarmup((v) => !v);
+          scheduleSave();
+        }}
+      />
+
       {/* Exercise lines */}
       {lines.map((l) => {
         const sug = suggestionFor(l);
@@ -280,6 +324,17 @@ export function StrengthWorkoutLogger({
       <Button type="button" variant="secondary" onClick={addExercise} className="w-full">
         + {t("strength.addExercise")}
       </Button>
+
+      {/* Stretching reminder */}
+      <ChecklistToggle
+        done={stretch}
+        icon="🧘"
+        label={t("strength.stretch")}
+        onToggle={() => {
+          setStretch((v) => !v);
+          scheduleSave();
+        }}
+      />
 
       {/* Duration */}
       <div>

@@ -338,6 +338,8 @@ export const en = {
   "strength.slotBodyweightDay": "Bodyweight day",
   "strength.logCardHint": "Pick a day from your plan, or start empty.",
   "strength.emptySession": "Empty session",
+  "strength.warmup": "Warm-up",
+  "strength.stretch": "Stretching",
 } as const;
 
 export type Dict = typeof en;
@@ -681,6 +683,8 @@ export const de: Record<DictKey, string> = {
   "strength.slotBodyweightDay": "Körpergewicht-Tag",
   "strength.logCardHint": "Wähle einen Tag aus deinem Plan oder starte leer.",
   "strength.emptySession": "Leere Einheit",
+  "strength.warmup": "Aufwärmen",
+  "strength.stretch": "Dehnen",
 };
 
 export const dictionaries = { en, de } as const;
