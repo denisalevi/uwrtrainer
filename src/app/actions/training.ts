@@ -23,34 +23,74 @@ const LogSchema = z.object({
   note: z.string().max(300).optional(),
 });
 
-export async function logSession(formData: FormData) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+type LogData = z.infer<typeof LogSchema>;
 
-  const raw = Object.fromEntries(formData);
-  const parsed = LogSchema.safeParse(raw);
-  if (!parsed.success) throw new Error("Invalid session data");
-  const d = parsed.data;
-
+/** Build the type-specific JSON detail payload + the column values shared by create/update. */
+function sessionFields(d: LogData) {
   let details: Record<string, unknown> | undefined;
   if (d.category === "CARDIO" && d.zone) details = { zone: d.zone };
   if (d.category === "STRENGTH" && d.lift) {
     details = { lift: d.lift, sets: d.sets, reps: d.reps, weight: d.weight };
   }
   if (d.note) details = { ...(details ?? {}), note: d.note };
+  return {
+    date: new Date(d.date),
+    category: d.category,
+    status: d.status,
+    durationMin: d.durationMin || null,
+    missReason: d.status === "MISSED" ? d.missReason || null : null,
+    practiceSlotId: d.category === "RUGBY" && d.practiceSlotId ? d.practiceSlotId : null,
+    details: details ? JSON.stringify(details) : null,
+  };
+}
+
+export async function logSession(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  const parsed = LogSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Invalid session data");
 
   await prisma.sessionLog.create({
-    data: {
-      userId: user.id,
-      date: new Date(d.date),
-      category: d.category,
-      status: d.status,
-      durationMin: d.durationMin || null,
-      missReason: d.status === "MISSED" ? d.missReason || null : null,
-      practiceSlotId: d.category === "RUGBY" && d.practiceSlotId ? d.practiceSlotId : null,
-      details: details ? JSON.stringify(details) : null,
-    },
+    data: { userId: user.id, ...sessionFields(parsed.data) },
   });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/leaderboards");
+  redirect("/dashboard");
+}
+
+/** Edit an existing session. Owner (or a trainer) only. */
+export async function updateSession(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  const id = String(formData.get("id") ?? "");
+
+  const existing = await prisma.sessionLog.findUnique({ where: { id }, select: { userId: true } });
+  if (!existing) throw new Error("Session not found");
+  if (existing.userId !== user.id && !isTrainer(user.role)) throw new Error("Not authorized");
+
+  const parsed = LogSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Invalid session data");
+
+  await prisma.sessionLog.update({ where: { id }, data: sessionFields(parsed.data) });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/leaderboards");
+  redirect("/dashboard");
+}
+
+/** Delete a session. Owner (or a trainer) only. */
+export async function deleteSession(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  const id = String(formData.get("id") ?? "");
+
+  const existing = await prisma.sessionLog.findUnique({ where: { id }, select: { userId: true } });
+  if (!existing) throw new Error("Session not found");
+  if (existing.userId !== user.id && !isTrainer(user.role)) throw new Error("Not authorized");
+
+  await prisma.sessionLog.delete({ where: { id } });
 
   revalidatePath("/dashboard");
   revalidatePath("/leaderboards");

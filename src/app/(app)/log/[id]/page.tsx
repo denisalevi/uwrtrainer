@@ -1,0 +1,50 @@
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { requireUser } from "@/lib/dal";
+import { getServerT } from "@/lib/i18n/server";
+import { prisma } from "@/lib/db";
+import { isTrainer, type Category, type SessionStatus } from "@/lib/constants";
+import { LogForm, type ExistingSession } from "@/components/log-form";
+
+export default async function EditLogPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const user = await requireUser();
+  const { t } = await getServerT();
+
+  const log = await prisma.sessionLog.findUnique({ where: { id } });
+  if (!log) notFound();
+  if (log.userId !== user.id && !isTrainer(user.role)) notFound();
+
+  const slots = await prisma.practiceSlot.findMany({
+    where: { active: true },
+    orderBy: { dayOfWeek: "asc" },
+    select: { id: true, label: true, tier: true },
+  });
+
+  const details = (log.details ? JSON.parse(log.details) : {}) as Record<string, unknown>;
+  const existing: ExistingSession = {
+    id: log.id,
+    category: log.category as Category,
+    status: log.status as SessionStatus,
+    date: log.date.toISOString().slice(0, 10),
+    durationMin: log.durationMin,
+    practiceSlotId: log.practiceSlotId,
+    missReason: log.missReason,
+    zone: (details.zone as string) ?? null,
+    lift: (details.lift as string) ?? null,
+    sets: (details.sets as number) ?? null,
+    reps: (details.reps as number) ?? null,
+    weight: (details.weight as number) ?? null,
+    note: (details.note as string) ?? null,
+  };
+
+  return (
+    <div className="space-y-5">
+      <Link href="/dashboard" className="text-sm text-slate-500">
+        ← {t("common.back")}
+      </Link>
+      <h1 className="text-2xl font-bold text-slate-900">{t("log.edit")}</h1>
+      <LogForm slots={slots} existing={existing} />
+    </div>
+  );
+}

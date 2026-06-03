@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
@@ -15,6 +16,14 @@ export default async function StrengthPage() {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <Link href="/plan" className="text-sm text-slate-500 hover:text-slate-700">
+          ← {t("strength.backToPlan")}
+        </Link>
+        <Link href="/settings" className="text-sm text-slate-500 hover:text-slate-700">
+          ⚙️ {t("nav.settings")}
+        </Link>
+      </div>
       <header>
         <h1 className="text-2xl font-bold text-slate-900">{t("strength.title")}</h1>
         <p className="mt-1 text-sm text-slate-500">{t("strength.intro")}</p>

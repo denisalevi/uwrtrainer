@@ -92,6 +92,54 @@ export async function createStrengthProgram(formData: FormData) {
   redirect("/strength");
 }
 
+const SettingsSchema = z.object({
+  programId: z.string(),
+  equipment: z.enum(EQUIPMENT_LEVELS),
+  daysPerWeek: z.coerce.number().int().min(1).max(4),
+  minutesPerSession: z.coerce.number().int().min(15).max(180),
+});
+
+/**
+ * Edit an existing program's settings. Days/minutes change in place (progress kept).
+ * Changing equipment can change the mode (e.g. weights ↔ bodyweight); when it does we
+ * restart the program from sensible defaults for the new mode.
+ */
+export async function updateStrengthSettings(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  const parsed = SettingsSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Invalid settings");
+  const d = parsed.data;
+
+  const program = await prisma.strengthProgram.findFirst({
+    where: { id: d.programId, userId: user.id },
+  });
+  if (!program) throw new Error("Program not found");
+
+  const newMode = modeForEquipment(d.equipment);
+  const modeChanged = newMode !== program.mode;
+
+  await prisma.strengthProgram.update({
+    where: { id: program.id },
+    data: {
+      equipment: d.equipment,
+      daysPerWeek: d.daysPerWeek,
+      minutesPerSession: d.minutesPerSession,
+      ...(modeChanged
+        ? {
+            mode: newMode,
+            movements: JSON.stringify(defaultStartState(newMode)),
+            cycle: 1,
+            week: 1,
+            consecutiveHolds: 0,
+          }
+        : {}),
+    },
+  });
+  revalidatePath("/strength");
+  redirect("/strength");
+}
+
 const WeekSchema = z.object({ programId: z.string(), week: z.coerce.number().int().min(1).max(4) });
 
 export async function setStrengthWeek(formData: FormData) {

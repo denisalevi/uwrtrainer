@@ -11,6 +11,16 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-03
+
+### Added
+- **Edit & delete logged sessions** — recent sessions on the dashboard are now tappable,
+  opening an editable form (`/log/[id]`) with a delete option.
+- **Strength pre-fill when logging** — picking *Strength* offers this week's movements from
+  your program and fills in sets/reps/weight (works for weighted and bodyweight).
+- **Strength page navigation** — back-to-plan and settings links, plus an in-place
+  **program settings** editor (equipment / days / session length).
+
 ## [0.2.0] - 2026-06-03
 
 ### Added

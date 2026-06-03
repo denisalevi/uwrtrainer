@@ -19,6 +19,7 @@ import {
   type EquipmentLevel,
   MOVEMENT_LEVELS,
   type MovementKey,
+  type StrengthLift,
 } from "@/lib/constants";
 
 // ────────────────────────────────────────────────────────────── Estimating a max ──
@@ -415,6 +416,22 @@ export function currentWorkout(
 /** Lower-body lifts step up faster than upper-body (Wendler default: 5 kg / 2.5 kg). */
 export function incrementFor(movement: MovementKey): number {
   return movement === "SQUAT" || movement === "HINGE" ? 5 : 2.5;
+}
+
+/** Map a movement pattern to the closest entry in the generic STRENGTH_LIFTS log enum. */
+export function movementToLift(movement: MovementKey): StrengthLift {
+  switch (movement) {
+    case "SQUAT":
+      return "SQUAT";
+    case "HINGE":
+      return "DEADLIFT";
+    case "PUSH":
+      return "BENCH";
+    case "PRESS":
+      return "PRESS";
+    default:
+      return "OTHER";
+  }
 }
 
 /** Sensible zero-input starting state so anyone can begin today with nothing. */

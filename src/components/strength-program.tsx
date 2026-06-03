@@ -1,8 +1,13 @@
 import { getServerT } from "@/lib/i18n/server";
 import type { DictKey } from "@/lib/i18n/dictionaries";
-import { Badge, Button, Card, CardBody, Input, Label, SectionTitle } from "@/components/ui";
-import { setStrengthWeek, finishStrengthCycle } from "@/app/actions/strength";
-import { type StrengthMode } from "@/lib/constants";
+import { Badge, Button, Card, CardBody, Input, Label, Select, SectionTitle } from "@/components/ui";
+import { setStrengthWeek, finishStrengthCycle, updateStrengthSettings } from "@/app/actions/strength";
+import {
+  EQUIPMENT_LEVELS,
+  SESSION_DAY_OPTIONS,
+  SESSION_TIME_OPTIONS,
+  type StrengthMode,
+} from "@/lib/constants";
 import {
   currentWorkout,
   programMovements,
@@ -156,6 +161,56 @@ export async function StrengthProgramView({ program }: { program: Program }) {
           </form>
         </CardBody>
       </Card>
+
+      {/* Program settings */}
+      <details className="rounded-2xl border border-slate-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+          ⚙️ {t("strength.programSettings")}
+        </summary>
+        <form action={updateStrengthSettings} className="mt-3 space-y-3">
+          <input type="hidden" name="programId" value={program.id} />
+          <p className="text-xs text-slate-500">{t("strength.settingsHint")}</p>
+          <div>
+            <Label htmlFor="equipment">{t("strength.equipment")}</Label>
+            <Select id="equipment" name="equipment" defaultValue={program.equipment}>
+              {EQUIPMENT_LEVELS.map((eq) => (
+                <option key={eq} value={eq}>
+                  {t(`strength.eq.${eq}` as DictKey)}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="daysPerWeek">{t("strength.days")}</Label>
+              <Select id="daysPerWeek" name="daysPerWeek" defaultValue={String(program.daysPerWeek)}>
+                {SESSION_DAY_OPTIONS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="minutesPerSession">{t("strength.minutes")}</Label>
+              <Select
+                id="minutesPerSession"
+                name="minutesPerSession"
+                defaultValue={String(program.minutesPerSession)}
+              >
+                {SESSION_TIME_OPTIONS.map((m) => (
+                  <option key={m} value={m}>
+                    {m} {t("common.minutes")}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+          <Button type="submit" variant="secondary" className="w-full">
+            {t("strength.updateSettings")}
+          </Button>
+        </form>
+      </details>
 
       <ExplainPanel />
     </div>

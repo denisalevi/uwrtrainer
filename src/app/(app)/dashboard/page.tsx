@@ -96,18 +96,26 @@ export default async function DashboardPage() {
           <Card>
             <ul className="divide-y divide-slate-100">
               {recent.map((log) => (
-                <li key={log.id} className="flex items-center justify-between px-4 py-3 text-sm">
-                  <div>
-                    <span className="font-medium text-slate-800">
-                      {log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey)}
-                    </span>
-                    <span className="ml-2 text-slate-400">
-                      {log.date.toLocaleDateString()}
-                    </span>
-                  </div>
-                  <Badge tone={log.status === "DONE" ? "green" : "red"}>
-                    {t(log.status === "DONE" ? "log.done" : "log.missed")}
-                  </Badge>
+                <li key={log.id}>
+                  <Link
+                    href={`/log/${log.id}`}
+                    className="flex items-center justify-between px-4 py-3 text-sm hover:bg-slate-50"
+                  >
+                    <div>
+                      <span className="font-medium text-slate-800">
+                        {log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey)}
+                      </span>
+                      <span className="ml-2 text-slate-400">
+                        {log.date.toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge tone={log.status === "DONE" ? "green" : "red"}>
+                        {t(log.status === "DONE" ? "log.done" : "log.missed")}
+                      </Badge>
+                      <span className="text-slate-300">›</span>
+                    </div>
+                  </Link>
                 </li>
               ))}
             </ul>
