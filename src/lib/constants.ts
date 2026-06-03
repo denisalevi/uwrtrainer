@@ -24,7 +24,7 @@ export type StrengthLift = (typeof STRENGTH_LIFTS)[number];
 export const STRENGTH_MODES = ["WEIGHTED", "REPS", "LEVELS"] as const;
 export type StrengthMode = (typeof STRENGTH_MODES)[number];
 
-/** What the athlete has access to. NONE = bodyweight only, fully supported. */
+/** What the athlete has access to. NONE = bodyweight only, fully supported. (legacy) */
 export const EQUIPMENT_LEVELS = [
   "NONE",
   "PULLUP_BAR",
@@ -33,6 +33,22 @@ export const EQUIPMENT_LEVELS = [
   "FULL_GYM",
 ] as const;
 export type EquipmentLevel = (typeof EQUIPMENT_LEVELS)[number];
+
+/**
+ * Individual tools an athlete can have — multi-select, chosen per training day.
+ * Bodyweight is always implied. KETTLEBELL/DUMBBELLS/BARBELL are "loadable" (enable
+ * weighted progression); PULLUP_BAR enables pulls.
+ */
+export const EQUIPMENT_TOOLS = [
+  "PULLUP_BAR",
+  "KETTLEBELL",
+  "DUMBBELLS",
+  "BARBELL",
+  "BANDS",
+  "MEDICINE_BALL",
+  "BENCH",
+] as const;
+export type EquipmentTool = (typeof EQUIPMENT_TOOLS)[number];
 
 /** The five movement patterns we train. PULL is added for UWR (Wendler omits it). */
 export const MOVEMENTS = ["PUSH", "PULL", "SQUAT", "HINGE", "PRESS"] as const;

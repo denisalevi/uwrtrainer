@@ -44,10 +44,12 @@ export function LogForm({
   slots,
   suggestions = [],
   existing,
+  hasProgram = false,
 }: {
   slots: Slot[];
   suggestions?: StrengthSuggestion[];
   existing?: ExistingSession;
+  hasProgram?: boolean;
 }) {
   const { t } = useT();
   const editing = !!existing;
@@ -184,7 +186,7 @@ export function LogForm({
 
                 {category === "STRENGTH" && (
                   <div className="space-y-3">
-                    {suggestions.length > 0 && !editing && (
+                    {hasProgram && !editing && (
                       <a
                         href="/strength/log"
                         className="flex items-center justify-between rounded-xl border border-teal-600 bg-teal-50 px-3 py-3 text-sm font-medium text-teal-800"

@@ -24,13 +24,20 @@ all** — not even a pull-up bar. No AI is involved: it's deterministic arithmet
 | 3 | 5/3/1+ | 95 % (the "test" week) |
 | 4 | deload | 60 % (easy) |
 
-## Three modes — picked from your equipment
+## Tools & days
 
-| You have… | Mode | How you progress |
-|-----------|------|------------------|
-| Nothing (bodyweight) | **LEVELS** | More reps, then a **harder variation** of the move |
-| A pull-up bar | **REPS** | More reps on the movement |
-| Dumbbells / barbell / gym | **WEIGHTED** | Add kilos (classic 5/3/1) |
+You set up **training days** (e.g. "Gym", "Home"), and for each day pick the **tools you have**
+that day (multi-select: pull-up bar, kettlebell, dumbbells, barbell, bands, medicine ball, bench
+— bodyweight is always available) and the session length. Suggestions adapt per day:
+
+| Tools that day | Suggested progression |
+|----------------|-----------------------|
+| Bodyweight only | reps, then a **harder variation** of the move |
+| A pull-up bar | adds pulls (pull-up progression) |
+| Loadable (kettlebell / dumbbells / barbell) | **add kilos** (classic 5/3/1) |
+
+When logging, each session you add exercise lines — pick a suggestion from the dropdown **or
+type your own** — and record your sets.
 
 The four movements are squat / deadlift / bench / overhead press (weighted), push / pull /
 squat / hinge (with a pull-up bar), or — pure bodyweight, no bar — push / squat / hinge /

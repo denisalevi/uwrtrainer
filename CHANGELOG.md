@@ -11,7 +11,19 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
-## [0.5.0] - 2026-06-03
+## [0.6.0] - 2026-06-03
+
+### Changed
+- **Per-day, flexible strength setup.** Equipment is now a **multi-select of tools** (pull-up
+  bar, kettlebell, dumbbells, barbell, bands, medicine ball, bench) chosen **per training day**
+  (e.g. "Gym", "Home"), each with its own session length. Replaces the single equipment level.
+- **Flexible workout logging.** Per session you now add exercise lines — **pick from a dropdown**
+  of tool-appropriate suggestions **or type your own** — and log your sets. Still auto-saves.
+- Suggestions adapt to each day's tools (weighted where you have load, bodyweight otherwise);
+  pulls only appear when you have a bar.
+- Settings now edit the full setup (days, tools, time, maxima) via the same form.
+
+
 
 ### Added
 - **Bilingual exercise names** — every movement, lift and bodyweight variation is now in

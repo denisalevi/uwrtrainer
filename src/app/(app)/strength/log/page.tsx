@@ -3,22 +3,9 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
-import type { StrengthMode } from "@/lib/constants";
-import {
-  currentWorkout,
-  programMovements,
-  incrementFor,
-  pickTemplate,
-  type ProgramState,
-} from "@/lib/strength";
-import { StrengthWorkoutLogger, type LoggerSession } from "@/components/strength-workout-logger";
 import type { DictKey } from "@/lib/i18n/dictionaries";
-
-function chunk<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += Math.max(1, size)) out.push(arr.slice(i, i + size));
-  return out;
-}
+import { suggestionsForTools, type ProgramState, type DayConfig } from "@/lib/strength";
+import { StrengthWorkoutLogger, type LoggerDay } from "@/components/strength-workout-logger";
 
 export default async function StrengthLogPage() {
   const user = await requireUser();
@@ -28,33 +15,23 @@ export default async function StrengthLogPage() {
     where: { userId: user.id, active: true },
     orderBy: { createdAt: "desc" },
   });
-  if (!program) redirect("/strength");
+  if (!program || !program.days || program.days === "[]") redirect("/strength");
 
-  const mode = program.mode as StrengthMode;
   const state: ProgramState = JSON.parse(program.movements);
-  const template = pickTemplate(program.daysPerWeek, program.minutesPerSession);
-  const movements = programMovements(mode);
+  const days: DayConfig[] = JSON.parse(program.days);
 
-  const sessions: LoggerSession[] = chunk(movements, template.movementsPerSession).map(
-    (group, index) => ({
-      index,
-      movements: group.map((m) => {
-        const w = currentWorkout(mode, m, state[m] ?? {}, program.week, {
-          increment: incrementFor(m),
-          withAssistance: template.withAssistance,
-        });
-        return {
-          key: m,
-          label: t(w.movementLabel as DictKey),
-          sets: w.sets.map((s) => ({
-            targetReps: s.reps,
-            targetWeight: s.weight,
-            amrap: !!s.amrap,
-          })),
-        };
-      }),
-    }),
-  );
+  const loggerDays: LoggerDay[] = days.map((day) => ({
+    id: day.id,
+    name: day.name,
+    minutes: day.minutes,
+    suggestions: suggestionsForTools(day.tools, state, program.week, {
+      rounding: program.rounding,
+    }).map((s) => ({
+      id: s.id,
+      label: t(s.labelKey as DictKey),
+      sets: s.sets.map((x) => ({ reps: x.reps, weight: x.weight ?? null, amrap: !!x.amrap })),
+    })),
+  }));
 
   // Resume today's workout draft, if any.
   const start = new Date();
@@ -81,7 +58,7 @@ export default async function StrengthLogPage() {
         programId={program.id}
         cycle={program.cycle}
         week={program.week}
-        sessions={sessions}
+        days={loggerDays}
         resume={resume}
         today={start.toISOString().slice(0, 10)}
       />

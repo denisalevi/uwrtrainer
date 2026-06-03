@@ -4,44 +4,43 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/i18n-provider";
 import { saveStrengthWorkout } from "@/app/actions/strength";
-import { Button, Card, CardBody, Input, Label, SectionTitle, cn } from "@/components/ui";
+import { Button, Card, CardBody, Input, Label, Select, cn } from "@/components/ui";
 
-type SetTarget = { targetReps: number; targetWeight?: number; amrap: boolean };
-type LoggerMovement = { key: string; label: string; sets: SetTarget[] };
-export type LoggerSession = { index: number; movements: LoggerMovement[] };
+type SetTarget = { reps: number; weight: number | null; amrap: boolean };
+type Suggestion = { id: string; label: string; sets: SetTarget[] };
+export type LoggerDay = { id: string; name: string; minutes: number; suggestions: Suggestion[] };
 
-type Values = Record<string, { reps?: string; weight?: string }>; // key `${mvKey}:${setIdx}`
+type SetVal = { weight: string; reps: string };
+type Line = { key: string; exerciseId: string; name: string; sets: SetVal[] };
 
-function cellKey(mvKey: string, setIdx: number) {
-  return `${mvKey}:${setIdx}`;
-}
+let uid = 0;
+const nextKey = () => `l${Date.now()}_${uid++}`;
 
 export function StrengthWorkoutLogger({
   programId,
   cycle,
   week,
-  sessions,
+  days,
   resume,
   today,
 }: {
   programId: string;
   cycle: number;
   week: number;
-  sessions: LoggerSession[];
+  days: LoggerDay[];
   resume: { id: string; details: string; durationMin: number | null } | null;
   today: string;
 }) {
   const { t } = useT();
   const router = useRouter();
 
-  // Restore a draft if we're resuming today's workout.
   const restored = resume ? safeParse(resume.details) : null;
-  const [sessionIndex, setSessionIndex] = useState<number>(
-    restored && typeof restored.sessionIndex === "number"
-      ? Math.min(restored.sessionIndex, sessions.length - 1)
-      : 0,
+  const [dayId, setDayId] = useState<string>(
+    (restored?.dayId as string) && days.some((d) => d.id === restored?.dayId)
+      ? (restored!.dayId as string)
+      : days[0]?.id ?? "",
   );
-  const [values, setValues] = useState<Values>(restored ? restoreValues(restored) : {});
+  const [lines, setLines] = useState<Line[]>(restored ? restoreLines(restored) : []);
   const [durationMin, setDurationMin] = useState<string>(
     resume?.durationMin != null ? String(resume.durationMin) : "",
   );
@@ -49,9 +48,7 @@ export function StrengthWorkoutLogger({
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dirty = useRef(false);
-
-  const session = sessions[sessionIndex] ?? sessions[0];
+  const day = days.find((d) => d.id === dayId) ?? days[0];
 
   function buildDetails(): string {
     return JSON.stringify({
@@ -59,20 +56,14 @@ export function StrengthWorkoutLogger({
       programId,
       cycle,
       week,
-      sessionIndex,
-      movements: session.movements.map((mv) => ({
-        key: mv.key,
-        label: mv.label,
-        sets: mv.sets.map((s, si) => {
-          const v = values[cellKey(mv.key, si)] ?? {};
-          return {
-            targetReps: s.targetReps,
-            targetWeight: s.targetWeight,
-            amrap: s.amrap,
-            reps: v.reps ? Number(v.reps) : null,
-            weight: v.weight ? Number(v.weight) : null,
-          };
-        }),
+      dayId,
+      dayName: day?.name,
+      exercises: lines.map((l) => ({
+        name: l.name,
+        sets: l.sets.map((s) => ({
+          weight: s.weight ? Number(s.weight) : null,
+          reps: s.reps ? Number(s.reps) : null,
+        })),
       })),
     });
   }
@@ -87,109 +78,178 @@ export function StrengthWorkoutLogger({
         details: buildDetails(),
       });
       setLogId(res.id);
-      dirty.current = false;
       setStatus("saved");
     } catch {
       setStatus("idle");
     }
   }
-
   function scheduleSave() {
-    dirty.current = true;
     setStatus("saving");
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(save, 600);
   }
-
-  // Flush a pending save when leaving the page.
-  useEffect(() => {
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
   }, []);
 
-  function setCell(mvKey: string, setIdx: number, field: "reps" | "weight", val: string) {
-    setValues((prev) => ({
-      ...prev,
-      [cellKey(mvKey, setIdx)]: { ...prev[cellKey(mvKey, setIdx)], [field]: val },
-    }));
+  function mutate(fn: (ls: Line[]) => Line[]) {
+    setLines((ls) => fn(ls));
     scheduleSave();
+  }
+
+  function addExercise() {
+    const sug = day?.suggestions[0];
+    const line: Line = sug
+      ? {
+          key: nextKey(),
+          exerciseId: sug.id,
+          name: sug.label,
+          sets: sug.sets.map((s) => ({ weight: s.weight != null ? String(s.weight) : "", reps: "" })),
+        }
+      : { key: nextKey(), exerciseId: "custom", name: "", sets: [{ weight: "", reps: "" }] };
+    mutate((ls) => [...ls, line]);
+  }
+
+  function pickExercise(key: string, exerciseId: string) {
+    mutate((ls) =>
+      ls.map((l) => {
+        if (l.key !== key) return l;
+        if (exerciseId === "custom") return { ...l, exerciseId, name: "", sets: [{ weight: "", reps: "" }] };
+        const sug = day?.suggestions.find((s) => s.id === exerciseId);
+        if (!sug) return { ...l, exerciseId };
+        return {
+          ...l,
+          exerciseId,
+          name: sug.label,
+          sets: sug.sets.map((s) => ({ weight: s.weight != null ? String(s.weight) : "", reps: "" })),
+        };
+      }),
+    );
+  }
+
+  const setField = (key: string, i: number, field: keyof SetVal, val: string) =>
+    mutate((ls) =>
+      ls.map((l) =>
+        l.key === key ? { ...l, sets: l.sets.map((s, j) => (j === i ? { ...s, [field]: val } : s)) } : l,
+      ),
+    );
+  const addSet = (key: string) =>
+    mutate((ls) => ls.map((l) => (l.key === key ? { ...l, sets: [...l.sets, { weight: "", reps: "" }] } : l)));
+  const removeLine = (key: string) => mutate((ls) => ls.filter((l) => l.key !== key));
+
+  function suggestionFor(l: Line): Suggestion | undefined {
+    return day?.suggestions.find((s) => s.id === l.exerciseId);
   }
 
   return (
     <div className="space-y-4">
       {/* Day selector */}
-      {sessions.length > 1 && (
+      {days.length > 1 && (
         <div>
           <Label>{t("strength.chooseDay")}</Label>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            {sessions.map((s) => (
+            {days.map((d) => (
               <button
-                key={s.index}
+                key={d.id}
                 type="button"
                 onClick={() => {
-                  setSessionIndex(s.index);
+                  setDayId(d.id);
                   scheduleSave();
                 }}
                 className={cn(
                   "rounded-xl border px-3 py-2 text-sm font-medium",
-                  s.index === sessionIndex
+                  d.id === dayId
                     ? "border-teal-600 bg-teal-50 text-teal-800"
                     : "border-slate-200 bg-white text-slate-600",
                 )}
               >
-                {t("strength.session")} {s.index + 1}
+                {d.name}
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* Movements with per-set inputs */}
-      {session.movements.map((mv) => (
-        <Card key={mv.key}>
-          <CardBody className="space-y-3">
-            <SectionTitle>{mv.label}</SectionTitle>
-            <div className="space-y-2">
-              {mv.sets.map((s, si) => {
-                const v = values[cellKey(mv.key, si)] ?? {};
-                const weighted = s.targetWeight != null;
-                return (
-                  <div key={si} className="flex items-center gap-2">
-                    <span className="w-14 shrink-0 text-xs text-slate-500">
-                      {t("strength.set")} {si + 1}
-                    </span>
-                    <span className="w-24 shrink-0 text-xs text-slate-400">
-                      {t("strength.target")}: {weighted ? `${s.targetWeight}kg×` : ""}
-                      {s.amrap ? `${s.targetReps}+` : s.targetReps}
-                    </span>
-                    {weighted && (
+      {/* Exercise lines */}
+      {lines.map((l) => {
+        const sug = suggestionFor(l);
+        const showWeight = l.exerciseId === "custom" || (sug?.sets.some((s) => s.weight != null) ?? false);
+        return (
+          <Card key={l.key}>
+            <CardBody className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Select
+                  className="flex-1"
+                  value={l.exerciseId}
+                  onChange={(e) => pickExercise(l.key, e.target.value)}
+                >
+                  {day?.suggestions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.label}
+                    </option>
+                  ))}
+                  <option value="custom">{t("strength.customExercise")}</option>
+                </Select>
+                <Button type="button" variant="ghost" size="sm" onClick={() => removeLine(l.key)}>
+                  ✕
+                </Button>
+              </div>
+
+              {l.exerciseId === "custom" && (
+                <Input
+                  placeholder={t("strength.exerciseName")}
+                  value={l.name}
+                  onChange={(e) =>
+                    mutate((ls) => ls.map((x) => (x.key === l.key ? { ...x, name: e.target.value } : x)))
+                  }
+                />
+              )}
+
+              <div className="space-y-2">
+                {l.sets.map((s, i) => {
+                  const target = sug?.sets[i];
+                  return (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="w-12 shrink-0 text-xs text-slate-500">
+                        {t("strength.set")} {i + 1}
+                      </span>
+                      {showWeight && (
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          placeholder="kg"
+                          className="w-20"
+                          value={s.weight}
+                          onChange={(e) => setField(l.key, i, "weight", e.target.value)}
+                        />
+                      )}
                       <Input
                         type="number"
-                        inputMode="decimal"
+                        inputMode="numeric"
                         min={0}
-                        placeholder="kg"
+                        placeholder={
+                          target ? `${target.reps}${target.amrap ? "+" : ""}` : t("strength.reps")
+                        }
                         className="w-20"
-                        value={v.weight ?? ""}
-                        onChange={(e) => setCell(mv.key, si, "weight", e.target.value)}
+                        value={s.reps}
+                        onChange={(e) => setField(l.key, i, "reps", e.target.value)}
                       />
-                    )}
-                    <Input
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      placeholder={t("strength.reps")}
-                      className="w-20"
-                      value={v.reps ?? ""}
-                      onChange={(e) => setCell(mv.key, si, "reps", e.target.value)}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </CardBody>
-        </Card>
-      ))}
+                    </div>
+                  );
+                })}
+                <Button type="button" variant="ghost" size="sm" onClick={() => addSet(l.key)}>
+                  + {t("strength.addSet")}
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        );
+      })}
+
+      <Button type="button" variant="secondary" onClick={addExercise} className="w-full">
+        + {t("strength.addExercise")}
+      </Button>
 
       {/* Duration */}
       <div>
@@ -222,7 +282,7 @@ export function StrengthWorkoutLogger({
           type="button"
           onClick={async () => {
             if (timer.current) clearTimeout(timer.current);
-            if (dirty.current || !logId) await save();
+            await save();
             router.push("/dashboard");
           }}
         >
@@ -241,16 +301,15 @@ function safeParse(s: string): Record<string, unknown> | null {
   }
 }
 
-function restoreValues(details: Record<string, unknown>): Values {
-  const out: Values = {};
-  const movements = Array.isArray(details.movements) ? details.movements : [];
-  for (const mv of movements as Array<{ key: string; sets?: Array<Record<string, unknown>> }>) {
-    (mv.sets ?? []).forEach((s, si) => {
-      out[cellKey(mv.key, si)] = {
-        reps: s.reps != null ? String(s.reps) : undefined,
-        weight: s.weight != null ? String(s.weight) : undefined,
-      };
-    });
-  }
-  return out;
+function restoreLines(details: Record<string, unknown>): Line[] {
+  const ex = Array.isArray(details.exercises) ? details.exercises : [];
+  return (ex as Array<{ name?: string; sets?: Array<Record<string, unknown>> }>).map((e) => ({
+    key: nextKey(),
+    exerciseId: "custom",
+    name: String(e.name ?? ""),
+    sets: (e.sets ?? []).map((s) => ({
+      weight: s.weight != null ? String(s.weight) : "",
+      reps: s.reps != null ? String(s.reps) : "",
+    })),
+  }));
 }

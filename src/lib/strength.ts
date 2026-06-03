@@ -17,6 +17,7 @@ import {
   STRENGTH_MODES,
   type StrengthMode,
   type EquipmentLevel,
+  MOVEMENTS,
   MOVEMENT_LEVELS,
   type MovementKey,
   type StrengthLift,
@@ -449,5 +450,78 @@ export function defaultStartState(mode: StrengthMode): ProgramState {
     // Start at the easiest variation we offer (already a sensible baseline), 5-rep base.
     else out[m] = { repMax: 5, levelIndex: 0 };
   }
+  return out;
+}
+
+/** Starting state covering all five movement patterns (both weighted + bodyweight fields). */
+export function defaultFullState(): ProgramState {
+  const out: ProgramState = {};
+  for (const m of MOVEMENTS) out[m] = { trainingMax: 0, repMax: 5, levelIndex: 0 };
+  return out;
+}
+
+// ───────────────────────────────────── Per-day tools → exercise suggestions ──
+
+/** A training day: a name, the tools available that day, and minutes. */
+export type DayConfig = { id: string; name: string; tools: string[]; minutes: number };
+
+/** Does this tool set allow loaded (weighted) work? */
+export function hasLoadable(tools: string[]): boolean {
+  return tools.some((t) => t === "BARBELL" || t === "DUMBBELLS" || t === "KETTLEBELL");
+}
+/** Does this tool set allow pulls (something to hang from)? */
+export function hasBar(tools: string[]): boolean {
+  return tools.includes("PULLUP_BAR");
+}
+
+export type WorkoutSuggestion = {
+  id: string; // e.g. "SQUAT-WEIGHTED"
+  movement: MovementKey;
+  variant: "WEIGHTED" | "BODYWEIGHT";
+  labelKey: string; // i18n key
+  sets: WorkoutSet[];
+};
+
+/**
+ * Build the exercise options for a day from its tools. Offers a bodyweight option for each
+ * movement and, where the tools allow, a weighted option too — plus pulls only when there's
+ * a bar. The logger lists these in a dropdown (and you can always type your own instead).
+ * State that's missing falls back to gentle defaults so suggestions always work.
+ */
+export function suggestionsForTools(
+  tools: string[],
+  state: ProgramState,
+  week: number,
+  opts: { rounding?: number } = {},
+): WorkoutSuggestion[] {
+  void opts;
+  const loadable = hasLoadable(tools);
+  const bar = hasBar(tools);
+  const out: WorkoutSuggestion[] = [];
+
+  const pushBodyweight = (m: MovementKey) => {
+    const s = state[m] ?? {};
+    const w = bodyweightWorkout(s.repMax ?? 5, week, {
+      mode: "LEVELS",
+      movementLabel: movementLabel("LEVELS", m, s.levelIndex ?? 0),
+    });
+    out.push({ id: `${m}-BODYWEIGHT`, movement: m, variant: "BODYWEIGHT", labelKey: w.movementLabel, sets: w.sets });
+  };
+  const pushWeighted = (m: MovementKey) => {
+    const w = weightedWorkout(state[m]?.trainingMax ?? 0, week, {
+      increment: incrementFor(m),
+      movementLabel: movementLabel("WEIGHTED", m),
+    });
+    out.push({ id: `${m}-WEIGHTED`, movement: m, variant: "WEIGHTED", labelKey: w.movementLabel, sets: w.sets });
+  };
+
+  for (const m of ["SQUAT", "HINGE", "PUSH", "PRESS"] as MovementKey[]) {
+    pushBodyweight(m);
+    if (loadable) pushWeighted(m);
+  }
+  // Pull only when you can actually hang or load a row.
+  if (bar) pushBodyweight("PULL");
+  if (loadable) pushWeighted("PULL");
+
   return out;
 }

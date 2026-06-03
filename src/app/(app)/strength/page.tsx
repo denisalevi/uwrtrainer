@@ -28,7 +28,11 @@ export default async function StrengthPage() {
         <h1 className="text-2xl font-bold text-slate-900">{t("strength.title")}</h1>
         <p className="mt-1 text-sm text-slate-500">{t("strength.intro")}</p>
       </header>
-      {program ? <StrengthProgramView program={program} /> : <StrengthWizard />}
+      {program && program.days && program.days !== "[]" ? (
+        <StrengthProgramView program={program} />
+      ) : (
+        <StrengthWizard />
+      )}
     </div>
   );
 }
