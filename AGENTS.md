@@ -55,16 +55,22 @@ docker run -d --name uwr-dev -p 3000:3000 -v "$PWD":/app -v uwr-npm-cache-deb:/r
   fly** — there is no cache table, by design (robustness over micro-perf for a small team).
 - **Strength program** (pure, unit-tested): `src/lib/strength.ts` — a Wendler 5/3/1 engine
   that also works with zero equipment. Five movement patterns (push/pull/squat/hinge/press).
-  Setup is **per training day**: the `StrengthProgram` model holds `days` (JSON
-  `[{id,name,tools[],minutes}]` — equipment is a multi-select of tools per day) and `movements`
-  (JSON per-movement maxima: `{trainingMax?, repMax?, levelIndex?}`). `suggestionsForTools()`
-  builds each day's exercise options (weighted where the tools are loadable, bodyweight
-  otherwise; pull only with a bar). Exercise/lift names are **i18n keys** (`ex.*`/`lift.*`) the
-  engine returns and the UI translates. Actions: `actions/strength.ts`. UI: `/strength` (view +
-  `program-form` for setup/settings), `/strength/log` (`strength-workout-logger` — pick a
-  suggestion or type a custom exercise, debounced autosave via `saveStrengthWorkout`). Model
-  explained in `TRAINING.md`. Server-action files export **only async functions** (pure helpers
-  like `incrementFor`/`suggestionsForTools` live in `strength.ts`) — webpack build enforces this.
+  Setup is **slot-based**: a single top-level `equipment` choice (`"WEIGHTS"|"BODYWEIGHT"`)
+  preselects defaults. The `StrengthProgram` model holds `days` (JSON
+  `[{id,name,minutes,slots:[{movement,exerciseId,mode,tool,custom?}]}]`) and `movements` (JSON
+  per-movement maxima `{trainingMax?,repMax?,levelIndex?}`, **shared across all slots/days**).
+  `EXERCISE_CATALOG` lists each movement's variants (barbell/dumbbell/kettlebell/bodyweight) for
+  the Modify picker; `defaultSlots()`/`defaultDay()` build the presets; `workoutForSlot()` turns a
+  slot + state + week into sets (weighted reads `trainingMax`, bodyweight reads `repMax`).
+  Whether defaults include a pull/row is the **team setting** `strength.includePull` (Setting
+  table, default on). Exercise/lift names are **i18n keys** (`ex.*`/`lift.*`) the engine returns
+  and the UI translates. Actions: `actions/strength.ts` (+ `updateStrengthIncludePull` in
+  `actions/trainer.ts`). UI: `/strength` (view + `program-form` for setup/settings — top-level
+  toggle, per-day slot cards with inline maxima + Modify picker, add-day copies the previous
+  day), `/strength/log` (`strength-workout-logger` — day's slots preselected as lines, or type a
+  custom exercise, debounced autosave via `saveStrengthWorkout`). Model explained in
+  `TRAINING.md`. Server-action files export **only async functions** (pure helpers like
+  `incrementFor`/`workoutForSlot`/`defaultDay` live in `strength.ts`) — webpack build enforces this.
 - **i18n**: `src/lib/i18n/` — `en`/`de` dictionaries (flat dotted keys), server helper
   `getServerT()`, client `useT()` (`src/components/i18n-provider.tsx`). Locale is **per user**
   (`User.locale`), applied in the root layout.

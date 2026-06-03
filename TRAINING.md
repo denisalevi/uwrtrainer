@@ -24,27 +24,33 @@ all** — not even a pull-up bar. No AI is involved: it's deterministic arithmet
 | 3 | 5/3/1+ | 95 % (the "test" week) |
 | 4 | deload | 60 % (easy) |
 
-## Tools & days
+## Equipment & days
 
-You set up **training days** (e.g. "Gym", "Home"), and for each day pick the **tools you have**
-that day (multi-select: pull-up bar, kettlebell, dumbbells, barbell, bands, medicine ball, bench
-— bodyweight is always available) and the session length. Suggestions adapt per day:
+Setup starts with **one choice**: **"I have weights"** or **"Bodyweight only"** (bodyweight
+assumes a pull-up bar). That preselects a default exercise for each movement — the classic
+barbell lifts (squat / bench / deadlift / overhead press, and a row if the trainer enables a
+pull), or the bodyweight ladders.
 
-| Tools that day | Suggested progression |
-|----------------|-----------------------|
-| Bodyweight only | reps, then a **harder variation** of the move |
-| A pull-up bar | adds pulls (pull-up progression) |
-| Loadable (kettlebell / dumbbells / barbell) | **add kilos** (classic 5/3/1) |
+You then set up **training days** (e.g. "Gym", "Home"). Each day is a list of **exercise slots**,
+one per movement, each shown with the exercise and the tool it needs (e.g. *Bench press
+(Barbell)*). **Adding a day copies the previous day**, so you only adjust what's different.
 
-When logging, each session you add exercise lines — pick a suggestion from the dropdown **or
-type your own** — and record your sets.
+Any slot has a **Modify** button opening a picker of alternatives for that movement, grouped
+**With weights** (barbell / dumbbell / kettlebell) and **Without weights** (the bodyweight
+ladder), plus a *type-your-own* option. So a weights program can drop a single exercise to
+bodyweight (or vice-versa) — e.g. you have a barbell for squats but only do push-ups for chest.
 
-The four movements are squat / deadlift / bench / overhead press (weighted), push / pull /
-squat / hinge (with a pull-up bar), or — pure bodyweight, no bar — push / squat / hinge /
-overhead (no pull, since pull-ups need something to hang from). The **bodyweight ladders** go
-easiest → hardest at a realistic starting point, e.g. push: *knee push-up → push-up →
-feet-elevated → archer → one-arm*. Graduating to the next rung replaces adding weight.
-Exercise names are shown in the app in English and German.
+**Maxima are per movement, shared across all days**: you enter one working weight (kg) for each
+weighted movement and one rep target for each bodyweight movement, inline on the slot.
+
+The five movement patterns are squat / hinge (deadlift) / push (bench) / press (overhead) and an
+optional pull (row / pull-up). The **bodyweight ladders** go easiest → hardest at a realistic
+starting point, e.g. push: *knee push-up → push-up → feet-elevated → archer → one-arm*; picking
+a harder variation in Modify sets your starting rung. Exercise names are shown in English and
+German.
+
+When logging, the day's exercises are **preselected** as lines — you just type the sets you did
+(or swap an exercise / type your own), and it auto-saves as you go.
 
 ## Starting out — how the first numbers are set
 
@@ -83,6 +89,9 @@ You choose **days (1–4)** and **minutes per session**; the app maps that to a 
 | 2 | two movements per session |
 | 1 | one short full-body session |
 
-Sessions of **≤ 30 min** automatically drop the extra assistance volume and keep the main work.
-Most UWR players also train rugby 1–3×/week, so **2 strength days** is a sensible default — and
-the rugby practices stay the priority.
+**Extra volume (Boring But Big).** Pick a session length per day. Sessions of **60 min or more**
+add Wendler's optional "Boring But Big" assistance — **5 sets of 10** at about **50 %** of the
+training max — to build muscle on top of the main work. Shorter sessions (e.g. 30–45 min)
+**drop it automatically** and keep just the main 5/3/1 sets; those sets are what drive progress,
+so a short day still "counts". Most UWR players also train rugby 1–3×/week, so **2 strength
+days** is a sensible default — and the rugby practices stay the priority.

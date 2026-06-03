@@ -55,6 +55,26 @@ export const MOVEMENTS = ["PUSH", "PULL", "SQUAT", "HINGE", "PRESS"] as const;
 export type MovementKey = (typeof MOVEMENTS)[number];
 
 /**
+ * Top-level program choice (replaces the old per-day tool multi-select). WEIGHTS preselects
+ * the classic barbell Wendler lifts; BODYWEIGHT preselects the bodyweight ladders (and assumes
+ * a pull-up bar). Individual exercises can still be swapped per-slot via the Modify picker.
+ */
+export const PROGRAM_EQUIPMENT = ["WEIGHTS", "BODYWEIGHT"] as const;
+export type ProgramEquipment = (typeof PROGRAM_EQUIPMENT)[number];
+
+/** Per-slot progression: a loaded lift (kg) or a bodyweight exercise (reps). */
+export const SLOT_MODES = ["WEIGHTED", "BODYWEIGHT"] as const;
+export type SlotMode = (typeof SLOT_MODES)[number];
+
+/** The tool a single exercise variant needs — drives the "(Barbell)" label on a slot. */
+export const SLOT_TOOLS = ["BARBELL", "DUMBBELLS", "KETTLEBELL", "BODYWEIGHT"] as const;
+export type SlotTool = (typeof SLOT_TOOLS)[number];
+
+/** Global (trainer) setting: whether default plans include a pull/row movement. */
+export const SETTING_INCLUDE_PULL = "strength.includePull";
+export const DEFAULT_INCLUDE_PULL = true;
+
+/**
  * Bodyweight difficulty ladders (easiest → hardest) for LEVELS mode. Values are i18n keys
  * (translated in the UI); start points are realistic for an active team — push starts at the
  * knee push-up, no easier. "Graduating" to the next entry replaces adding weight.

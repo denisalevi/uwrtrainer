@@ -3,8 +3,9 @@
 import { useT } from "@/components/i18n-provider";
 import { createStrengthProgram } from "@/app/actions/strength";
 import { ProgramForm } from "@/components/program-form";
+import { defaultDay } from "@/lib/strength";
 
-export function StrengthWizard() {
+export function StrengthWizard({ includePull }: { includePull: boolean }) {
   const { t } = useT();
   return (
     <div className="space-y-3">
@@ -13,7 +14,9 @@ export function StrengthWizard() {
         action={createStrengthProgram}
         mode="create"
         submitLabelKey="strength.create"
-        initialDays={[{ id: "d0", name: "", tools: [], minutes: 45 }]}
+        initialEquipment="WEIGHTS"
+        initialDays={[defaultDay("WEIGHTS", includePull)]}
+        includePull={includePull}
       />
     </div>
   );

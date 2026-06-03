@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
-import { isTrainer, PRACTICE_TIERS, LEADERBOARD_VISIBILITY } from "@/lib/constants";
+import { isTrainer, PRACTICE_TIERS, LEADERBOARD_VISIBILITY, SETTING_INCLUDE_PULL } from "@/lib/constants";
 
 async function requireTrainerAction() {
   const user = await getCurrentUser();
@@ -54,6 +54,21 @@ export async function updateLeaderboards(formData: FormData) {
   );
   revalidatePath("/settings");
   revalidatePath("/leaderboards");
+  redirect("/settings");
+}
+
+/** Toggle whether default strength plans include a pull/row movement (team-wide). */
+export async function updateStrengthIncludePull(formData: FormData) {
+  await requireTrainerAction();
+  const on = formData.get("includePull") === "on";
+  const value = on ? "true" : "false";
+  await prisma.setting.upsert({
+    where: { key: SETTING_INCLUDE_PULL },
+    update: { value },
+    create: { key: SETTING_INCLUDE_PULL, value },
+  });
+  revalidatePath("/settings");
+  revalidatePath("/strength");
   redirect("/settings");
 }
 

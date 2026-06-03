@@ -2,9 +2,9 @@ import Link from "next/link";
 import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
-import { isTrainer } from "@/lib/constants";
+import { isTrainer, SETTING_INCLUDE_PULL, DEFAULT_INCLUDE_PULL } from "@/lib/constants";
 import { setLocale } from "@/app/actions/settings";
-import { updateLeaderboards } from "@/app/actions/trainer";
+import { updateLeaderboards, updateStrengthIncludePull } from "@/app/actions/trainer";
 import { logout } from "@/app/actions/auth";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Button, Card, CardBody, Label, Select, SectionTitle } from "@/components/ui";
@@ -17,6 +17,10 @@ export default async function SettingsPage() {
   const boards = trainer
     ? await prisma.leaderboard.findMany({ orderBy: { sortOrder: "asc" } })
     : [];
+  const pullSetting = trainer
+    ? await prisma.setting.findUnique({ where: { key: SETTING_INCLUDE_PULL } })
+    : null;
+  const includePull = pullSetting ? pullSetting.value !== "false" : DEFAULT_INCLUDE_PULL;
 
   return (
     <div className="space-y-6">
@@ -82,6 +86,32 @@ export default async function SettingsPage() {
               {t("slots.title")} →
             </Button>
           </Link>
+        </section>
+      )}
+
+      {/* Strength program settings (trainers) */}
+      {trainer && (
+        <section className="space-y-2">
+          <SectionTitle>{t("set.strengthSection")}</SectionTitle>
+          <form action={updateStrengthIncludePull}>
+            <Card>
+              <CardBody className="space-y-2">
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    name="includePull"
+                    defaultChecked={includePull}
+                    className="h-5 w-5 rounded border-slate-300 text-teal-600 focus:ring-teal-400"
+                  />
+                  <span className="flex-1 text-sm font-medium text-slate-800">{t("set.includePull")}</span>
+                </label>
+                <p className="pl-8 text-xs text-slate-500">{t("set.includePullHint")}</p>
+              </CardBody>
+            </Card>
+            <Button type="submit" className="mt-3 w-full">
+              {t("common.save")}
+            </Button>
+          </form>
         </section>
       )}
 

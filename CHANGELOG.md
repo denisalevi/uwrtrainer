@@ -11,6 +11,33 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-03
+
+### Changed
+- **Much simpler strength setup.** Replaced the per-day multi-select of seven tools with a single
+  top-level choice — **"I have weights"** or **"Bodyweight only"** — that preselects a sensible
+  default exercise for every movement (the classic barbell Wendler lifts, or the bodyweight
+  ladders). Bodyweight assumes a pull-up bar.
+- **Exercise slots with a Modify picker.** Each training day is now a list of preselected
+  exercise slots. Any slot's **Modify** button opens alternatives grouped *With weights*
+  (barbell / dumbbell / kettlebell) and *Without weights* (bodyweight), plus *type-your-own* — so
+  you can swap a single exercise (even from weighted to bodyweight) without changing the rest.
+- **Maxima are inline and shared per movement.** One clearly-labelled field per movement
+  (working weight in kg, or rep target) right on the slot — no more cramped double-rows or a
+  separate maxima block. The same movement on two days stays in sync.
+- **Adding a day copies the previous day** (exercises + length), so you don't re-enter everything.
+- **Clearer "extra volume".** Sessions of 60 min+ add Boring But Big (5×10 at ~50 %); shorter
+  ones drop it and keep the main 5/3/1 sets — explained inline and in the help panel.
+
+### Added
+- **Trainer setting: include a pull movement.** A team-wide toggle (on by default) controls
+  whether default plans add a row / pull-up, or stick to the classic four-lift Wendler
+  (squat / bench / deadlift / press).
+- **Dumbbell & kettlebell exercise variants** for every movement, in English and German.
+
+### Removed
+- The per-day tool multi-select and the standalone "Your maxima" section.
+
 ## [0.6.0] - 2026-06-03
 
 ### Changed

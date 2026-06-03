@@ -4,7 +4,14 @@ import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
 import type { DictKey } from "@/lib/i18n/dictionaries";
-import { suggestionsForTools, type ProgramState, type DayConfig } from "@/lib/strength";
+import {
+  workoutForSlot,
+  catalogEntry,
+  CUSTOM_EXERCISE_ID,
+  type ProgramState,
+  type Day,
+  type Slot,
+} from "@/lib/strength";
 import { StrengthWorkoutLogger, type LoggerDay } from "@/components/strength-workout-logger";
 
 export default async function StrengthLogPage() {
@@ -18,19 +25,25 @@ export default async function StrengthLogPage() {
   if (!program || !program.days || program.days === "[]") redirect("/strength");
 
   const state: ProgramState = JSON.parse(program.movements);
-  const days: DayConfig[] = JSON.parse(program.days);
+  const days: Day[] = JSON.parse(program.days);
+
+  const slotLabel = (slot: Slot): string =>
+    slot.exerciseId === CUSTOM_EXERCISE_ID
+      ? slot.custom || t("strength.exerciseName")
+      : t((catalogEntry(slot.movement, slot.exerciseId)?.labelKey ?? "") as DictKey);
 
   const loggerDays: LoggerDay[] = days.map((day) => ({
     id: day.id,
     name: day.name,
     minutes: day.minutes,
-    suggestions: suggestionsForTools(day.tools, state, program.week, {
-      rounding: program.rounding,
-    }).map((s) => ({
-      id: s.id,
-      label: t(s.labelKey as DictKey),
-      sets: s.sets.map((x) => ({ reps: x.reps, weight: x.weight ?? null, amrap: !!x.amrap })),
-    })),
+    suggestions: (day.slots ?? []).map((slot, i) => {
+      const w = workoutForSlot(slot, state, program.week, { rounding: program.rounding });
+      return {
+        id: `slot-${i}`,
+        label: slotLabel(slot),
+        sets: w.sets.map((x) => ({ reps: x.reps, weight: x.weight ?? null, amrap: !!x.amrap })),
+      };
+    }),
   }));
 
   // Resume today's workout draft, if any.

@@ -16,6 +16,17 @@ type Line = { key: string; exerciseId: string; name: string; sets: SetVal[] };
 let uid = 0;
 const nextKey = () => `l${Date.now()}_${uid++}`;
 
+/** Preselect one editable line per configured exercise on the day. */
+function seedLines(day: LoggerDay | undefined): Line[] {
+  if (!day) return [];
+  return day.suggestions.map((sug) => ({
+    key: nextKey(),
+    exerciseId: sug.id,
+    name: sug.label,
+    sets: sug.sets.map((s) => ({ weight: s.weight != null ? String(s.weight) : "", reps: "" })),
+  }));
+}
+
 export function StrengthWorkoutLogger({
   programId,
   cycle,
@@ -35,12 +46,14 @@ export function StrengthWorkoutLogger({
   const router = useRouter();
 
   const restored = resume ? safeParse(resume.details) : null;
-  const [dayId, setDayId] = useState<string>(
+  const initialDayId =
     (restored?.dayId as string) && days.some((d) => d.id === restored?.dayId)
       ? (restored!.dayId as string)
-      : days[0]?.id ?? "",
+      : days[0]?.id ?? "";
+  const [dayId, setDayId] = useState<string>(initialDayId);
+  const [lines, setLines] = useState<Line[]>(
+    restored ? restoreLines(restored) : seedLines(days.find((d) => d.id === initialDayId) ?? days[0]),
   );
-  const [lines, setLines] = useState<Line[]>(restored ? restoreLines(restored) : []);
   const [durationMin, setDurationMin] = useState<string>(
     resume?.durationMin != null ? String(resume.durationMin) : "",
   );
@@ -154,6 +167,7 @@ export function StrengthWorkoutLogger({
                 type="button"
                 onClick={() => {
                   setDayId(d.id);
+                  setLines(seedLines(d));
                   scheduleSave();
                 }}
                 className={cn(

@@ -12,7 +12,15 @@ import {
   nextBodyweight,
   modeForEquipment,
   pickTemplate,
+  EXERCISE_CATALOG,
+  catalogEntry,
+  programSlotMovements,
+  defaultSlot,
+  defaultSlots,
+  workoutForSlot,
+  type ProgramState,
 } from "./strength";
+import { MOVEMENTS } from "./constants";
 
 describe("estimateOneRepMax (Brzycki, matches source spreadsheet)", () => {
   it("returns the weight itself for a single rep", () => {
@@ -171,5 +179,65 @@ describe("pickTemplate (days × minutes → schedule)", () => {
     const t = pickTemplate(1, 60);
     expect(t.key).toBe("ONE_DAY");
     expect(t.withAssistance).toBe(false);
+  });
+});
+
+describe("EXERCISE_CATALOG", () => {
+  it("every movement has at least one weighted and one bodyweight option", () => {
+    for (const m of MOVEMENTS) {
+      const entries = EXERCISE_CATALOG[m];
+      expect(entries.some((e) => e.mode === "WEIGHTED")).toBe(true);
+      expect(entries.some((e) => e.mode === "BODYWEIGHT")).toBe(true);
+    }
+  });
+  it("entry ids are unique within a movement", () => {
+    for (const m of MOVEMENTS) {
+      const ids = EXERCISE_CATALOG[m].map((e) => e.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    }
+  });
+  it("weighted entries are loadable tools, bodyweight entries are BODYWEIGHT", () => {
+    for (const m of MOVEMENTS) {
+      for (const e of EXERCISE_CATALOG[m]) {
+        if (e.mode === "WEIGHTED") expect(e.tool).not.toBe("BODYWEIGHT");
+        else expect(e.tool).toBe("BODYWEIGHT");
+      }
+    }
+  });
+  it("catalogEntry resolves known ids and rejects unknown", () => {
+    expect(catalogEntry("PUSH", "PUSH_BB")?.tool).toBe("BARBELL");
+    expect(catalogEntry("PUSH", "nope")).toBeUndefined();
+  });
+});
+
+describe("defaults & program movements", () => {
+  it("includes PULL only when enabled", () => {
+    expect(programSlotMovements(true)).toContain("PULL");
+    expect(programSlotMovements(false)).not.toContain("PULL");
+    expect(programSlotMovements(false)).toEqual(["SQUAT", "HINGE", "PUSH", "PRESS"]);
+  });
+  it("Weights preselects barbell lifts, Bodyweight preselects bodyweight ladders", () => {
+    expect(defaultSlot("PUSH", "WEIGHTS")).toMatchObject({ mode: "WEIGHTED", tool: "BARBELL", exerciseId: "PUSH_BB" });
+    expect(defaultSlot("PUSH", "BODYWEIGHT")).toMatchObject({ mode: "BODYWEIGHT", tool: "BODYWEIGHT" });
+    expect(defaultSlot("PULL", "BODYWEIGHT").exerciseId).toBe("PULL_FULL"); // pull-up assumed
+  });
+  it("defaultSlots covers every program movement", () => {
+    expect(defaultSlots("WEIGHTS", true)).toHaveLength(5);
+    expect(defaultSlots("WEIGHTS", false)).toHaveLength(4);
+  });
+});
+
+describe("workoutForSlot", () => {
+  const state: ProgramState = { PUSH: { trainingMax: 100, repMax: 8 } };
+  it("weighted slot builds kg sets off the movement training max", () => {
+    const w = workoutForSlot({ movement: "PUSH", exerciseId: "PUSH_BB", mode: "WEIGHTED", tool: "BARBELL" }, state, 1);
+    expect(w.mode).toBe("WEIGHTED");
+    expect(w.sets[w.sets.length - 1].weight).toBe(85); // week 1 top set = 85% of 100
+  });
+  it("bodyweight slot builds rep sets off the rep max (cross-mode from a weights program)", () => {
+    const w = workoutForSlot({ movement: "PUSH", exerciseId: "PUSH_FULL", mode: "BODYWEIGHT", tool: "BODYWEIGHT" }, state, 1);
+    expect(w.mode).toBe("BODYWEIGHT");
+    expect(w.sets.every((s) => s.weight === undefined)).toBe(true);
+    expect(w.labelKey).toBe("ex.push.full");
   });
 });

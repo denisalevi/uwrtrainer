@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
+import { SETTING_INCLUDE_PULL, DEFAULT_INCLUDE_PULL } from "@/lib/constants";
 import { StrengthWizard } from "@/components/strength-wizard";
 import { StrengthProgramView } from "@/components/strength-program";
 
@@ -9,10 +10,14 @@ export default async function StrengthPage() {
   const user = await requireUser();
   const { t } = await getServerT();
 
-  const program = await prisma.strengthProgram.findFirst({
-    where: { userId: user.id, active: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const [program, pullSetting] = await Promise.all([
+    prisma.strengthProgram.findFirst({
+      where: { userId: user.id, active: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.setting.findUnique({ where: { key: SETTING_INCLUDE_PULL } }),
+  ]);
+  const includePull = pullSetting ? pullSetting.value !== "false" : DEFAULT_INCLUDE_PULL;
 
   return (
     <div className="space-y-4">
@@ -29,9 +34,9 @@ export default async function StrengthPage() {
         <p className="mt-1 text-sm text-slate-500">{t("strength.intro")}</p>
       </header>
       {program && program.days && program.days !== "[]" ? (
-        <StrengthProgramView program={program} />
+        <StrengthProgramView program={program} includePull={includePull} />
       ) : (
-        <StrengthWizard />
+        <StrengthWizard includePull={includePull} />
       )}
     </div>
   );

@@ -5,7 +5,19 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
-import { EQUIPMENT_TOOLS, MOVEMENTS, MOVEMENT_LEVELS, type MovementKey } from "@/lib/constants";
+import {
+  MOVEMENTS,
+  MOVEMENT_LEVELS,
+  SLOT_MODES,
+  SLOT_TOOLS,
+  PROGRAM_EQUIPMENT,
+  SETTING_INCLUDE_PULL,
+  DEFAULT_INCLUDE_PULL,
+  type MovementKey,
+  type ProgramEquipment,
+  type SlotMode,
+  type SlotTool,
+} from "@/lib/constants";
 import {
   estimateOneRepMax,
   trainingMaxFromOneRepMax,
@@ -15,9 +27,11 @@ import {
   nextBodyweight,
   incrementFor,
   waveWeek,
+  defaultDay,
   type ProgramState,
   type MovementState,
-  type DayConfig,
+  type Day,
+  type Slot,
 } from "@/lib/strength";
 
 // ───────────────────────────────────────────────────────────────── helpers ──
@@ -33,27 +47,76 @@ function clampMinutes(v: unknown): number {
   return Math.max(15, Math.min(180, n));
 }
 
-/** Parse the per-day config the wizard/settings send as a JSON string. Always ≥ 1 day. */
-function parseDays(raw: unknown): DayConfig[] {
+const SLOT_MODE_SET = SLOT_MODES as readonly string[];
+const SLOT_TOOL_SET = SLOT_TOOLS as readonly string[];
+const MOVEMENT_SET = MOVEMENTS as readonly string[];
+
+/** Validate the exercise slots a day carries; silently drops anything malformed. */
+function parseSlots(raw: unknown): Slot[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Slot[] = [];
+  for (const item of raw) {
+    const o = (item ?? {}) as Record<string, unknown>;
+    const movement = String(o.movement ?? "");
+    const mode = String(o.mode ?? "");
+    const tool = String(o.tool ?? "");
+    const exerciseId = String(o.exerciseId ?? "");
+    if (
+      !MOVEMENT_SET.includes(movement) ||
+      !SLOT_MODE_SET.includes(mode) ||
+      !SLOT_TOOL_SET.includes(tool) ||
+      !exerciseId
+    ) {
+      continue;
+    }
+    const custom = typeof o.custom === "string" && o.custom ? o.custom.slice(0, 60) : undefined;
+    out.push({
+      movement: movement as MovementKey,
+      mode: mode as SlotMode,
+      tool: tool as SlotTool,
+      exerciseId,
+      ...(custom ? { custom } : {}),
+    });
+  }
+  return out;
+}
+
+/**
+ * Parse the per-day config the wizard/settings send as a JSON string. Tolerates both the new
+ * slot shape and legacy `tools[]` days (which yield empty slots — the user re-runs setup).
+ * Always returns ≥ 1 day.
+ */
+function parseDays(raw: unknown, includePull: boolean): Day[] {
   let arr: unknown = [];
   try {
     arr = typeof raw === "string" ? JSON.parse(raw) : [];
   } catch {
     arr = [];
   }
-  const tools = EQUIPMENT_TOOLS as readonly string[];
-  const days: DayConfig[] = Array.isArray(arr)
+  const days: Day[] = Array.isArray(arr)
     ? arr.slice(0, 7).map((d, i) => {
         const o = (d ?? {}) as Record<string, unknown>;
         return {
           id: typeof o.id === "string" && o.id ? o.id : `d${i}_${Math.random().toString(36).slice(2, 8)}`,
           name: String(o.name ?? `Day ${i + 1}`).slice(0, 40),
-          tools: Array.isArray(o.tools) ? (o.tools as unknown[]).map(String).filter((t) => tools.includes(t)) : [],
           minutes: clampMinutes(o.minutes),
+          slots: parseSlots(o.slots),
         };
       })
     : [];
-  return days.length ? days : [{ id: "d0", name: "Training", tools: [], minutes: 45 }];
+  return days.length ? days : [defaultDay("WEIGHTS", includePull, "Training")];
+}
+
+/** The team-wide "include a pull movement" trainer setting (default on). */
+async function getIncludePull(): Promise<boolean> {
+  const row = await prisma.setting.findUnique({ where: { key: SETTING_INCLUDE_PULL } });
+  return row ? row.value !== "false" : DEFAULT_INCLUDE_PULL;
+}
+
+/** Read & validate the top-level equipment choice from the form (defaults to WEIGHTS). */
+function readEquipment(formData: FormData): ProgramEquipment {
+  const v = String(formData.get("equipment") ?? "");
+  return (PROGRAM_EQUIPMENT as readonly string[]).includes(v) ? (v as ProgramEquipment) : "WEIGHTS";
 }
 
 /** Read per-movement starting maxima (both weighted + bodyweight) from the form. */
@@ -86,7 +149,9 @@ export async function createStrengthProgram(formData: FormData) {
 
   const rounding = Number(formData.get("rounding")) || 2.5;
   const tmPct = Number(formData.get("trainingMaxPct")) || 0.9;
-  const days = parseDays(formData.get("days"));
+  const equipment = readEquipment(formData);
+  const includePull = await getIncludePull();
+  const days = parseDays(formData.get("days"), includePull);
   const state = readMaxima(formData, tmPct, rounding);
 
   await prisma.$transaction(async (tx) => {
@@ -98,7 +163,7 @@ export async function createStrengthProgram(formData: FormData) {
       data: {
         userId: user.id,
         mode: "CUSTOM",
-        equipment: "CUSTOM",
+        equipment,
         daysPerWeek: days.length,
         minutesPerSession: days[0]?.minutes ?? 45,
         trainingMaxPct: tmPct,
@@ -126,12 +191,15 @@ export async function updateStrengthSettings(formData: FormData) {
 
   const rounding = Number(formData.get("rounding")) || program.rounding;
   const tmPct = Number(formData.get("trainingMaxPct")) || program.trainingMaxPct;
-  const days = parseDays(formData.get("days"));
+  const equipment = readEquipment(formData);
+  const includePull = await getIncludePull();
+  const days = parseDays(formData.get("days"), includePull);
   const state = readMaxima(formData, tmPct, rounding);
 
   await prisma.strengthProgram.update({
     where: { id: program.id },
     data: {
+      equipment,
       daysPerWeek: days.length,
       minutesPerSession: days[0]?.minutes ?? program.minutesPerSession,
       trainingMaxPct: tmPct,

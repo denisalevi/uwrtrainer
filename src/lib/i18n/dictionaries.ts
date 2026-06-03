@@ -289,6 +289,37 @@ export const en = {
     "Where to start: enter a recent set and we estimate your numbers, or just start light. Better too easy than too hard.",
   "strength.explainSessions":
     "Days & time decide the schedule: 4 short days, or 2 longer sessions, or one minimal full-body day — your call.",
+  "strength.explainAssistance":
+    "Extra volume (Boring But Big): on 60+ minute sessions we add 5×10 at about 50% to build muscle. Short on time? It's dropped automatically — the main 5/3/1 sets are what matter.",
+
+  // ── Slot-based setup (v0.7) ──
+  "tool.BODYWEIGHT": "Bodyweight",
+  "lift.SQUAT.db": "Dumbbell squat",
+  "lift.SQUAT.kb": "Goblet squat (kettlebell)",
+  "lift.HINGE.db": "Dumbbell deadlift",
+  "lift.HINGE.kb": "Kettlebell deadlift",
+  "lift.PUSH.db": "Dumbbell bench press",
+  "lift.PUSH.kb": "Kettlebell floor press",
+  "lift.PRESS.db": "Dumbbell overhead press",
+  "lift.PRESS.kb": "Kettlebell overhead press",
+  "lift.PULL.db": "Dumbbell row",
+  "lift.PULL.kb": "Kettlebell row",
+  "strength.eqChoice.title": "Equipment",
+  "strength.eqChoice.WEIGHTS": "I have weights",
+  "strength.eqChoice.BODYWEIGHT": "Bodyweight only",
+  "strength.eqChoice.bwNote": "Assumes a pull-up bar is available.",
+  "strength.eqChoice.resetNote": "Switching this resets each day's exercises — your maxima are kept.",
+  "strength.modify": "Modify",
+  "strength.withWeights": "With weights",
+  "strength.withoutWeights": "Without weights",
+  "strength.typeOwn": "Type your own",
+  "strength.slotWeight": "Working weight (kg)",
+  "strength.minutesAssistHint":
+    "60+ min sessions add extra 'Boring But Big' volume (5×10 at ~50%). Shorter sessions keep just the main sets.",
+  "set.strengthSection": "Strength program",
+  "set.includePull": "Include a pull exercise",
+  "set.includePullHint":
+    "When on, new default plans include a pull (row / pull-up). Classic Wendler is squat, bench, deadlift and press only.",
 } as const;
 
 export type Dict = typeof en;
@@ -582,6 +613,38 @@ export const de: Record<DictKey, string> = {
     "Wo starten: einen kürzlichen Satz eingeben — wir schätzen deine Werte — oder einfach leicht beginnen. Lieber zu leicht als zu schwer.",
   "strength.explainSessions":
     "Tage & Zeit bestimmen den Plan: 4 kurze Tage, oder 2 längere Einheiten, oder ein minimaler Ganzkörper-Tag — deine Wahl.",
+  "strength.explainAssistance":
+    "Zusatzvolumen (Boring But Big): bei Einheiten ab 60 Min ergänzen wir 5×10 mit etwa 50 % für mehr Muskelaufbau. Wenig Zeit? Wird automatisch weggelassen — die 5/3/1-Hauptsätze zählen.",
+
+  // ── Slot-basiertes Setup (v0.7) ──
+  "tool.BODYWEIGHT": "Körpergewicht",
+  "lift.SQUAT.db": "Kurzhantel-Kniebeuge",
+  "lift.SQUAT.kb": "Goblet Squat (Kettlebell)",
+  "lift.HINGE.db": "Kurzhantel-Kreuzheben",
+  "lift.HINGE.kb": "Kettlebell-Kreuzheben",
+  "lift.PUSH.db": "Kurzhantel-Bankdrücken",
+  "lift.PUSH.kb": "Kettlebell-Bodendrücken",
+  "lift.PRESS.db": "Kurzhantel-Schulterdrücken",
+  "lift.PRESS.kb": "Kettlebell-Schulterdrücken",
+  "lift.PULL.db": "Kurzhantel-Rudern",
+  "lift.PULL.kb": "Kettlebell-Rudern",
+  "strength.eqChoice.title": "Ausrüstung",
+  "strength.eqChoice.WEIGHTS": "Ich habe Gewichte",
+  "strength.eqChoice.BODYWEIGHT": "Nur Körpergewicht",
+  "strength.eqChoice.bwNote": "Setzt eine Klimmzugstange voraus.",
+  "strength.eqChoice.resetNote":
+    "Ein Wechsel setzt die Übungen jedes Tages zurück — deine Maxima bleiben erhalten.",
+  "strength.modify": "Ändern",
+  "strength.withWeights": "Mit Gewichten",
+  "strength.withoutWeights": "Ohne Gewichte",
+  "strength.typeOwn": "Eigene eingeben",
+  "strength.slotWeight": "Arbeitsgewicht (kg)",
+  "strength.minutesAssistHint":
+    "Einheiten ab 60 Min ergänzen Zusatzvolumen ('Boring But Big', 5×10 mit ~50 %). Kürzere Einheiten behalten nur die Hauptsätze.",
+  "set.strengthSection": "Kraftprogramm",
+  "set.includePull": "Zugübung einbeziehen",
+  "set.includePullHint":
+    "Wenn aktiv, enthalten neue Standardpläne eine Zugübung (Rudern / Klimmzug). Klassisches Wendler ist nur Kniebeuge, Bankdrücken, Kreuzheben und Schulterdrücken.",
 };
 
 export const dictionaries = { en, de } as const;

@@ -21,6 +21,9 @@ import {
   MOVEMENT_LEVELS,
   type MovementKey,
   type StrengthLift,
+  type ProgramEquipment,
+  type SlotMode,
+  type SlotTool,
 } from "@/lib/constants";
 
 // ────────────────────────────────────────────────────────────── Estimating a max ──
@@ -460,68 +463,155 @@ export function defaultFullState(): ProgramState {
   return out;
 }
 
-// ───────────────────────────────────── Per-day tools → exercise suggestions ──
+// ───────────────────────────────────── Exercise slots & catalog ──
+//
+// Setup is slot-based: the player makes ONE top-level choice (weights vs bodyweight) which
+// preselects a default exercise per movement, and can then swap any individual slot to a
+// different tool (down to bodyweight, or a typed-in custom exercise) via the Modify picker.
+// Maxima stay per-movement in ProgramState and are shared across every slot/day.
 
-/** A training day: a name, the tools available that day, and minutes. */
-export type DayConfig = { id: string; name: string; tools: string[]; minutes: number };
-
-/** Does this tool set allow loaded (weighted) work? */
-export function hasLoadable(tools: string[]): boolean {
-  return tools.some((t) => t === "BARBELL" || t === "DUMBBELLS" || t === "KETTLEBELL");
-}
-/** Does this tool set allow pulls (something to hang from)? */
-export function hasBar(tools: string[]): boolean {
-  return tools.includes("PULLUP_BAR");
-}
-
-export type WorkoutSuggestion = {
-  id: string; // e.g. "SQUAT-WEIGHTED"
-  movement: MovementKey;
-  variant: "WEIGHTED" | "BODYWEIGHT";
-  labelKey: string; // i18n key
-  sets: WorkoutSet[];
+/** One exercise option for a movement: an id, its i18n label, the tool it needs, and mode. */
+export type CatalogEntry = {
+  id: string;
+  labelKey: string;
+  tool: SlotTool;
+  mode: SlotMode;
 };
 
 /**
- * Build the exercise options for a day from its tools. Offers a bodyweight option for each
- * movement and, where the tools allow, a weighted option too — plus pulls only when there's
- * a bar. The logger lists these in a dropdown (and you can always type your own instead).
- * State that's missing falls back to gentle defaults so suggestions always work.
+ * A configured exercise on a training day. `exerciseId` is a CatalogEntry id (or "custom",
+ * where `custom` holds the typed name). `mode` decides whether the slot reads the movement's
+ * weighted training max or its bodyweight rep max from the shared ProgramState.
  */
-export function suggestionsForTools(
-  tools: string[],
+export type Slot = {
+  movement: MovementKey;
+  exerciseId: string;
+  mode: SlotMode;
+  tool: SlotTool;
+  custom?: string;
+};
+
+/** A training day: a name, minutes, and an ordered list of exercise slots. */
+export type Day = { id: string; name: string; minutes: number; slots: Slot[] };
+
+export const CUSTOM_EXERCISE_ID = "custom";
+
+/**
+ * Exercise options per movement (weighted variants first, then the bodyweight ladder) — the
+ * choices shown in the Modify picker. Barbell entries reuse the classic `lift.*` keys;
+ * dumbbell/kettlebell variants have their own keys; bodyweight entries reuse `MOVEMENT_LEVELS`.
+ */
+export const EXERCISE_CATALOG: Record<MovementKey, CatalogEntry[]> = {
+  SQUAT: [
+    { id: "SQUAT_BB", labelKey: "lift.SQUAT", tool: "BARBELL", mode: "WEIGHTED" },
+    { id: "SQUAT_DB", labelKey: "lift.SQUAT.db", tool: "DUMBBELLS", mode: "WEIGHTED" },
+    { id: "SQUAT_KB", labelKey: "lift.SQUAT.kb", tool: "KETTLEBELL", mode: "WEIGHTED" },
+    { id: "SQUAT_BW", labelKey: "ex.squat.bw", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+    { id: "SQUAT_BULG", labelKey: "ex.squat.bulgarian", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+    { id: "SQUAT_PISTOL", labelKey: "ex.squat.pistol", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+  ],
+  HINGE: [
+    { id: "HINGE_BB", labelKey: "lift.HINGE", tool: "BARBELL", mode: "WEIGHTED" },
+    { id: "HINGE_DB", labelKey: "lift.HINGE.db", tool: "DUMBBELLS", mode: "WEIGHTED" },
+    { id: "HINGE_KB", labelKey: "lift.HINGE.kb", tool: "KETTLEBELL", mode: "WEIGHTED" },
+    { id: "HINGE_SLRDL", labelKey: "ex.hinge.slrdl", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+    { id: "HINGE_BRIDGE", labelKey: "ex.hinge.bridge", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+    { id: "HINGE_NORDIC", labelKey: "ex.hinge.nordic", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+  ],
+  PUSH: [
+    { id: "PUSH_BB", labelKey: "lift.PUSH", tool: "BARBELL", mode: "WEIGHTED" },
+    { id: "PUSH_DB", labelKey: "lift.PUSH.db", tool: "DUMBBELLS", mode: "WEIGHTED" },
+    { id: "PUSH_KB", labelKey: "lift.PUSH.kb", tool: "KETTLEBELL", mode: "WEIGHTED" },
+    { id: "PUSH_FULL", labelKey: "ex.push.full", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+    { id: "PUSH_KNEE", labelKey: "ex.push.knee", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+    { id: "PUSH_ARCHER", labelKey: "ex.push.archer", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+  ],
+  PRESS: [
+    { id: "PRESS_BB", labelKey: "lift.PRESS", tool: "BARBELL", mode: "WEIGHTED" },
+    { id: "PRESS_DB", labelKey: "lift.PRESS.db", tool: "DUMBBELLS", mode: "WEIGHTED" },
+    { id: "PRESS_KB", labelKey: "lift.PRESS.kb", tool: "KETTLEBELL", mode: "WEIGHTED" },
+    { id: "PRESS_PIKE", labelKey: "ex.press.pike", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+    { id: "PRESS_WALL", labelKey: "ex.press.wallhspu", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+    { id: "PRESS_HSPU", labelKey: "ex.press.hspu", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+  ],
+  PULL: [
+    { id: "PULL_BB", labelKey: "lift.PULL", tool: "BARBELL", mode: "WEIGHTED" },
+    { id: "PULL_DB", labelKey: "lift.PULL.db", tool: "DUMBBELLS", mode: "WEIGHTED" },
+    { id: "PULL_KB", labelKey: "lift.PULL.kb", tool: "KETTLEBELL", mode: "WEIGHTED" },
+    { id: "PULL_FULL", labelKey: "ex.pull.full", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+    { id: "PULL_BAND", labelKey: "ex.pull.band", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+    { id: "PULL_WEIGHTED", labelKey: "ex.pull.weighted", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+  ],
+};
+
+const DEFAULT_WEIGHTED_ID: Record<MovementKey, string> = {
+  SQUAT: "SQUAT_BB", HINGE: "HINGE_BB", PUSH: "PUSH_BB", PRESS: "PRESS_BB", PULL: "PULL_BB",
+};
+const DEFAULT_BODYWEIGHT_ID: Record<MovementKey, string> = {
+  SQUAT: "SQUAT_BW", HINGE: "HINGE_SLRDL", PUSH: "PUSH_FULL", PRESS: "PRESS_PIKE", PULL: "PULL_FULL",
+};
+
+/** Look up a catalog entry by movement + id. */
+export function catalogEntry(movement: MovementKey, exerciseId: string): CatalogEntry | undefined {
+  return EXERCISE_CATALOG[movement]?.find((e) => e.id === exerciseId);
+}
+
+/** The movements a program trains, in order. PULL only when the trainer enables it. */
+export function programSlotMovements(includePull: boolean): MovementKey[] {
+  const base: MovementKey[] = ["SQUAT", "HINGE", "PUSH", "PRESS"];
+  return includePull ? [...base, "PULL"] : base;
+}
+
+/** The default exercise slot for a movement given the top-level equipment choice. */
+export function defaultSlot(movement: MovementKey, equipment: ProgramEquipment): Slot {
+  const id = equipment === "WEIGHTS" ? DEFAULT_WEIGHTED_ID[movement] : DEFAULT_BODYWEIGHT_ID[movement];
+  const entry = catalogEntry(movement, id) ?? EXERCISE_CATALOG[movement][0];
+  return { movement, exerciseId: entry.id, mode: entry.mode, tool: entry.tool };
+}
+
+/** Default ordered slots for one day. */
+export function defaultSlots(equipment: ProgramEquipment, includePull: boolean): Slot[] {
+  return programSlotMovements(includePull).map((m) => defaultSlot(m, equipment));
+}
+
+let dayCounter = 0;
+/** Build a default training day (used by the wizard and as the add-day fallback). */
+export function defaultDay(equipment: ProgramEquipment, includePull: boolean, name = ""): Day {
+  return {
+    id: `d${Date.now()}_${dayCounter++}`,
+    name,
+    minutes: 45,
+    slots: defaultSlots(equipment, includePull),
+  };
+}
+
+/** The i18n key for a slot's exercise label ("" for custom — the UI shows slot.custom). */
+export function slotLabelKey(slot: Slot): string {
+  if (slot.exerciseId === CUSTOM_EXERCISE_ID) return "";
+  return catalogEntry(slot.movement, slot.exerciseId)?.labelKey ?? "";
+}
+
+export type SlotWorkout = { labelKey: string; mode: SlotMode; sets: WorkoutSet[] };
+
+/**
+ * Build the current week's working sets for a configured slot from the shared per-movement
+ * state. WEIGHTED slots read the movement's training max (kg); BODYWEIGHT slots its rep max.
+ */
+export function workoutForSlot(
+  slot: Slot,
   state: ProgramState,
   week: number,
   opts: { rounding?: number } = {},
-): WorkoutSuggestion[] {
+): SlotWorkout {
   void opts;
-  const loadable = hasLoadable(tools);
-  const bar = hasBar(tools);
-  const out: WorkoutSuggestion[] = [];
-
-  const pushBodyweight = (m: MovementKey) => {
-    const s = state[m] ?? {};
-    const w = bodyweightWorkout(s.repMax ?? 5, week, {
-      mode: "LEVELS",
-      movementLabel: movementLabel("LEVELS", m, s.levelIndex ?? 0),
+  const s = state[slot.movement] ?? {};
+  if (slot.mode === "WEIGHTED") {
+    const w = weightedWorkout(s.trainingMax ?? 0, week, {
+      increment: incrementFor(slot.movement),
+      movementLabel: "",
     });
-    out.push({ id: `${m}-BODYWEIGHT`, movement: m, variant: "BODYWEIGHT", labelKey: w.movementLabel, sets: w.sets });
-  };
-  const pushWeighted = (m: MovementKey) => {
-    const w = weightedWorkout(state[m]?.trainingMax ?? 0, week, {
-      increment: incrementFor(m),
-      movementLabel: movementLabel("WEIGHTED", m),
-    });
-    out.push({ id: `${m}-WEIGHTED`, movement: m, variant: "WEIGHTED", labelKey: w.movementLabel, sets: w.sets });
-  };
-
-  for (const m of ["SQUAT", "HINGE", "PUSH", "PRESS"] as MovementKey[]) {
-    pushBodyweight(m);
-    if (loadable) pushWeighted(m);
+    return { labelKey: slotLabelKey(slot), mode: "WEIGHTED", sets: w.sets };
   }
-  // Pull only when you can actually hang or load a row.
-  if (bar) pushBodyweight("PULL");
-  if (loadable) pushWeighted("PULL");
-
-  return out;
+  const w = bodyweightWorkout(s.repMax ?? 5, week, { mode: "LEVELS", movementLabel: "" });
+  return { labelKey: slotLabelKey(slot), mode: "BODYWEIGHT", sets: w.sets };
 }
