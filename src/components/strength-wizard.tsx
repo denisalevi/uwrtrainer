@@ -76,7 +76,7 @@ export function StrengthWizard() {
           {mode === "WEIGHTED"
             ? movements.map((m) => (
                 <div key={m} className="space-y-1">
-                  <Label>{movementLabel(mode, m)}</Label>
+                  <Label>{t(movementLabel(mode, m) as DictKey)}</Label>
                   <div className="grid grid-cols-2 gap-2">
                     <Input
                       name={`weight_${m}`}
@@ -100,16 +100,16 @@ export function StrengthWizard() {
                   <Label>{t(`mv.${m}` as DictKey)}</Label>
                   <div className="grid grid-cols-2 gap-2">
                     {mode === "LEVELS" ? (
-                      <Select name={`level_${m}`} defaultValue="1">
+                      <Select name={`level_${m}`} defaultValue="0">
                         {MOVEMENT_LEVELS[m].map((lvl, i) => (
                           <option key={i} value={i}>
-                            {lvl}
+                            {t(lvl as DictKey)}
                           </option>
                         ))}
                       </Select>
                     ) : (
                       <div className="flex items-center text-sm text-slate-600">
-                        {movementLabel(mode, m)}
+                        {t(movementLabel(mode, m) as DictKey)}
                       </div>
                     )}
                     <Input

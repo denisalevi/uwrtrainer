@@ -39,52 +39,16 @@ export const MOVEMENTS = ["PUSH", "PULL", "SQUAT", "HINGE", "PRESS"] as const;
 export type MovementKey = (typeof MOVEMENTS)[number];
 
 /**
- * Bodyweight difficulty ladders (easiest → hardest) used by LEVELS mode. "Graduating"
- * to the next entry is the bodyweight equivalent of adding weight. The early entries are
- * deliberately doable with nothing at all (a floor, a wall, a sturdy table).
+ * Bodyweight difficulty ladders (easiest → hardest) for LEVELS mode. Values are i18n keys
+ * (translated in the UI); start points are realistic for an active team — push starts at the
+ * knee push-up, no easier. "Graduating" to the next entry replaces adding weight.
  */
 export const MOVEMENT_LEVELS: Record<MovementKey, readonly string[]> = {
-  PUSH: [
-    "Wall push-up",
-    "Incline push-up (on a table)",
-    "Knee push-up",
-    "Full push-up",
-    "Feet-elevated push-up",
-    "Archer push-up",
-    "One-arm push-up progression",
-  ],
-  PULL: [
-    "Table row (under a sturdy table)",
-    "Inverted row (low bar/table)",
-    "Band-assisted pull-up",
-    "Negative pull-up",
-    "Pull-up",
-    "Weighted pull-up",
-  ],
-  SQUAT: [
-    "Box/chair squat",
-    "Bodyweight squat",
-    "Split squat",
-    "Bulgarian split squat",
-    "Assisted pistol squat",
-    "Pistol squat",
-  ],
-  HINGE: [
-    "Glute bridge",
-    "Single-leg glute bridge",
-    "Bodyweight good morning",
-    "Single-leg Romanian deadlift",
-    "Assisted Nordic curl",
-    "Nordic curl",
-  ],
-  PRESS: [
-    "Pike push-up (hands elevated)",
-    "Pike push-up",
-    "Feet-elevated pike push-up",
-    "Wall handstand hold",
-    "Partial wall handstand push-up",
-    "Handstand push-up",
-  ],
+  PUSH: ["ex.push.knee", "ex.push.full", "ex.push.feet", "ex.push.archer", "ex.push.onearm"],
+  PULL: ["ex.pull.band", "ex.pull.full", "ex.pull.weighted"],
+  SQUAT: ["ex.squat.bw", "ex.squat.split", "ex.squat.bulgarian", "ex.squat.pistol"],
+  HINGE: ["ex.hinge.bridge", "ex.hinge.singlebridge", "ex.hinge.slrdl", "ex.hinge.nordic"],
+  PRESS: ["ex.press.pike", "ex.press.feetpike", "ex.press.wallhspu", "ex.press.hspu"],
 };
 
 /** Dropdown: how many days per week (capped at 4 — more isn't useful here). */

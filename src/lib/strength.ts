@@ -359,28 +359,35 @@ export type MovementState = {
 };
 export type ProgramState = Partial<Record<MovementKey, MovementState>>;
 
-/** Which 4 movements a program trains. WEIGHTED mirrors classic 5/3/1; bodyweight adds PULL (key for UWR). */
+/**
+ * Which movements a program trains. WEIGHTED mirrors classic 5/3/1. With a pull-up bar
+ * (REPS) we add PULL. Pure bodyweight (LEVELS) has no pull option, so it trains the press
+ * instead — fixes "pull-ups shown with no equipment".
+ */
 export function programMovements(mode: StrengthMode): MovementKey[] {
   if (mode === "WEIGHTED") return ["SQUAT", "HINGE", "PUSH", "PRESS"];
-  return ["PUSH", "PULL", "SQUAT", "HINGE"];
+  if (mode === "REPS") return ["PUSH", "PULL", "SQUAT", "HINGE"];
+  return ["PUSH", "SQUAT", "HINGE", "PRESS"]; // LEVELS — bodyweight only, no pull
 }
 
+// i18n keys (translated in the UI). Weighted lifts have their own names; rep movements map
+// to a representative bodyweight exercise key.
 const WEIGHTED_LABELS: Record<MovementKey, string> = {
-  SQUAT: "Back squat",
-  HINGE: "Deadlift",
-  PUSH: "Bench press",
-  PRESS: "Overhead press",
-  PULL: "Barbell row",
+  SQUAT: "lift.SQUAT",
+  HINGE: "lift.HINGE",
+  PUSH: "lift.PUSH",
+  PRESS: "lift.PRESS",
+  PULL: "lift.PULL",
 };
 const REPS_LABELS: Record<MovementKey, string> = {
-  PUSH: "Push-up",
-  PULL: "Pull-up",
-  SQUAT: "Bodyweight squat",
-  HINGE: "Single-leg Romanian deadlift",
-  PRESS: "Pike push-up",
+  PUSH: "ex.push.full",
+  PULL: "ex.pull.full",
+  SQUAT: "ex.squat.bw",
+  HINGE: "ex.hinge.slrdl",
+  PRESS: "ex.press.pike",
 };
 
-/** Human label for a movement given the mode (and, for LEVELS, the current variation). */
+/** i18n key for a movement's label given the mode (and, for LEVELS, the current variation). */
 export function movementLabel(
   mode: StrengthMode,
   movement: MovementKey,
@@ -439,8 +446,8 @@ export function defaultStartState(mode: StrengthMode): ProgramState {
   const out: ProgramState = {};
   for (const m of programMovements(mode)) {
     if (mode === "WEIGHTED") out[m] = { trainingMax: 0 };
-    // Start one rung up from the very easiest variation, a gentle 5-rep base.
-    else out[m] = { repMax: 5, levelIndex: mode === "LEVELS" ? 1 : 0 };
+    // Start at the easiest variation we offer (already a sensible baseline), 5-rep base.
+    else out[m] = { repMax: 5, levelIndex: 0 };
   }
   return out;
 }

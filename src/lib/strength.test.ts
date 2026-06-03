@@ -88,9 +88,9 @@ describe("bodyweightWorkout", () => {
 });
 
 describe("levelLabel", () => {
-  it("resolves a movement variation and clamps out-of-range indices", () => {
-    expect(levelLabel("PUSH", 0)).toBe("Wall push-up");
-    expect(levelLabel("PUSH", 999)).toBe("One-arm push-up progression");
+  it("resolves a movement variation (i18n key) and clamps out-of-range indices", () => {
+    expect(levelLabel("PUSH", 0)).toBe("ex.push.knee");
+    expect(levelLabel("PUSH", 999)).toBe("ex.push.onearm");
   });
 });
 

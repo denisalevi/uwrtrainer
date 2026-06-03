@@ -12,6 +12,7 @@ import {
   type ProgramState,
 } from "@/lib/strength";
 import { StrengthWorkoutLogger, type LoggerSession } from "@/components/strength-workout-logger";
+import type { DictKey } from "@/lib/i18n/dictionaries";
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -44,7 +45,7 @@ export default async function StrengthLogPage() {
         });
         return {
           key: m,
-          label: w.movementLabel,
+          label: t(w.movementLabel as DictKey),
           sets: w.sets.map((s) => ({
             targetReps: s.reps,
             targetWeight: s.weight,

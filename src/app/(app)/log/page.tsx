@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
 import { LogForm, type StrengthSuggestion } from "@/components/log-form";
+import type { DictKey } from "@/lib/i18n/dictionaries";
 import type { StrengthMode } from "@/lib/constants";
 import {
   currentWorkout,
@@ -41,7 +42,7 @@ export default async function LogPage() {
       });
       const top = w.sets[w.sets.length - 1];
       return {
-        label: w.movementLabel,
+        label: t(w.movementLabel as DictKey),
         liftEnum: movementToLift(m),
         sets: w.sets.length,
         reps: top.reps,

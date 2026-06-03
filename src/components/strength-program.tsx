@@ -112,7 +112,7 @@ export async function StrengthProgramView({ program }: { program: Program }) {
               return (
                 <div key={m} className="space-y-1.5">
                   <div className="flex items-baseline justify-between">
-                    <p className="font-semibold text-slate-900">{w.movementLabel}</p>
+                    <p className="font-semibold text-slate-900">{t(w.movementLabel as DictKey)}</p>
                     <span className="text-xs text-slate-500">
                       {t(`mv.${m}` as DictKey)} · {w.scheme}
                     </span>
@@ -156,7 +156,7 @@ export async function StrengthProgramView({ program }: { program: Program }) {
             {movements.map((m) => (
               <div key={m} className="flex items-center justify-between gap-3">
                 <Label className="flex-1" htmlFor={`amrap_${m}`}>
-                  {currentWorkout(mode, m, state[m] ?? {}, 3).movementLabel}
+                  {t(currentWorkout(mode, m, state[m] ?? {}, 3).movementLabel as DictKey)}
                 </Label>
                 <Input
                   id={`amrap_${m}`}
@@ -229,7 +229,7 @@ export async function StrengthProgramView({ program }: { program: Program }) {
                 {movements.map((m) => (
                   <div key={m} className="flex items-center justify-between gap-3">
                     <Label className="flex-1" htmlFor={`tm_${m}`}>
-                      {movementLabel(mode, m)}
+                      {t(movementLabel(mode, m) as DictKey)}
                     </Label>
                     <Input
                       id={`tm_${m}`}
@@ -278,13 +278,13 @@ export async function StrengthProgramView({ program }: { program: Program }) {
                       <Select name={`level_${m}`} defaultValue={String(state[m]?.levelIndex ?? 0)}>
                         {MOVEMENT_LEVELS[m].map((lvl, i) => (
                           <option key={i} value={i}>
-                            {lvl}
+                            {t(lvl as DictKey)}
                           </option>
                         ))}
                       </Select>
                     ) : (
                       <div className="flex items-center text-sm text-slate-600">
-                        {movementLabel(mode, m)}
+                        {t(movementLabel(mode, m) as DictKey)}
                       </div>
                     )}
                     <Input

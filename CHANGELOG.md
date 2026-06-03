@@ -11,6 +11,18 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-03
+
+### Added
+- **Bilingual exercise names** — every movement, lift and bodyweight variation is now in
+  the dictionary in English and German.
+
+### Changed
+- **Simplified the bodyweight ladders** — start at a realistic level (push begins at the
+  knee push-up, nothing easier) with fewer variations.
+- **Pull-ups only when you have a bar** — pure-bodyweight programs no longer show a pull
+  movement (they train push / squat / hinge / overhead instead).
+
 ## [0.4.0] - 2026-06-03
 
 ### Added

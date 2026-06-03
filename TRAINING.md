@@ -32,11 +32,12 @@ all** — not even a pull-up bar. No AI is involved: it's deterministic arithmet
 | A pull-up bar | **REPS** | More reps on the movement |
 | Dumbbells / barbell / gym | **WEIGHTED** | Add kilos (classic 5/3/1) |
 
-The four movements trained are a push, a pull, a squat and a hinge (bodyweight), or squat /
-deadlift / bench / overhead press (weighted). The **bodyweight ladders** go easiest → hardest,
-e.g. push: *wall → incline → knee → full → feet-elevated → archer → one-arm*. Graduating to
-the next rung is the bodyweight equivalent of adding weight. The first rungs need nothing but a
-floor, a wall, or a sturdy table — so you can start **today, with nothing**.
+The four movements are squat / deadlift / bench / overhead press (weighted), push / pull /
+squat / hinge (with a pull-up bar), or — pure bodyweight, no bar — push / squat / hinge /
+overhead (no pull, since pull-ups need something to hang from). The **bodyweight ladders** go
+easiest → hardest at a realistic starting point, e.g. push: *knee push-up → push-up →
+feet-elevated → archer → one-arm*. Graduating to the next rung replaces adding weight.
+Exercise names are shown in the app in English and German.
 
 ## Starting out — how the first numbers are set
 
