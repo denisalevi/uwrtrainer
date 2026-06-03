@@ -55,22 +55,28 @@ docker run -d --name uwr-dev -p 3000:3000 -v "$PWD":/app -v uwr-npm-cache-deb:/r
   fly** — there is no cache table, by design (robustness over micro-perf for a small team).
 - **Strength program** (pure, unit-tested): `src/lib/strength.ts` — a Wendler 5/3/1 engine
   that also works with zero equipment. Five movement patterns (push/pull/squat/hinge/press).
-  Setup is **slot-based**: a single top-level `equipment` choice (`"WEIGHTS"|"BODYWEIGHT"`)
-  preselects defaults. The `StrengthProgram` model holds `days` (JSON
-  `[{id,name,minutes,slots:[{movement,exerciseId,mode,tool,custom?}]}]`) and `movements` (JSON
-  per-movement maxima `{trainingMax?,repMax?,levelIndex?}`, **shared across all slots/days**).
-  `EXERCISE_CATALOG` lists each movement's variants (barbell/dumbbell/kettlebell/bodyweight) for
-  the Modify picker; `defaultSlots()`/`defaultDay()` build the presets; `workoutForSlot()` turns a
-  slot + state + week into sets (weighted reads `trainingMax`, bodyweight reads `repMax`).
-  Whether defaults include a pull/row is the **team setting** `strength.includePull` (Setting
-  table, default on). Exercise/lift names are **i18n keys** (`ex.*`/`lift.*`) the engine returns
-  and the UI translates. Actions: `actions/strength.ts` (+ `updateStrengthIncludePull` in
-  `actions/trainer.ts`). UI: `/strength` (view + `program-form` for setup/settings — top-level
-  toggle, per-day slot cards with inline maxima + Modify picker, add-day copies the previous
-  day), `/strength/log` (`strength-workout-logger` — day's slots preselected as lines, or type a
-  custom exercise, debounced autosave via `saveStrengthWorkout`). Model explained in
-  `TRAINING.md`. Server-action files export **only async functions** (pure helpers like
-  `incrementFor`/`workoutForSlot`/`defaultDay` live in `strength.ts`) — webpack build enforces this.
+  Setup is **auto-laid-out**: the player sets day count + each day's `equipment`
+  (`"WEIGHTS"|"BODYWEIGHT"`) + length, and `buildSchedule(days, state, {includePull,layout,week})`
+  distributes the four cores. Two rules (unit-tested): **weighted days split** the cores (each
+  lift once/week, spreadsheet pairing squat+bench / deadlift+press via `weightedAssignment()`);
+  **bodyweight days are full-body** (all patterns). A single weighted day uses `weightedLayout`
+  (`ROTATE` 2-week pairs by week parity, or `ALL_IN_ONE`). Pull rides the lightest weighted
+  pressing day (`pullRiderDay()`), never the deadlift day. The `StrengthProgram` model holds
+  `days` (JSON `[{id,name,equipment,minutes}]` — what each day *contains* is derived, not stored),
+  `weightedLayout`, `notes` (trainer-visible free text), and `movements` (JSON per-movement state
+  `{trainingMax?,repMax?,levelIndex?, weighted/bodyweightExerciseId, *Custom}`, **shared across
+  all days**). `EXERCISE_CATALOG` lists each movement's variants for the Modify picker;
+  `resolveExercise()`/`workoutForSlot()` build a movement's sets (weighted reads `trainingMax`,
+  bodyweight reads `repMax`). Whether defaults include a pull/row is the **team setting**
+  `strength.includePull` (Setting table, default on). Exercise/lift names are **i18n keys**
+  (`ex.*`/`lift.*`) the engine returns and the UI translates. Actions: `actions/strength.ts`
+  (+ `updateStrengthIncludePull` in `actions/trainer.ts`). UI: `/strength` (view + `program-form`
+  for setup/settings — per-day equipment, per-lift Modify + inline shared maxima, live plan
+  preview, notes box), `/strength/log` (`strength-workout-logger` — the week's exercises
+  preselected as lines, or type a custom one, debounced autosave via `saveStrengthWorkout`). Model
+  + reasoning in `TRAINING.md`. Server-action files export **only async functions** (pure helpers
+  like `buildSchedule`/`weightedAssignment`/`resolveExercise` live in `strength.ts`) — webpack
+  build enforces this.
 - **i18n**: `src/lib/i18n/` — `en`/`de` dictionaries (flat dotted keys), server helper
   `getServerT()`, client `useT()` (`src/components/i18n-provider.tsx`). Locale is **per user**
   (`User.locale`), applied in the root layout.

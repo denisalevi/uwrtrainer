@@ -4,13 +4,13 @@ import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
 import type { DictKey } from "@/lib/i18n/dictionaries";
+import { SETTING_INCLUDE_PULL, DEFAULT_INCLUDE_PULL, WEIGHTED_LAYOUTS, type WeightedLayout } from "@/lib/constants";
 import {
-  workoutForSlot,
-  catalogEntry,
+  buildSchedule,
   CUSTOM_EXERCISE_ID,
   type ProgramState,
-  type Day,
-  type Slot,
+  type DayPlan,
+  type PlannedExercise,
 } from "@/lib/strength";
 import { StrengthWorkoutLogger, type LoggerDay } from "@/components/strength-workout-logger";
 
@@ -18,32 +18,35 @@ export default async function StrengthLogPage() {
   const user = await requireUser();
   const { t } = await getServerT();
 
-  const program = await prisma.strengthProgram.findFirst({
-    where: { userId: user.id, active: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const [program, pullSetting] = await Promise.all([
+    prisma.strengthProgram.findFirst({
+      where: { userId: user.id, active: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.setting.findUnique({ where: { key: SETTING_INCLUDE_PULL } }),
+  ]);
   if (!program || !program.days || program.days === "[]") redirect("/strength");
+  const includePull = pullSetting ? pullSetting.value !== "false" : DEFAULT_INCLUDE_PULL;
 
   const state: ProgramState = JSON.parse(program.movements);
-  const days: Day[] = JSON.parse(program.days);
+  const days: DayPlan[] = JSON.parse(program.days);
+  const layout: WeightedLayout = (WEIGHTED_LAYOUTS as readonly string[]).includes(program.weightedLayout)
+    ? (program.weightedLayout as WeightedLayout)
+    : "ROTATE";
+  const schedule = buildSchedule(days, state, { includePull, layout, week: program.week });
 
-  const slotLabel = (slot: Slot): string =>
-    slot.exerciseId === CUSTOM_EXERCISE_ID
-      ? slot.custom || t("strength.exerciseName")
-      : t((catalogEntry(slot.movement, slot.exerciseId)?.labelKey ?? "") as DictKey);
+  const exLabel = (e: PlannedExercise): string =>
+    e.exerciseId === CUSTOM_EXERCISE_ID ? e.custom || t("strength.exerciseName") : t(e.labelKey as DictKey);
 
-  const loggerDays: LoggerDay[] = days.map((day) => ({
+  const loggerDays: LoggerDay[] = schedule.map((day) => ({
     id: day.id,
-    name: day.name,
+    name: day.rotation ? `${day.name} (${t("strength.rotationWeek")} ${day.rotation})` : day.name,
     minutes: day.minutes,
-    suggestions: (day.slots ?? []).map((slot, i) => {
-      const w = workoutForSlot(slot, state, program.week, { rounding: program.rounding });
-      return {
-        id: `slot-${i}`,
-        label: slotLabel(slot),
-        sets: w.sets.map((x) => ({ reps: x.reps, weight: x.weight ?? null, amrap: !!x.amrap })),
-      };
-    }),
+    suggestions: day.exercises.map((e, i) => ({
+      id: `slot-${i}`,
+      label: exLabel(e),
+      sets: e.sets.map((x) => ({ reps: x.reps, weight: x.weight ?? null, amrap: !!x.amrap })),
+    })),
   }));
 
   // Resume today's workout draft, if any.

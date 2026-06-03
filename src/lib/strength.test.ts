@@ -15,10 +15,14 @@ import {
   EXERCISE_CATALOG,
   catalogEntry,
   programSlotMovements,
-  defaultSlot,
-  defaultSlots,
+  defaultExerciseId,
   workoutForSlot,
+  suggestedMinutes,
+  weightedAssignment,
+  pullRiderDay,
+  buildSchedule,
   type ProgramState,
+  type DayPlan,
 } from "./strength";
 import { MOVEMENTS } from "./constants";
 
@@ -216,14 +220,121 @@ describe("defaults & program movements", () => {
     expect(programSlotMovements(false)).not.toContain("PULL");
     expect(programSlotMovements(false)).toEqual(["SQUAT", "HINGE", "PUSH", "PRESS"]);
   });
-  it("Weights preselects barbell lifts, Bodyweight preselects bodyweight ladders", () => {
-    expect(defaultSlot("PUSH", "WEIGHTS")).toMatchObject({ mode: "WEIGHTED", tool: "BARBELL", exerciseId: "PUSH_BB" });
-    expect(defaultSlot("PUSH", "BODYWEIGHT")).toMatchObject({ mode: "BODYWEIGHT", tool: "BODYWEIGHT" });
-    expect(defaultSlot("PULL", "BODYWEIGHT").exerciseId).toBe("PULL_FULL"); // pull-up assumed
+  it("default exercise ids are the barbell lift / first bodyweight rung", () => {
+    expect(defaultExerciseId("PUSH", "WEIGHTED")).toBe("PUSH_BB");
+    expect(defaultExerciseId("PULL", "BODYWEIGHT")).toBe("PULL_FULL"); // pull-up assumed
   });
-  it("defaultSlots covers every program movement", () => {
-    expect(defaultSlots("WEIGHTS", true)).toHaveLength(5);
-    expect(defaultSlots("WEIGHTS", false)).toHaveLength(4);
+});
+
+describe("weightedAssignment (spreadsheet pairing)", () => {
+  it("4 days = one lift each", () => {
+    expect(weightedAssignment(4, "ROTATE", 1)).toEqual([["SQUAT"], ["PUSH"], ["HINGE"], ["PRESS"]]);
+  });
+  it("2 days = squat+bench / deadlift+press", () => {
+    expect(weightedAssignment(2, "ROTATE", 1)).toEqual([["SQUAT", "PUSH"], ["HINGE", "PRESS"]]);
+  });
+  it("3 days = squat+bench, deadlift, press", () => {
+    expect(weightedAssignment(3, "ROTATE", 1)).toEqual([["SQUAT", "PUSH"], ["HINGE"], ["PRESS"]]);
+  });
+  it("1 day rotates pairs by week parity", () => {
+    expect(weightedAssignment(1, "ROTATE", 1)).toEqual([["SQUAT", "PUSH"]]);
+    expect(weightedAssignment(1, "ROTATE", 2)).toEqual([["HINGE", "PRESS"]]);
+  });
+  it("1 day all-in-one = all four", () => {
+    expect(weightedAssignment(1, "ALL_IN_ONE", 1)).toEqual([["SQUAT", "HINGE", "PUSH", "PRESS"]]);
+  });
+});
+
+describe("pullRiderDay (lighter pressing day, never the deadlift day)", () => {
+  it("4 days → the overhead-press day", () => {
+    const a = weightedAssignment(4, "ROTATE", 1); // [[SQUAT],[PUSH],[HINGE],[PRESS]]
+    expect(pullRiderDay(a)).toBe(3); // PRESS
+  });
+  it("3 days → the press day, not the squat+bench day", () => {
+    const a = weightedAssignment(3, "ROTATE", 1); // [[SQUAT,PUSH],[HINGE],[PRESS]]
+    expect(pullRiderDay(a)).toBe(2); // PRESS, the single-lift pressing day
+  });
+  it("2 days → the squat+bench day (keeps rows off the deadlift day)", () => {
+    const a = weightedAssignment(2, "ROTATE", 1); // [[SQUAT,PUSH],[HINGE,PRESS]]
+    expect(pullRiderDay(a)).toBe(0);
+  });
+});
+
+describe("suggestedMinutes", () => {
+  it("scales with weighted lifts; bodyweight day is light", () => {
+    expect(suggestedMinutes(0)).toBe(45);
+    expect(suggestedMinutes(1)).toBe(45);
+    expect(suggestedMinutes(2)).toBe(60);
+    expect(suggestedMinutes(4)).toBe(120);
+  });
+});
+
+describe("buildSchedule", () => {
+  const state: ProgramState = {
+    SQUAT: { trainingMax: 120, repMax: 5 },
+    HINGE: { trainingMax: 140, repMax: 5 },
+    PUSH: { trainingMax: 100, repMax: 12 },
+    PRESS: { trainingMax: 60, repMax: 5 },
+    PULL: { trainingMax: 70, repMax: 8 },
+  };
+  const day = (id: string, equipment: "WEIGHTS" | "BODYWEIGHT"): DayPlan => ({
+    id, name: id, equipment, minutes: 60,
+  });
+
+  it("2 weighted days split the cores, each lift once", () => {
+    const plan = buildSchedule([day("a", "WEIGHTS"), day("b", "WEIGHTS")], state, {
+      includePull: false, layout: "ROTATE", week: 1,
+    });
+    expect(plan[0].exercises.map((e) => e.movement)).toEqual(["SQUAT", "PUSH"]);
+    expect(plan[1].exercises.map((e) => e.movement)).toEqual(["HINGE", "PRESS"]);
+    expect(plan[0].exercises.every((e) => e.mode === "WEIGHTED")).toBe(true);
+  });
+
+  it("a bodyweight day is full-body (all four patterns) regardless of day count", () => {
+    const plan = buildSchedule([day("a", "BODYWEIGHT"), day("b", "BODYWEIGHT")], state, {
+      includePull: false, layout: "ROTATE", week: 1,
+    });
+    for (const d of plan) {
+      expect(d.exercises.map((e) => e.movement)).toEqual(["SQUAT", "HINGE", "PUSH", "PRESS"]);
+      expect(d.exercises.every((e) => e.mode === "BODYWEIGHT")).toBe(true);
+    }
+  });
+
+  it("pull rides one weighted pressing day when enabled", () => {
+    const plan = buildSchedule([day("a", "WEIGHTS"), day("b", "WEIGHTS")], state, {
+      includePull: true, layout: "ROTATE", week: 1,
+    });
+    const pulls = plan.flatMap((d) => d.exercises).filter((e) => e.movement === "PULL");
+    expect(pulls).toHaveLength(1);
+    expect(plan[0].exercises.map((e) => e.movement)).toContain("PULL"); // squat+bench day
+  });
+
+  it("mixed: 1 weighted (rotating) + 1 bodyweight — weighted alternates, bodyweight full-body", () => {
+    const days = [day("w", "WEIGHTS"), day("b", "BODYWEIGHT")];
+    const wkA = buildSchedule(days, state, { includePull: false, layout: "ROTATE", week: 1 });
+    const wkB = buildSchedule(days, state, { includePull: false, layout: "ROTATE", week: 2 });
+    expect(wkA[0].exercises.map((e) => e.movement)).toEqual(["SQUAT", "PUSH"]);
+    expect(wkA[0].rotation).toBe("A");
+    expect(wkB[0].exercises.map((e) => e.movement)).toEqual(["HINGE", "PRESS"]);
+    expect(wkB[0].rotation).toBe("B");
+    // bodyweight day is full-body both weeks
+    expect(wkA[1].exercises.map((e) => e.movement)).toEqual(["SQUAT", "HINGE", "PUSH", "PRESS"]);
+  });
+
+  it("all-in-one: a single weighted day loads all four weekly", () => {
+    const plan = buildSchedule([day("w", "WEIGHTS")], state, {
+      includePull: false, layout: "ALL_IN_ONE", week: 1,
+    });
+    expect(plan[0].exercises.map((e) => e.movement)).toEqual(["SQUAT", "HINGE", "PUSH", "PRESS"]);
+    expect(plan[0].rotation).toBeUndefined();
+  });
+
+  it("weighted sets come off the training max (week-1 top set = 85%)", () => {
+    const plan = buildSchedule([day("a", "WEIGHTS")], state, {
+      includePull: false, layout: "ALL_IN_ONE", week: 1,
+    });
+    const squat = plan[0].exercises.find((e) => e.movement === "SQUAT")!;
+    expect(squat.sets[squat.sets.length - 1].weight).toBe(100); // 85% of 120 = 102 → round to 5
   });
 });
 

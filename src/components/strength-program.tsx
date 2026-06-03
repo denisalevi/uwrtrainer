@@ -8,15 +8,14 @@ import {
   updateStrengthSettings,
   resetStrengthProgram,
 } from "@/app/actions/strength";
-import { MOVEMENTS, PROGRAM_EQUIPMENT, type ProgramEquipment } from "@/lib/constants";
+import { MOVEMENTS, PROGRAM_EQUIPMENT, WEIGHTED_LAYOUTS, type ProgramEquipment, type WeightedLayout } from "@/lib/constants";
 import {
-  workoutForSlot,
-  catalogEntry,
+  buildSchedule,
   CUSTOM_EXERCISE_ID,
   waveWeek,
   type ProgramState,
-  type Day,
-  type Slot,
+  type DayPlan,
+  type PlannedExercise,
   type WorkoutSet,
 } from "@/lib/strength";
 import { ProgramForm } from "@/components/program-form";
@@ -24,6 +23,8 @@ import { ProgramForm } from "@/components/program-form";
 type Program = {
   id: string;
   equipment: string;
+  weightedLayout: string;
+  notes: string | null;
   trainingMaxPct: number;
   rounding: number;
   movements: string;
@@ -47,15 +48,17 @@ export async function StrengthProgramView({
 }) {
   const { t } = await getServerT();
   const state: ProgramState = JSON.parse(program.movements);
-  const days: Day[] = JSON.parse(program.days || "[]");
+  const days: DayPlan[] = JSON.parse(program.days || "[]");
   const equipment: ProgramEquipment = (PROGRAM_EQUIPMENT as readonly string[]).includes(program.equipment)
     ? (program.equipment as ProgramEquipment)
     : "WEIGHTS";
+  const layout: WeightedLayout = (WEIGHTED_LAYOUTS as readonly string[]).includes(program.weightedLayout)
+    ? (program.weightedLayout as WeightedLayout)
+    : "ROTATE";
   const wave = waveWeek(program.week);
-  const slotLabel = (slot: Slot): string =>
-    slot.exerciseId === CUSTOM_EXERCISE_ID
-      ? slot.custom || t("strength.exerciseName")
-      : t((catalogEntry(slot.movement, slot.exerciseId)?.labelKey ?? "") as DictKey);
+  const schedule = buildSchedule(days, state, { includePull, layout, week: program.week });
+  const exLabel = (e: PlannedExercise): string =>
+    e.exerciseId === CUSTOM_EXERCISE_ID ? e.custom || t("strength.exerciseName") : t(e.labelKey as DictKey);
 
   return (
     <div className="space-y-4">
@@ -97,36 +100,47 @@ export async function StrengthProgramView({
         ))}
       </div>
 
-      {/* Per-day exercises for the current week */}
-      {days.map((day) => (
+      {/* Per-day exercises for the current week (auto-laid-out) */}
+      {schedule.map((day) => (
         <Card key={day.id}>
           <CardBody className="space-y-2">
             <div className="flex items-baseline justify-between">
-              <p className="font-semibold text-slate-900">{day.name}</p>
+              <p className="font-semibold text-slate-900">
+                {day.name}{" "}
+                <span className="text-xs font-normal text-slate-400">
+                  ({t(`strength.eqChoice.${day.equipment}` as DictKey)}
+                  {day.rotation ? ` · ${t("strength.rotationWeek")} ${day.rotation}` : ""})
+                </span>
+              </p>
               <span className="text-xs text-slate-500">
                 {day.minutes} {t("common.minutes")}
               </span>
             </div>
             <ul className="space-y-1 pt-1">
-              {(day.slots ?? []).map((slot, i) => {
-                const w = workoutForSlot(slot, state, program.week, { rounding: program.rounding });
-                return (
-                  <li
-                    key={i}
-                    className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-1.5 text-sm"
-                  >
-                    <span className="min-w-0 truncate text-slate-800">
-                      {slotLabel(slot)}{" "}
-                      <span className="text-slate-400">({t(`tool.${slot.tool}` as DictKey)})</span>
-                    </span>
-                    <span className="shrink-0 font-medium text-slate-900">{setSummary(w.sets)}</span>
-                  </li>
-                );
-              })}
+              {day.exercises.map((e, i) => (
+                <li
+                  key={i}
+                  className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-1.5 text-sm"
+                >
+                  <span className="min-w-0 truncate text-slate-800">
+                    {exLabel(e)} <span className="text-slate-400">({t(`tool.${e.tool}` as DictKey)})</span>
+                  </span>
+                  <span className="shrink-0 font-medium text-slate-900">{setSummary(e.sets)}</span>
+                </li>
+              ))}
             </ul>
           </CardBody>
         </Card>
       ))}
+
+      {program.notes && (
+        <Card>
+          <CardBody>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t("strength.notesLabel")}</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{program.notes}</p>
+          </CardBody>
+        </Card>
+      )}
 
       {/* Finish cycle */}
       <Card>
@@ -172,7 +186,9 @@ export async function StrengthProgramView({
             programId={program.id}
             initialEquipment={equipment}
             initialDays={days}
-            initialMaxima={state as Record<string, { trainingMax?: number; repMax?: number; levelIndex?: number }>}
+            initialMaxima={state}
+            initialLayout={layout}
+            initialNotes={program.notes ?? ""}
             includePull={includePull}
           />
         </div>

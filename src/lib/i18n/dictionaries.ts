@@ -320,6 +320,20 @@ export const en = {
   "set.includePull": "Include a pull exercise",
   "set.includePullHint":
     "When on, new default plans include a pull (row / pull-up). Classic Wendler is squat, bench, deadlift and press only.",
+
+  // ── Auto-layout setup (v0.8) ──
+  "strength.eqChoice.perDayNote": "Sets every day. You can flip any single day to weights or bodyweight below.",
+  "strength.layout.title": "One weighted day — how to cover all four lifts",
+  "strength.layout.ROTATE": "Alternate (2-week)",
+  "strength.layout.ROTATE.hint": "Squat + bench one week, deadlift + press the next. ~50 min each.",
+  "strength.layout.ALL_IN_ONE": "All four in one session",
+  "strength.layout.ALL_IN_ONE.hint": "Every lift every week — one long session (~2 h).",
+  "strength.lifts": "Your lifts",
+  "strength.preview": "Your week",
+  "strength.previewHint": "What each day looks like — updates as you change things.",
+  "strength.rotationWeek": "week",
+  "strength.notesLabel": "Notes for your trainer",
+  "strength.notesPlaceholder": "e.g. no barbell at home, bad shoulder, can't make Tuesdays…",
 } as const;
 
 export type Dict = typeof en;
@@ -645,6 +659,20 @@ export const de: Record<DictKey, string> = {
   "set.includePull": "Zugübung einbeziehen",
   "set.includePullHint":
     "Wenn aktiv, enthalten neue Standardpläne eine Zugübung (Rudern / Klimmzug). Klassisches Wendler ist nur Kniebeuge, Bankdrücken, Kreuzheben und Schulterdrücken.",
+
+  // ── Auto-Layout-Setup (v0.8) ──
+  "strength.eqChoice.perDayNote": "Gilt für alle Tage. Du kannst unten jeden einzelnen Tag auf Gewichte oder Körpergewicht umstellen.",
+  "strength.layout.title": "Ein Gewichts-Tag — wie alle vier Übungen abdecken",
+  "strength.layout.ROTATE": "Abwechselnd (2 Wochen)",
+  "strength.layout.ROTATE.hint": "Eine Woche Kniebeuge + Bankdrücken, die nächste Kreuzheben + Schulterdrücken. ~50 Min. je.",
+  "strength.layout.ALL_IN_ONE": "Alle vier in einer Einheit",
+  "strength.layout.ALL_IN_ONE.hint": "Jede Übung jede Woche — eine lange Einheit (~2 Std.).",
+  "strength.lifts": "Deine Übungen",
+  "strength.preview": "Deine Woche",
+  "strength.previewHint": "So sieht jeder Tag aus — aktualisiert sich, während du Änderungen machst.",
+  "strength.rotationWeek": "Woche",
+  "strength.notesLabel": "Notizen für deinen Trainer",
+  "strength.notesPlaceholder": "z. B. keine Langhantel zu Hause, Schulter angeschlagen, dienstags keine Zeit…",
 };
 
 export const dictionaries = { en, de } as const;

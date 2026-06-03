@@ -24,6 +24,7 @@ import {
   type ProgramEquipment,
   type SlotMode,
   type SlotTool,
+  type WeightedLayout,
 } from "@/lib/constants";
 
 // ────────────────────────────────────────────────────────────── Estimating a max ──
@@ -355,11 +356,21 @@ export function isStrengthMode(v: string): v is StrengthMode {
 
 // ──────────────────────────────────── Program-level helpers (state + labels) ──
 
-/** Per-movement stored state. WEIGHTED uses trainingMax; REPS/LEVELS use repMax+level. */
+/**
+ * Per-movement stored state, shared across every day/session. Holds BOTH a weighted training
+ * max and a bodyweight rep max/level (a movement can be trained loaded on one day and as
+ * bodyweight on another), plus which exercise variant represents the movement in each mode.
+ */
 export type MovementState = {
   trainingMax?: number;
   repMax?: number;
   levelIndex?: number;
+  /** Chosen weighted variant id (catalog id or "custom"). Defaults to the barbell lift. */
+  weightedExerciseId?: string;
+  /** Chosen bodyweight variant id (catalog id or "custom"). Defaults to a ladder rung. */
+  bodyweightExerciseId?: string;
+  weightedCustom?: string;
+  bodyweightCustom?: string;
 };
 export type ProgramState = Partial<Record<MovementKey, MovementState>>;
 
@@ -491,9 +502,6 @@ export type Slot = {
   custom?: string;
 };
 
-/** A training day: a name, minutes, and an ordered list of exercise slots. */
-export type Day = { id: string; name: string; minutes: number; slots: Slot[] };
-
 export const CUSTOM_EXERCISE_ID = "custom";
 
 /**
@@ -562,27 +570,9 @@ export function programSlotMovements(includePull: boolean): MovementKey[] {
   return includePull ? [...base, "PULL"] : base;
 }
 
-/** The default exercise slot for a movement given the top-level equipment choice. */
-export function defaultSlot(movement: MovementKey, equipment: ProgramEquipment): Slot {
-  const id = equipment === "WEIGHTS" ? DEFAULT_WEIGHTED_ID[movement] : DEFAULT_BODYWEIGHT_ID[movement];
-  const entry = catalogEntry(movement, id) ?? EXERCISE_CATALOG[movement][0];
-  return { movement, exerciseId: entry.id, mode: entry.mode, tool: entry.tool };
-}
-
-/** Default ordered slots for one day. */
-export function defaultSlots(equipment: ProgramEquipment, includePull: boolean): Slot[] {
-  return programSlotMovements(includePull).map((m) => defaultSlot(m, equipment));
-}
-
-let dayCounter = 0;
-/** Build a default training day (used by the wizard and as the add-day fallback). */
-export function defaultDay(equipment: ProgramEquipment, includePull: boolean, name = ""): Day {
-  return {
-    id: `d${Date.now()}_${dayCounter++}`,
-    name,
-    minutes: 45,
-    slots: defaultSlots(equipment, includePull),
-  };
+/** The default exercise id for a movement in a given mode (barbell lift / first ladder rung). */
+export function defaultExerciseId(movement: MovementKey, mode: SlotMode): string {
+  return mode === "WEIGHTED" ? DEFAULT_WEIGHTED_ID[movement] : DEFAULT_BODYWEIGHT_ID[movement];
 }
 
 /** The i18n key for a slot's exercise label ("" for custom — the UI shows slot.custom). */
@@ -614,4 +604,158 @@ export function workoutForSlot(
   }
   const w = bodyweightWorkout(s.repMax ?? 5, week, { mode: "LEVELS", movementLabel: "" });
   return { labelKey: slotLabelKey(slot), mode: "BODYWEIGHT", sets: w.sets };
+}
+
+// ───────────────────────────────────── Weekly schedule (auto-layout) ──
+//
+// The four "core" lifts are squat / hinge(deadlift) / push(bench) / press(overhead); a pull
+// (row) is an optional rider on a pressing day. How they fill your week is DERIVED, not hand-
+// built, from two rules grounded in Wendler:
+//
+//   • WEIGHTED days are recovery-limited, so the cores are SPLIT across them — each lift loaded
+//     once a week. The spreadsheet's pairing is lower+upper-push: {squat,bench} & {deadlift,
+//     press}. With only one weighted day you either ROTATE those pairs over two weeks or do
+//     ALL_IN_ONE (all four in one long session).
+//   • BODYWEIGHT days aren't recovery-limited and gain from frequency, so EVERY bodyweight day
+//     is full-body — all four patterns — and time controls the number of sets, not the lifts.
+
+export const CORE_MOVEMENTS: MovementKey[] = ["SQUAT", "HINGE", "PUSH", "PRESS"];
+const PAIR_A: MovementKey[] = ["SQUAT", "PUSH"]; // lower + bench (spreadsheet "Mon")
+const PAIR_B: MovementKey[] = ["HINGE", "PRESS"]; // deadlift + overhead (spreadsheet "Thu")
+
+/** One training day the player sets up: a name, its equipment, and session length. */
+export type DayPlan = { id: string; name: string; equipment: ProgramEquipment; minutes: number };
+
+export type PlannedExercise = {
+  movement: MovementKey;
+  mode: SlotMode;
+  exerciseId: string;
+  custom?: string;
+  labelKey: string; // "" when custom
+  tool: SlotTool;
+  sets: WorkoutSet[];
+};
+export type PlannedDay = {
+  id: string;
+  name: string;
+  equipment: ProgramEquipment;
+  minutes: number;
+  /** For a single rotating weighted day: which 2-week half this week is ("A"/"B"). */
+  rotation?: "A" | "B";
+  exercises: PlannedExercise[];
+};
+
+/** Comfortable session length for a day, from how many lifts it loads (bodyweight is lighter). */
+export function suggestedMinutes(weightedLifts: number): number {
+  if (weightedLifts >= 4) return 120;
+  if (weightedLifts === 3) return 90;
+  if (weightedLifts === 2) return 60;
+  return 45; // one weighted lift, or a bodyweight day
+}
+
+/** How the four cores are split across W weighted days (and which pair on a rotating single day). */
+export function weightedAssignment(
+  weightedDays: number,
+  layout: WeightedLayout,
+  week: number,
+): MovementKey[][] {
+  if (weightedDays <= 1) {
+    if (layout === "ALL_IN_ONE") return [[...CORE_MOVEMENTS]];
+    return [week % 2 === 1 ? [...PAIR_A] : [...PAIR_B]]; // ROTATE: odd weeks = A
+  }
+  if (weightedDays === 2) return [[...PAIR_A], [...PAIR_B]];
+  if (weightedDays === 3) return [[...PAIR_A], ["HINGE"], ["PRESS"]];
+  return [["SQUAT"], ["PUSH"], ["HINGE"], ["PRESS"]]; // 4+
+}
+
+/**
+ * Which weighted day the pull rides: a pressing day (has bench or overhead), preferring the
+ * lightest one, then a non-deadlift day, then the overhead day. Returns an index into
+ * `assignment`, or null if no weighted pressing day exists.
+ */
+export function pullRiderDay(assignment: MovementKey[][]): number | null {
+  const pressing = assignment
+    .map((cores, i) => ({ i, cores }))
+    .filter((x) => x.cores.includes("PUSH") || x.cores.includes("PRESS"));
+  if (pressing.length === 0) return null;
+  pressing.sort(
+    (a, b) =>
+      a.cores.length - b.cores.length ||
+      Number(a.cores.includes("HINGE")) - Number(b.cores.includes("HINGE")) ||
+      Number(b.cores.includes("PRESS")) - Number(a.cores.includes("PRESS")),
+  );
+  return pressing[0].i;
+}
+
+/** Resolve the chosen exercise (variant + label + tool) for a movement in a mode. */
+export function resolveExercise(
+  movement: MovementKey,
+  mode: SlotMode,
+  state: ProgramState,
+): { exerciseId: string; custom?: string; labelKey: string; tool: SlotTool } {
+  const s = state[movement] ?? {};
+  const chosen = mode === "WEIGHTED" ? s.weightedExerciseId : s.bodyweightExerciseId;
+  const custom = mode === "WEIGHTED" ? s.weightedCustom : s.bodyweightCustom;
+  if (chosen === CUSTOM_EXERCISE_ID) {
+    return {
+      exerciseId: CUSTOM_EXERCISE_ID,
+      custom: custom || "",
+      labelKey: "",
+      tool: mode === "WEIGHTED" ? "BARBELL" : "BODYWEIGHT",
+    };
+  }
+  const id = chosen ?? defaultExerciseId(movement, mode);
+  const entry = catalogEntry(movement, id) ?? EXERCISE_CATALOG[movement].find((e) => e.mode === mode)!;
+  return { exerciseId: entry.id, labelKey: entry.labelKey, tool: entry.tool };
+}
+
+function plannedExercise(
+  movement: MovementKey,
+  mode: SlotMode,
+  state: ProgramState,
+  week: number,
+): PlannedExercise {
+  const ex = resolveExercise(movement, mode, state);
+  const sets = workoutForSlot({ movement, mode, exerciseId: ex.exerciseId, tool: ex.tool }, state, week).sets;
+  return { movement, mode, exerciseId: ex.exerciseId, custom: ex.custom, labelKey: ex.labelKey, tool: ex.tool, sets };
+}
+
+/**
+ * Build a week's plan: for each configured day, the concrete exercises (with sets) to do.
+ * Weighted days carry their split of the cores (+ the pull rider); bodyweight days carry all
+ * four patterns (+ pull) as bodyweight.
+ */
+export function buildSchedule(
+  days: DayPlan[],
+  state: ProgramState,
+  opts: { includePull: boolean; layout: WeightedLayout; week: number },
+): PlannedDay[] {
+  const { includePull, layout, week } = opts;
+  const weightedDays = days.filter((d) => d.equipment === "WEIGHTS");
+  const assignment = weightedAssignment(weightedDays.length, layout, week);
+  const riderIdx = includePull ? pullRiderDay(assignment) : null;
+
+  let w = 0; // index among weighted days
+  return days.map((day) => {
+    if (day.equipment === "WEIGHTS") {
+      const myIdx = w++;
+      const cores = assignment[myIdx] ?? [];
+      const movements = [...cores];
+      if (riderIdx === myIdx) movements.push("PULL");
+      const exercises = movements.map((m) => plannedExercise(m, "WEIGHTED", state, week));
+      const single = weightedDays.length <= 1;
+      return {
+        id: day.id,
+        name: day.name,
+        equipment: day.equipment,
+        minutes: day.minutes,
+        ...(single && layout === "ROTATE" ? { rotation: (week % 2 === 1 ? "A" : "B") as "A" | "B" } : {}),
+        exercises,
+      };
+    }
+    // Bodyweight day: full-body, all patterns (+ pull).
+    const movements = includePull ? [...CORE_MOVEMENTS, "PULL" as MovementKey] : [...CORE_MOVEMENTS];
+    const exercises = movements.map((m) => plannedExercise(m, "BODYWEIGHT", state, week));
+    return { id: day.id, name: day.name, equipment: day.equipment, minutes: day.minutes, exercises };
+  });
 }

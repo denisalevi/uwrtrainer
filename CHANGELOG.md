@@ -11,6 +11,27 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-03
+
+### Changed
+- **Auto-laid-out training week.** You no longer hand-build each day. You set **how many days**
+  and each day's **equipment** + **length**, and the app distributes the four Wendler lifts for
+  you, following two rules: **weighted days are split** (each lift loaded once a week, using the
+  spreadsheet's squat+bench / deadlift+press pairing), while **bodyweight days are full-body**
+  (all four patterns every session, because bodyweight gains from frequency, not heavy singles).
+- **Equipment is now per day**, so you can mix — e.g. one weighted day + one bodyweight day. A
+  quick top choice still sets every day at once.
+- A live **plan preview** shows exactly what each day becomes as you edit.
+
+### Added
+- **One-weighted-day layouts:** *Alternate (2-week)* — squat+bench then deadlift+press, each lift
+  loaded biweekly (the plan shows week A / week B) — or *All-in-one*, all four loaded in one long
+  session weekly.
+- **Pull rides a pressing day** automatically (the lightest one, never the deadlift day) instead
+  of taking its own session.
+- **Comfortable session-length suggestions** per schedule.
+- **Notes for your trainer** — a free-text box on the plan for things the settings can't capture.
+
 ## [0.7.0] - 2026-06-03
 
 ### Changed

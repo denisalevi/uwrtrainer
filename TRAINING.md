@@ -24,30 +24,54 @@ all** — not even a pull-up bar. No AI is involved: it's deterministic arithmet
 | 3 | 5/3/1+ | 95 % (the "test" week) |
 | 4 | deload | 60 % (easy) |
 
-## Equipment & days
+## Equipment, days & the auto-layout
 
-Setup starts with **one choice**: **"I have weights"** or **"Bodyweight only"** (bodyweight
-assumes a pull-up bar). That preselects a default exercise for each movement — the classic
-barbell lifts (squat / bench / deadlift / overhead press, and a row if the trainer enables a
-pull), or the bodyweight ladders.
+The four "core" lifts are **squat / hinge (deadlift) / push (bench) / press (overhead)**, plus an
+optional **pull (row / pull-up)**. You don't hand-place them — the app **lays them out across
+your week automatically** from a few inputs, following two rules grounded in Wendler (the maths
+is `buildSchedule()` in `src/lib/strength.ts`, unit-tested):
 
-You then set up **training days** (e.g. "Gym", "Home"). Each day is a list of **exercise slots**,
-one per movement, each shown with the exercise and the tool it needs (e.g. *Bench press
-(Barbell)*). **Adding a day copies the previous day**, so you only adjust what's different.
+**Rule 1 — weighted days are *split*; each lift is loaded once a week.** Heavy barbell work is
+recovery-limited, so you never do all four loaded lifts in one ordinary session. The spreadsheet's
+own pairing is lower + upper-push: **{squat, bench}** and **{deadlift, press}**. So:
 
-Any slot has a **Modify** button opening a picker of alternatives for that movement, grouped
-**With weights** (barbell / dumbbell / kettlebell) and **Without weights** (the bodyweight
-ladder), plus a *type-your-own* option. So a weights program can drop a single exercise to
-bodyweight (or vice-versa) — e.g. you have a barbell for squats but only do push-ups for chest.
+| Weighted days/week | Layout |
+|--------------------|--------|
+| 4 | one lift per day |
+| 3 | squat+bench · deadlift · press |
+| 2 | squat+bench · deadlift+press |
+| 1 | *see "one weighted day" below* |
 
-**Maxima are per movement, shared across all days**: you enter one working weight (kg) for each
-weighted movement and one rep target for each bodyweight movement, inline on the slot.
+**Rule 2 — bodyweight days are *full-body*; all four patterns, every time.** Bodyweight work
+isn't recovery-limited and gains come from **frequency and volume**, not from one heavy session.
+So every bodyweight day trains all four patterns, and **session length controls the number of
+sets**, not which movements you do (the bodyweight equivalent of Boring But Big scaling).
 
-The five movement patterns are squat / hinge (deadlift) / push (bench) / press (overhead) and an
-optional pull (row / pull-up). The **bodyweight ladders** go easiest → hardest at a realistic
-starting point, e.g. push: *knee push-up → push-up → feet-elevated → archer → one-arm*; picking
-a harder variation in Modify sets your starting rung. Exercise names are shown in English and
-German.
+This is why a 2-day all-bodyweight plan still does the full body each session, while a 2-day
+weighted plan splits the lifts — the "once a week" rule is a *loading* constraint that simply
+doesn't apply without load.
+
+**Equipment is per day.** A quick top choice ("I have weights" / "Bodyweight only") sets every
+day, but you can flip any single day. That's how the mixed athlete works — e.g. **one weighted
+day + one bodyweight day**: the weighted day runs the split (or rotates, below), and the
+bodyweight day is the full-body volume session.
+
+**Pull rides a pressing day.** A row/pull-up isn't a Wendler main lift, so it doesn't get its own
+session — it attaches to the **lightest weighted pressing day** (never the deadlift day, to avoid
+posterior overload; on bodyweight days it's just one of the patterns). The trainer toggle decides
+whether it appears at all.
+
+**Choosing exercises.** Each lift has a **Modify** picker: a weighted variant (barbell / dumbbell
+/ kettlebell) and a bodyweight variant (the ladder), or *type-your-own*. The same lift can be
+loaded on one day and bodyweight on another — its **maxima are stored per lift and shared**: one
+working weight (kg) and one rep target, used wherever that lift appears. The **bodyweight ladders**
+go easiest → hardest (push: *knee push-up → push-up → feet-elevated → archer → one-arm*); the
+variant you pick sets your starting rung. A live **preview** shows exactly what each day becomes.
+
+**One weighted day.** Four lifts don't fit one session every week, so you choose:
+- **Alternate (2-week):** squat+bench one week, deadlift+press the next — each lift loaded
+  biweekly, ~50-min sessions. (The plan shows which half this is: *week A / week B*.)
+- **All-in-one:** all four loaded in one long (~2 h) session, every lift every week.
 
 When logging, the day's exercises are **preselected** as lines — you just type the sets you did
 (or swap an exercise / type your own), and it auto-saves as you go.
@@ -77,21 +101,25 @@ Falling short is built into the system, not a failure:
 
 In code these are the three outcomes of `decideAdjustment()`: **increase / hold / reduce**.
 
-## How many days per week?
+## Days, time & extra volume
 
-You choose **days (1–4)** and **minutes per session**; the app maps that to a schedule
-(`pickTemplate()`):
+You set up **1–4 days**, each with its **equipment** (weights / bodyweight) and a **session
+length**. Day count and time are two views of the same total weekly work — spread the lifts over
+more days and each session shrinks. The app **suggests a comfortable length** per day (more lifts
+= longer): roughly 4 days ≈ 45 min, 2 days ≈ 60 min, an all-in-one weighted day ≈ 2 h. You can
+shorten any day.
 
-| Days | Schedule |
-|------|----------|
-| 4 | one movement per day |
-| 3 | movements rotate across sessions |
-| 2 | two movements per session |
-| 1 | one short full-body session |
+**Extra volume (Boring But Big).** On longer weighted sessions the app adds Wendler's optional
+"Boring But Big" assistance — **5 sets of 10** at about **50 %** of the training max — to build
+muscle on top of the main work. Short on time? It's **dropped automatically**; the main 5/3/1
+sets are what drive progress, so a short day still "counts". On bodyweight days the same idea
+applies as more or fewer sets of each pattern.
 
-**Extra volume (Boring But Big).** Pick a session length per day. Sessions of **60 min or more**
-add Wendler's optional "Boring But Big" assistance — **5 sets of 10** at about **50 %** of the
-training max — to build muscle on top of the main work. Shorter sessions (e.g. 30–45 min)
-**drop it automatically** and keep just the main 5/3/1 sets; those sets are what drive progress,
-so a short day still "counts". Most UWR players also train rugby 1–3×/week, so **2 strength
-days** is a sensible default — and the rugby practices stay the priority.
+Most UWR players also train rugby 1–3×/week, so **2 strength days** is a sensible default — and
+the rugby practices stay the priority.
+
+## Notes for the trainer
+
+The plan setup has a free-text **notes** box — use it to tell your trainer anything the settings
+can't capture (no barbell at home, an injury to work around, days you can't make). It shows on
+your strength plan where a trainer can see it.

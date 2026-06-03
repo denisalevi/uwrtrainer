@@ -8,15 +8,12 @@ import { getCurrentUser } from "@/lib/dal";
 import {
   MOVEMENTS,
   MOVEMENT_LEVELS,
-  SLOT_MODES,
-  SLOT_TOOLS,
   PROGRAM_EQUIPMENT,
-  SETTING_INCLUDE_PULL,
-  DEFAULT_INCLUDE_PULL,
+  WEIGHTED_LAYOUTS,
   type MovementKey,
   type ProgramEquipment,
   type SlotMode,
-  type SlotTool,
+  type WeightedLayout,
 } from "@/lib/constants";
 import {
   estimateOneRepMax,
@@ -27,19 +24,16 @@ import {
   nextBodyweight,
   incrementFor,
   waveWeek,
-  defaultDay,
+  catalogEntry,
+  defaultExerciseId,
+  CUSTOM_EXERCISE_ID,
+  suggestedMinutes,
   type ProgramState,
   type MovementState,
-  type Day,
-  type Slot,
+  type DayPlan,
 } from "@/lib/strength";
 
 // ───────────────────────────────────────────────────────────────── helpers ──
-
-function clampLevel(movement: MovementKey, i: number): number {
-  const max = MOVEMENT_LEVELS[movement].length - 1;
-  return Math.max(0, Math.min(max, Math.round(i)));
-}
 
 function clampMinutes(v: unknown): number {
   const n = Math.round(Number(v));
@@ -47,70 +41,41 @@ function clampMinutes(v: unknown): number {
   return Math.max(15, Math.min(180, n));
 }
 
-const SLOT_MODE_SET = SLOT_MODES as readonly string[];
-const SLOT_TOOL_SET = SLOT_TOOLS as readonly string[];
-const MOVEMENT_SET = MOVEMENTS as readonly string[];
-
-/** Validate the exercise slots a day carries; silently drops anything malformed. */
-function parseSlots(raw: unknown): Slot[] {
-  if (!Array.isArray(raw)) return [];
-  const out: Slot[] = [];
-  for (const item of raw) {
-    const o = (item ?? {}) as Record<string, unknown>;
-    const movement = String(o.movement ?? "");
-    const mode = String(o.mode ?? "");
-    const tool = String(o.tool ?? "");
-    const exerciseId = String(o.exerciseId ?? "");
-    if (
-      !MOVEMENT_SET.includes(movement) ||
-      !SLOT_MODE_SET.includes(mode) ||
-      !SLOT_TOOL_SET.includes(tool) ||
-      !exerciseId
-    ) {
-      continue;
-    }
-    const custom = typeof o.custom === "string" && o.custom ? o.custom.slice(0, 60) : undefined;
-    out.push({
-      movement: movement as MovementKey,
-      mode: mode as SlotMode,
-      tool: tool as SlotTool,
-      exerciseId,
-      ...(custom ? { custom } : {}),
-    });
-  }
-  return out;
-}
+const EQUIPMENT_SET = PROGRAM_EQUIPMENT as readonly string[];
 
 /**
- * Parse the per-day config the wizard/settings send as a JSON string. Tolerates both the new
- * slot shape and legacy `tools[]` days (which yield empty slots — the user re-runs setup).
- * Always returns ≥ 1 day.
+ * Parse the per-day config the wizard/settings send as a JSON string: each day is just a name,
+ * an equipment flag, and a session length (what each day *contains* is derived, not stored).
+ * Tolerant of legacy/garbage shapes; always returns 1–4 days.
  */
-function parseDays(raw: unknown, includePull: boolean): Day[] {
+function parseDays(raw: unknown): DayPlan[] {
   let arr: unknown = [];
   try {
     arr = typeof raw === "string" ? JSON.parse(raw) : [];
   } catch {
     arr = [];
   }
-  const days: Day[] = Array.isArray(arr)
-    ? arr.slice(0, 7).map((d, i) => {
+  const days: DayPlan[] = Array.isArray(arr)
+    ? arr.slice(0, 4).map((d, i) => {
         const o = (d ?? {}) as Record<string, unknown>;
+        const equipment = (EQUIPMENT_SET.includes(String(o.equipment))
+          ? o.equipment
+          : "WEIGHTS") as ProgramEquipment;
         return {
           id: typeof o.id === "string" && o.id ? o.id : `d${i}_${Math.random().toString(36).slice(2, 8)}`,
           name: String(o.name ?? `Day ${i + 1}`).slice(0, 40),
+          equipment,
           minutes: clampMinutes(o.minutes),
-          slots: parseSlots(o.slots),
         };
       })
     : [];
-  return days.length ? days : [defaultDay("WEIGHTS", includePull, "Training")];
+  return days.length ? days : [{ id: "d0", name: "Training", equipment: "WEIGHTS", minutes: suggestedMinutes(2) }];
 }
 
-/** The team-wide "include a pull movement" trainer setting (default on). */
-async function getIncludePull(): Promise<boolean> {
-  const row = await prisma.setting.findUnique({ where: { key: SETTING_INCLUDE_PULL } });
-  return row ? row.value !== "false" : DEFAULT_INCLUDE_PULL;
+/** Read & validate the single-weighted-day layout choice (defaults to ROTATE). */
+function readLayout(formData: FormData): WeightedLayout {
+  const v = String(formData.get("weightedLayout") ?? "");
+  return (WEIGHTED_LAYOUTS as readonly string[]).includes(v) ? (v as WeightedLayout) : "ROTATE";
 }
 
 /** Read & validate the top-level equipment choice from the form (defaults to WEIGHTS). */
@@ -119,7 +84,16 @@ function readEquipment(formData: FormData): ProgramEquipment {
   return (PROGRAM_EQUIPMENT as readonly string[]).includes(v) ? (v as ProgramEquipment) : "WEIGHTS";
 }
 
-/** Read per-movement starting maxima (both weighted + bodyweight) from the form. */
+/** Validate a chosen exercise id for a movement+mode (catalog id or custom), else the default. */
+function readExerciseId(formData: FormData, m: MovementKey, mode: SlotMode): string {
+  const field = mode === "WEIGHTED" ? `wex_${m}` : `bex_${m}`;
+  const v = String(formData.get(field) ?? "");
+  if (v === CUSTOM_EXERCISE_ID) return CUSTOM_EXERCISE_ID;
+  const entry = catalogEntry(m, v);
+  return entry && entry.mode === mode ? v : defaultExerciseId(m, mode);
+}
+
+/** Read per-movement state: maxima (weighted + bodyweight) and the chosen exercise variants. */
 function readMaxima(formData: FormData, tmPct: number, rounding: number): ProgramState {
   const state = defaultFullState();
   for (const m of MOVEMENTS) {
@@ -134,8 +108,21 @@ function readMaxima(formData: FormData, tmPct: number, rounding: number): Progra
     }
     const repMax = Number(formData.get(`repmax_${m}`));
     if (Number.isFinite(repMax) && repMax > 0) cur.repMax = Math.min(repMax, 50);
-    const level = Number(formData.get(`level_${m}`));
-    if (Number.isFinite(level)) cur.levelIndex = clampLevel(m, level);
+
+    // Chosen exercise variants (weighted + bodyweight) and any custom names.
+    cur.weightedExerciseId = readExerciseId(formData, m, "WEIGHTED");
+    cur.bodyweightExerciseId = readExerciseId(formData, m, "BODYWEIGHT");
+    const wCustom = String(formData.get(`wcustom_${m}`) ?? "").slice(0, 60);
+    const bCustom = String(formData.get(`bcustom_${m}`) ?? "").slice(0, 60);
+    if (cur.weightedExerciseId === CUSTOM_EXERCISE_ID && wCustom) cur.weightedCustom = wCustom;
+    if (cur.bodyweightExerciseId === CUSTOM_EXERCISE_ID && bCustom) cur.bodyweightCustom = bCustom;
+
+    // The bodyweight rep ladder starts at the chosen variation's rung.
+    const bwEntry = catalogEntry(m, cur.bodyweightExerciseId);
+    if (bwEntry) {
+      const idx = MOVEMENT_LEVELS[m].indexOf(bwEntry.labelKey);
+      if (idx >= 0) cur.levelIndex = idx;
+    }
     state[m] = cur;
   }
   return state;
@@ -150,9 +137,10 @@ export async function createStrengthProgram(formData: FormData) {
   const rounding = Number(formData.get("rounding")) || 2.5;
   const tmPct = Number(formData.get("trainingMaxPct")) || 0.9;
   const equipment = readEquipment(formData);
-  const includePull = await getIncludePull();
-  const days = parseDays(formData.get("days"), includePull);
+  const weightedLayout = readLayout(formData);
+  const days = parseDays(formData.get("days"));
   const state = readMaxima(formData, tmPct, rounding);
+  const notes = String(formData.get("notes") ?? "").slice(0, 1000).trim() || null;
 
   await prisma.$transaction(async (tx) => {
     await tx.strengthProgram.updateMany({
@@ -164,6 +152,8 @@ export async function createStrengthProgram(formData: FormData) {
         userId: user.id,
         mode: "CUSTOM",
         equipment,
+        weightedLayout,
+        notes,
         daysPerWeek: days.length,
         minutesPerSession: days[0]?.minutes ?? 45,
         trainingMaxPct: tmPct,
@@ -192,14 +182,17 @@ export async function updateStrengthSettings(formData: FormData) {
   const rounding = Number(formData.get("rounding")) || program.rounding;
   const tmPct = Number(formData.get("trainingMaxPct")) || program.trainingMaxPct;
   const equipment = readEquipment(formData);
-  const includePull = await getIncludePull();
-  const days = parseDays(formData.get("days"), includePull);
+  const weightedLayout = readLayout(formData);
+  const days = parseDays(formData.get("days"));
   const state = readMaxima(formData, tmPct, rounding);
+  const notes = String(formData.get("notes") ?? "").slice(0, 1000).trim() || null;
 
   await prisma.strengthProgram.update({
     where: { id: program.id },
     data: {
       equipment,
+      weightedLayout,
+      notes,
       daysPerWeek: days.length,
       minutesPerSession: days[0]?.minutes ?? program.minutesPerSession,
       trainingMaxPct: tmPct,

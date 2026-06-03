@@ -124,8 +124,10 @@ model StrengthProgram {
   minutesPerSession Int     @default(45)
   trainingMaxPct   Float    @default(0.9)
   rounding         Float    @default(2.5)
-  movements        String // JSON: per-movement state { trainingMax?, repMax?, levelIndex? }
-  days             String   @default("[]") // JSON: [{ id, name, tools[], minutes }] — per-day setup
+  movements        String // JSON: per-movement state { trainingMax?, repMax?, levelIndex?, exercise ids }
+  days             String   @default("[]") // JSON: [{ id, name, equipment, minutes }] — per-day setup
+  weightedLayout   String   @default("ROTATE") // single-weighted-day layout: ROTATE | ALL_IN_ONE
+  notes            String? // free-text plan notes for trainers to see
   cycle            Int      @default(1)
   week             Int      @default(1)
   consecutiveHolds Int      @default(0)

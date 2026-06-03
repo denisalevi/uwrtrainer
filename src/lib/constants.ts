@@ -70,6 +70,14 @@ export type SlotMode = (typeof SLOT_MODES)[number];
 export const SLOT_TOOLS = ["BARBELL", "DUMBBELLS", "KETTLEBELL", "BODYWEIGHT"] as const;
 export type SlotTool = (typeof SLOT_TOOLS)[number];
 
+/**
+ * When only ONE day a week is weighted, how to cover the four lifts:
+ *  - ROTATE: alternate two-lift pairs over a 2-week cycle (each lift loaded biweekly).
+ *  - ALL_IN_ONE: do all four loaded in one long session (each lift loaded weekly).
+ */
+export const WEIGHTED_LAYOUTS = ["ROTATE", "ALL_IN_ONE"] as const;
+export type WeightedLayout = (typeof WEIGHTED_LAYOUTS)[number];
+
 /** Global (trainer) setting: whether default plans include a pull/row movement. */
 export const SETTING_INCLUDE_PULL = "strength.includePull";
 export const DEFAULT_INCLUDE_PULL = true;
@@ -90,7 +98,7 @@ export const MOVEMENT_LEVELS: Record<MovementKey, readonly string[]> = {
 /** Dropdown: how many days per week (capped at 4 — more isn't useful here). */
 export const SESSION_DAY_OPTIONS = [1, 2, 3, 4] as const;
 /** Dropdown: minutes available per session. */
-export const SESSION_TIME_OPTIONS = [30, 45, 60, 90] as const;
+export const SESSION_TIME_OPTIONS = [30, 45, 60, 90, 120] as const;
 
 export const LEADERBOARD_METRICS = [
   "ADHERENCE_POINTS",
