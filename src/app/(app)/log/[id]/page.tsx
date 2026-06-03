@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
@@ -14,6 +14,9 @@ export default async function EditLogPage({ params }: { params: Promise<{ id: st
   const log = await prisma.sessionLog.findUnique({ where: { id } });
   if (!log) notFound();
   if (log.userId !== user.id && !isTrainer(user.role)) notFound();
+
+  // A logged strength workout is edited in the full-session logger, not the generic form.
+  if (log.category === "STRENGTH" && log.status === "DONE") redirect(`/strength/log?id=${log.id}`);
 
   const slots = await prisma.practiceSlot.findMany({
     where: { active: true },
@@ -31,10 +34,6 @@ export default async function EditLogPage({ params }: { params: Promise<{ id: st
     practiceSlotId: log.practiceSlotId,
     missReason: log.missReason,
     zone: (details.zone as string) ?? null,
-    lift: (details.lift as string) ?? null,
-    sets: (details.sets as number) ?? null,
-    reps: (details.reps as number) ?? null,
-    weight: (details.weight as number) ?? null,
     note: (details.note as string) ?? null,
   };
 

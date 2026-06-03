@@ -61,20 +61,28 @@ session — it attaches to the **lightest weighted pressing day** (never the dea
 posterior overload; on bodyweight days it's just one of the patterns). The trainer toggle decides
 whether it appears at all.
 
-**Choosing exercises.** Each lift has a **Modify** picker: a weighted variant (barbell / dumbbell
-/ kettlebell) and a bodyweight variant (the ladder), or *type-your-own*. The same lift can be
-loaded on one day and bodyweight on another — its **maxima are stored per lift and shared**: one
-working weight (kg) and one rep target, used wherever that lift appears. The **bodyweight ladders**
-go easiest → hardest (push: *knee push-up → push-up → feet-elevated → archer → one-arm*); the
-variant you pick sets your starting rung. A live **preview** shows exactly what each day becomes.
+**Choosing exercises.** Each lift has a **Modify** picker offering **all** options — with-weights
+(barbell / dumbbell / kettlebell) *and* without-weights (the bodyweight ladder), or
+*type-your-own* — each shown with the tool it needs (e.g. *Back squat (Barbell)*). The chosen
+exercise decides how that lift is performed, so you can do **a bodyweight exercise even on a
+weighted day** — e.g. barbell everything but pull-ups for the row. The dividing line is how you
+*progress*: a **barbell row** adds kilos (with-weights), a **pull-up — even a weighted one** adds
+reps (without-weights, the top rung of the ladder). Maxima are **stored per lift and shared**: one
+working weight (kg) and one rep target, used wherever that lift appears; the field next to each
+lift follows the exercise you picked. The **bodyweight ladders** go easiest → hardest (push:
+*knee push-up → push-up → feet-elevated → archer → one-arm*). A live **preview** shows exactly
+what each day becomes.
 
 **One weighted day.** Four lifts don't fit one session every week, so you choose:
 - **Alternate (2-week):** squat+bench one week, deadlift+press the next — each lift loaded
   biweekly, ~50-min sessions. (The plan shows which half this is: *week A / week B*.)
 - **All-in-one:** all four loaded in one long (~2 h) session, every lift every week.
 
-When logging, the day's exercises are **preselected** as lines — you just type the sets you did
-(or swap an exercise / type your own), and it auto-saves as you go.
+**Logging a strength session** is always one full session, never a single lift. Open the workout
+logger (from *Log → Strength*, or the strength page) and either **pick a day from your plan** to
+preload its exercises, or **start empty** and add exercises as you go. The day's exercises are
+preselected as lines — type the sets you did (or swap an exercise / type your own), and it
+auto-saves. **Editing** a logged strength session reopens this same full-session view.
 
 ## Starting out — how the first numbers are set
 

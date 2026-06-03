@@ -687,37 +687,39 @@ export function pullRiderDay(assignment: MovementKey[][]): number | null {
   return pressing[0].i;
 }
 
-/** Resolve the chosen exercise (variant + label + tool) for a movement in a mode. */
+/**
+ * Resolve the chosen exercise for a movement on a given kind of day. The day's equipment picks
+ * WHICH stored choice to use (the weighted-day one or the bodyweight-day one), but the chosen
+ * exercise itself can be either kind — so a "weighted day" can hold a bodyweight lift (e.g. the
+ * row swapped for pull-ups). The returned `mode` follows the exercise, not the day.
+ */
 export function resolveExercise(
   movement: MovementKey,
-  mode: SlotMode,
+  dayEquipment: ProgramEquipment,
   state: ProgramState,
-): { exerciseId: string; custom?: string; labelKey: string; tool: SlotTool } {
+): { exerciseId: string; custom?: string; labelKey: string; tool: SlotTool; mode: SlotMode } {
   const s = state[movement] ?? {};
-  const chosen = mode === "WEIGHTED" ? s.weightedExerciseId : s.bodyweightExerciseId;
-  const custom = mode === "WEIGHTED" ? s.weightedCustom : s.bodyweightCustom;
+  const onWeighted = dayEquipment === "WEIGHTS";
+  const chosen = onWeighted ? s.weightedExerciseId : s.bodyweightExerciseId;
+  const custom = onWeighted ? s.weightedCustom : s.bodyweightCustom;
   if (chosen === CUSTOM_EXERCISE_ID) {
-    return {
-      exerciseId: CUSTOM_EXERCISE_ID,
-      custom: custom || "",
-      labelKey: "",
-      tool: mode === "WEIGHTED" ? "BARBELL" : "BODYWEIGHT",
-    };
+    const mode: SlotMode = onWeighted ? "WEIGHTED" : "BODYWEIGHT";
+    return { exerciseId: CUSTOM_EXERCISE_ID, custom: custom || "", labelKey: "", tool: mode === "WEIGHTED" ? "BARBELL" : "BODYWEIGHT", mode };
   }
-  const id = chosen ?? defaultExerciseId(movement, mode);
-  const entry = catalogEntry(movement, id) ?? EXERCISE_CATALOG[movement].find((e) => e.mode === mode)!;
-  return { exerciseId: entry.id, labelKey: entry.labelKey, tool: entry.tool };
+  const id = chosen ?? defaultExerciseId(movement, onWeighted ? "WEIGHTED" : "BODYWEIGHT");
+  const entry = catalogEntry(movement, id) ?? EXERCISE_CATALOG[movement][0];
+  return { exerciseId: entry.id, labelKey: entry.labelKey, tool: entry.tool, mode: entry.mode };
 }
 
 function plannedExercise(
   movement: MovementKey,
-  mode: SlotMode,
+  dayEquipment: ProgramEquipment,
   state: ProgramState,
   week: number,
 ): PlannedExercise {
-  const ex = resolveExercise(movement, mode, state);
-  const sets = workoutForSlot({ movement, mode, exerciseId: ex.exerciseId, tool: ex.tool }, state, week).sets;
-  return { movement, mode, exerciseId: ex.exerciseId, custom: ex.custom, labelKey: ex.labelKey, tool: ex.tool, sets };
+  const ex = resolveExercise(movement, dayEquipment, state);
+  const sets = workoutForSlot({ movement, mode: ex.mode, exerciseId: ex.exerciseId, tool: ex.tool }, state, week).sets;
+  return { movement, mode: ex.mode, exerciseId: ex.exerciseId, custom: ex.custom, labelKey: ex.labelKey, tool: ex.tool, sets };
 }
 
 /**
@@ -742,7 +744,7 @@ export function buildSchedule(
       const cores = assignment[myIdx] ?? [];
       const movements = [...cores];
       if (riderIdx === myIdx) movements.push("PULL");
-      const exercises = movements.map((m) => plannedExercise(m, "WEIGHTED", state, week));
+      const exercises = movements.map((m) => plannedExercise(m, "WEIGHTS", state, week));
       const single = weightedDays.length <= 1;
       return {
         id: day.id,

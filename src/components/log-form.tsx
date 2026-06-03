@@ -7,22 +7,12 @@ import { logSession, updateSession, deleteSession } from "@/app/actions/training
 import {
   CATEGORIES,
   CARDIO_ZONES,
-  STRENGTH_LIFTS,
   type Category,
   type SessionStatus,
 } from "@/lib/constants";
 import { Button, Card, CardBody, Input, Label, Select, Textarea, cn } from "@/components/ui";
 
 type Slot = { id: string; label: string; tier: string };
-
-/** A pre-fillable movement from the player's strength program (this week's working sets). */
-export type StrengthSuggestion = {
-  label: string; // exercise name (e.g. "Full push-up" / "Back squat")
-  liftEnum: string; // mapped STRENGTH_LIFTS value
-  sets: number;
-  reps: number;
-  weight?: number;
-};
 
 export type ExistingSession = {
   id: string;
@@ -32,24 +22,16 @@ export type ExistingSession = {
   durationMin?: number | null;
   practiceSlotId?: string | null;
   zone?: string | null;
-  lift?: string | null;
-  sets?: number | null;
-  reps?: number | null;
-  weight?: number | null;
   note?: string | null;
   missReason?: string | null;
 };
 
 export function LogForm({
   slots,
-  suggestions = [],
   existing,
-  hasProgram = false,
 }: {
   slots: Slot[];
-  suggestions?: StrengthSuggestion[];
   existing?: ExistingSession;
-  hasProgram?: boolean;
 }) {
   const { t } = useT();
   const editing = !!existing;
@@ -57,22 +39,7 @@ export function LogForm({
   const [status, setStatus] = useState<SessionStatus>(existing?.status ?? "DONE");
   const today = new Date().toISOString().slice(0, 10);
 
-  // Controlled strength fields so the program selector can pre-fill them.
-  const [lift, setLift] = useState<string>(existing?.lift ?? "SQUAT");
-  const [sets, setSets] = useState<string>(existing?.sets != null ? String(existing.sets) : "");
-  const [reps, setReps] = useState<string>(existing?.reps != null ? String(existing.reps) : "");
-  const [weight, setWeight] = useState<string>(
-    existing?.weight != null ? String(existing.weight) : "",
-  );
   const [note, setNote] = useState<string>(existing?.note ?? "");
-
-  function applySuggestion(s: StrengthSuggestion) {
-    setLift(s.liftEnum);
-    setSets(String(s.sets));
-    setReps(String(s.reps));
-    setWeight(s.weight != null ? String(s.weight) : "");
-    if (!note) setNote(s.label);
-  }
 
   return (
     <>
@@ -155,7 +122,20 @@ export function LogForm({
               </div>
             )}
 
-            {status === "DONE" && (
+            {status === "DONE" && category === "STRENGTH" && (
+              <a
+                href="/strength/log"
+                className="flex items-center justify-between rounded-xl border border-teal-600 bg-teal-50 px-3 py-3 text-sm font-medium text-teal-800"
+              >
+                <span>
+                  💪 {t("strength.logWorkout")}
+                  <span className="block text-xs font-normal text-teal-700">{t("strength.logCardHint")}</span>
+                </span>
+                <span>›</span>
+              </a>
+            )}
+
+            {status === "DONE" && category !== "STRENGTH" && (
               <>
                 <div>
                   <Label htmlFor="durationMin">
@@ -183,90 +163,6 @@ export function LogForm({
                     </Select>
                   </div>
                 )}
-
-                {category === "STRENGTH" && (
-                  <div className="space-y-3">
-                    {hasProgram && !editing && (
-                      <a
-                        href="/strength/log"
-                        className="flex items-center justify-between rounded-xl border border-teal-600 bg-teal-50 px-3 py-3 text-sm font-medium text-teal-800"
-                      >
-                        <span>💪 {t("strength.logWorkout")}</span>
-                        <span>›</span>
-                      </a>
-                    )}
-                    {suggestions.length > 0 && (
-                      <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3">
-                        <Label htmlFor="fromProgram">{t("log.fromProgram")}</Label>
-                        <Select
-                          id="fromProgram"
-                          defaultValue=""
-                          onChange={(e) => {
-                            const i = Number(e.target.value);
-                            if (Number.isInteger(i) && suggestions[i]) applySuggestion(suggestions[i]);
-                          }}
-                        >
-                          <option value="">{t("log.pickMovement")}</option>
-                          {suggestions.map((s, i) => (
-                            <option key={i} value={i}>
-                              {s.label} · {s.sets}×{s.reps}
-                              {s.weight != null ? ` · ${s.weight} kg` : ""}
-                            </option>
-                          ))}
-                        </Select>
-                        <p className="mt-1 text-xs text-slate-500">{t("log.fromProgramHint")}</p>
-                      </div>
-                    )}
-                    <div>
-                      <Label htmlFor="lift">{t("log.lift")}</Label>
-                      <Select id="lift" name="lift" value={lift} onChange={(e) => setLift(e.target.value)}>
-                        {STRENGTH_LIFTS.map((l) => (
-                          <option key={l} value={l}>
-                            {l.charAt(0) + l.slice(1).toLowerCase()}
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <Label htmlFor="sets">{t("log.sets")}</Label>
-                        <Input
-                          id="sets"
-                          name="sets"
-                          type="number"
-                          min={0}
-                          inputMode="numeric"
-                          value={sets}
-                          onChange={(e) => setSets(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="reps">{t("log.reps")}</Label>
-                        <Input
-                          id="reps"
-                          name="reps"
-                          type="number"
-                          min={0}
-                          inputMode="numeric"
-                          value={reps}
-                          onChange={(e) => setReps(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="weight">{t("log.weight")}</Label>
-                        <Input
-                          id="weight"
-                          name="weight"
-                          type="number"
-                          min={0}
-                          inputMode="decimal"
-                          value={weight}
-                          onChange={(e) => setWeight(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
               </>
             )}
 
@@ -282,16 +178,20 @@ export function LogForm({
               </div>
             )}
 
-            <div>
-              <Label htmlFor="note">{t("log.note")}</Label>
-              <Input id="note" name="note" value={note} onChange={(e) => setNote(e.target.value)} />
-            </div>
+            {!(category === "STRENGTH" && status === "DONE") && (
+              <div>
+                <Label htmlFor="note">{t("log.note")}</Label>
+                <Input id="note" name="note" value={note} onChange={(e) => setNote(e.target.value)} />
+              </div>
+            )}
           </CardBody>
         </Card>
 
-        <Button type="submit" className="w-full">
-          {editing ? t("log.saveChanges") : t("log.save")}
-        </Button>
+        {!(category === "STRENGTH" && status === "DONE") && (
+          <Button type="submit" className="w-full">
+            {editing ? t("log.saveChanges") : t("log.save")}
+          </Button>
+        )}
       </form>
 
       {editing && (

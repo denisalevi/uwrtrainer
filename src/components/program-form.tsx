@@ -115,10 +115,17 @@ export function ProgramForm({
     setEditing(null);
   };
 
-  const exLabel = (m: MovementKey, mode: SlotMode): string => {
-    const id = mode === "WEIGHTED" ? maxima[m].wex : maxima[m].bex;
-    if (id === CUSTOM_EXERCISE_ID) return (mode === "WEIGHTED" ? maxima[m].wcustom : maxima[m].bcustom) || t("strength.exerciseName");
-    return t((catalogEntry(m, id)?.labelKey ?? "") as DictKey);
+  // The exercise currently chosen for a movement's weighted-day / bodyweight-day slot — its
+  // label, the tool it needs, and how it's actually performed (the exercise decides the mode).
+  const chosenExercise = (m: MovementKey, slot: SlotMode): { label: string; tool: string; mode: SlotMode } => {
+    const mx = maxima[m];
+    const id = slot === "WEIGHTED" ? mx.wex : mx.bex;
+    if (id === CUSTOM_EXERCISE_ID) {
+      const custom = slot === "WEIGHTED" ? mx.wcustom : mx.bcustom;
+      return { label: custom || t("strength.exerciseName"), tool: slot === "WEIGHTED" ? "BARBELL" : "BODYWEIGHT", mode: slot };
+    }
+    const e = catalogEntry(m, id);
+    return e ? { label: t(e.labelKey as DictKey), tool: e.tool, mode: e.mode } : { label: id, tool: "BODYWEIGHT", mode: slot };
   };
 
   // ── Live preview (week 1) ──
@@ -265,12 +272,33 @@ export function ProgramForm({
         <Card key={m}>
           <CardBody className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t(`mv.${m}` as DictKey)}</p>
-            {anyWeighted && <MovementRow m={m} mode="WEIGHTED" label={exLabel(m, "WEIGHTED")} editing={editing} setEditing={setEditing} field={
-              <Input type="number" min={0} inputMode="decimal" placeholder="kg" value={maxima[m].tm} onChange={(e) => setMax(m, { tm: e.target.value })} />
-            } valueLabel={t("strength.slotWeight")} onPick={pickEntry} onCustom={pickCustom} t={t} />}
-            {anyBodyweight && <MovementRow m={m} mode="BODYWEIGHT" label={exLabel(m, "BODYWEIGHT")} editing={editing} setEditing={setEditing} field={
-              <Input type="number" min={0} inputMode="numeric" placeholder={t("strength.repMax")} value={maxima[m].reps} onChange={(e) => setMax(m, { reps: e.target.value })} />
-            } valueLabel={t("strength.repMax")} onPick={pickEntry} onCustom={pickCustom} t={t} />}
+            {([anyWeighted ? "WEIGHTED" : null, anyBodyweight ? "BODYWEIGHT" : null].filter(Boolean) as SlotMode[]).map((slot) => {
+              const ex = chosenExercise(m, slot);
+              const weighted = ex.mode === "WEIGHTED";
+              return (
+                <MovementRow
+                  key={slot}
+                  m={m}
+                  slot={slot}
+                  label={ex.label}
+                  tool={ex.tool}
+                  showContext={anyWeighted && anyBodyweight}
+                  editing={editing}
+                  setEditing={setEditing}
+                  valueLabel={weighted ? t("strength.slotWeight") : t("strength.repMax")}
+                  field={
+                    weighted ? (
+                      <Input type="number" min={0} inputMode="decimal" placeholder="kg" value={maxima[m].tm} onChange={(e) => setMax(m, { tm: e.target.value })} />
+                    ) : (
+                      <Input type="number" min={0} inputMode="numeric" placeholder={t("strength.repMax")} value={maxima[m].reps} onChange={(e) => setMax(m, { reps: e.target.value })} />
+                    )
+                  }
+                  onPick={pickEntry}
+                  onCustom={pickCustom}
+                  t={t}
+                />
+              );
+            })}
           </CardBody>
         </Card>
       ))}
@@ -294,7 +322,8 @@ export function ProgramForm({
             <ul className="flex flex-wrap gap-1">
               {day.exercises.map((e, j) => (
                 <li key={j} className="rounded-lg bg-slate-50 px-2 py-1 text-xs text-slate-700">
-                  {e.exerciseId === CUSTOM_EXERCISE_ID ? e.custom : t(e.labelKey as DictKey)}
+                  {e.exerciseId === CUSTOM_EXERCISE_ID ? e.custom : t(e.labelKey as DictKey)}{" "}
+                  <span className="text-slate-400">({t(`tool.${e.tool}` as DictKey)})</span>
                 </li>
               ))}
             </ul>
@@ -323,8 +352,10 @@ export function ProgramForm({
 
 function MovementRow({
   m,
-  mode,
+  slot,
   label,
+  tool,
+  showContext,
   valueLabel,
   field,
   editing,
@@ -334,26 +365,33 @@ function MovementRow({
   t,
 }: {
   m: MovementKey;
-  mode: SlotMode;
+  slot: SlotMode; // which stored choice this row edits (weighted-day vs bodyweight-day)
   label: string;
+  tool: string;
+  showContext: boolean;
   valueLabel: string;
   field: React.ReactNode;
   editing: string | null;
   setEditing: (v: string | null) => void;
-  onPick: (m: MovementKey, mode: SlotMode, e: CatalogEntry) => void;
-  onCustom: (m: MovementKey, mode: SlotMode, name: string) => void;
+  onPick: (m: MovementKey, slot: SlotMode, e: CatalogEntry) => void;
+  onCustom: (m: MovementKey, slot: SlotMode, name: string) => void;
   t: (k: DictKey) => string;
 }) {
-  const key = `${m}:${mode}`;
+  const key = `${m}:${slot}`;
   const isOpen = editing === key;
   const [draft, setDraft] = useState("");
-  const entries = EXERCISE_CATALOG[m].filter((e) => e.mode === mode);
+  const weighted = EXERCISE_CATALOG[m].filter((e) => e.mode === "WEIGHTED");
+  const bodyweight = EXERCISE_CATALOG[m].filter((e) => e.mode === "BODYWEIGHT");
   return (
     <div className="rounded-xl border border-slate-200 p-2">
       <div className="flex items-center justify-between gap-2">
         <p className="min-w-0 truncate text-sm text-slate-700">
-          <span className="text-slate-400">{mode === "WEIGHTED" ? t("strength.withWeights") : t("strength.withoutWeights")}:</span>{" "}
-          {label}
+          {showContext && (
+            <span className="text-slate-400">
+              {slot === "WEIGHTED" ? t("strength.slotWeightedDay") : t("strength.slotBodyweightDay")}:{" "}
+            </span>
+          )}
+          {label} <span className="text-slate-400">({t(`tool.${tool}` as DictKey)})</span>
         </p>
         <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(isOpen ? null : key)}>
           {t("strength.modify")}
@@ -364,23 +402,28 @@ function MovementRow({
         {field}
       </div>
       {isOpen && (
-        <div className="mt-2 space-y-2 border-t border-slate-100 pt-2">
-          <div className="grid gap-1">
-            {entries.map((e) => (
-              <button
-                type="button"
-                key={e.id}
-                onClick={() => onPick(m, mode, e)}
-                className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-700"
-              >
-                <span>{t(e.labelKey as DictKey)}</span>
-                <span className="text-xs text-slate-400">{t(`tool.${e.tool}` as DictKey)}</span>
-              </button>
-            ))}
-          </div>
+        <div className="mt-2 space-y-3 border-t border-slate-100 pt-2">
+          {([["strength.withWeights", weighted], ["strength.withoutWeights", bodyweight]] as const).map(([title, entries]) => (
+            <div key={title}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t(title)}</p>
+              <div className="mt-1 grid gap-1">
+                {entries.map((e) => (
+                  <button
+                    type="button"
+                    key={e.id}
+                    onClick={() => onPick(m, slot, e)}
+                    className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-700"
+                  >
+                    <span>{t(e.labelKey as DictKey)}</span>
+                    <span className="text-xs text-slate-400">{t(`tool.${e.tool}` as DictKey)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
           <div className="flex items-center gap-2">
             <Input placeholder={t("strength.exerciseName")} value={draft} onChange={(e) => setDraft(e.target.value)} />
-            <Button type="button" size="sm" onClick={() => onCustom(m, mode, draft)}>
+            <Button type="button" size="sm" onClick={() => onCustom(m, slot, draft)}>
               {t("common.save")}
             </Button>
           </div>

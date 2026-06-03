@@ -334,6 +334,10 @@ export const en = {
   "strength.rotationWeek": "week",
   "strength.notesLabel": "Notes for your trainer",
   "strength.notesPlaceholder": "e.g. no barbell at home, bad shoulder, can't make Tuesdays…",
+  "strength.slotWeightedDay": "Weights day",
+  "strength.slotBodyweightDay": "Bodyweight day",
+  "strength.logCardHint": "Pick a day from your plan, or start empty.",
+  "strength.emptySession": "Empty session",
 } as const;
 
 export type Dict = typeof en;
@@ -673,6 +677,10 @@ export const de: Record<DictKey, string> = {
   "strength.rotationWeek": "Woche",
   "strength.notesLabel": "Notizen für deinen Trainer",
   "strength.notesPlaceholder": "z. B. keine Langhantel zu Hause, Schulter angeschlagen, dienstags keine Zeit…",
+  "strength.slotWeightedDay": "Gewichts-Tag",
+  "strength.slotBodyweightDay": "Körpergewicht-Tag",
+  "strength.logCardHint": "Wähle einen Tag aus deinem Plan oder starte leer.",
+  "strength.emptySession": "Leere Einheit",
 };
 
 export const dictionaries = { en, de } as const;

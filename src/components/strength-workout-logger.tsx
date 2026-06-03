@@ -61,7 +61,7 @@ export function StrengthWorkoutLogger({
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const day = days.find((d) => d.id === dayId) ?? days[0];
+  const day = days.find((d) => d.id === dayId); // undefined = empty session (add by hand)
 
   function buildDetails(): string {
     return JSON.stringify({
@@ -156,8 +156,8 @@ export function StrengthWorkoutLogger({
 
   return (
     <div className="space-y-4">
-      {/* Day selector */}
-      {days.length > 1 && (
+      {/* Day selector — pick a day from your plan to preload it, or start empty. */}
+      {days.length >= 1 && (
         <div>
           <Label>{t("strength.chooseDay")}</Label>
           <div className="mt-2 grid grid-cols-2 gap-2">
@@ -180,6 +180,22 @@ export function StrengthWorkoutLogger({
                 {d.name}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => {
+                setDayId("");
+                setLines([]);
+                scheduleSave();
+              }}
+              className={cn(
+                "rounded-xl border px-3 py-2 text-sm font-medium",
+                dayId === ""
+                  ? "border-teal-600 bg-teal-50 text-teal-800"
+                  : "border-slate-200 bg-white text-slate-600",
+              )}
+            >
+              {t("strength.emptySession")}
+            </button>
           </div>
         </div>
       )}

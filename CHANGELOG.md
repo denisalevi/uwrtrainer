@@ -11,6 +11,22 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-03
+
+### Changed
+- **Swap any lift to bodyweight — even on a weighted day.** Each lift's Modify picker now offers
+  *all* options (with-weights and without-weights), so you can, say, barbell everything but do
+  pull-ups for the row. How a lift is performed follows the exercise you pick, not the day. (A
+  weighted pull-up counts as without-weights — you progress by reps.)
+- **Clearer setup labels** — the chosen exercise now shows the tool it needs ("Squat (Barbell)"),
+  matching the picker and plan view.
+- **One way to log strength.** Strength is always logged as a full session — pick a day from your
+  plan to preload it, or start empty and add exercises. Editing a logged strength session reopens
+  that same full-session view (it used to open a mismatched single-lift form).
+
+### Removed
+- The old single-lift strength logging ("log squats only").
+
 ## [0.8.0] - 2026-06-03
 
 ### Changed

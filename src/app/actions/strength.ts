@@ -84,13 +84,16 @@ function readEquipment(formData: FormData): ProgramEquipment {
   return (PROGRAM_EQUIPMENT as readonly string[]).includes(v) ? (v as ProgramEquipment) : "WEIGHTS";
 }
 
-/** Validate a chosen exercise id for a movement+mode (catalog id or custom), else the default. */
-function readExerciseId(formData: FormData, m: MovementKey, mode: SlotMode): string {
-  const field = mode === "WEIGHTED" ? `wex_${m}` : `bex_${m}`;
+/**
+ * Validate the chosen exercise id for a movement's weighted-day or bodyweight-day slot. Any
+ * catalog exercise for the movement is allowed in either slot (a weighted day may hold a
+ * bodyweight lift, e.g. pull-ups for the row), or "custom".
+ */
+function readExerciseId(formData: FormData, m: MovementKey, slot: SlotMode): string {
+  const field = slot === "WEIGHTED" ? `wex_${m}` : `bex_${m}`;
   const v = String(formData.get(field) ?? "");
   if (v === CUSTOM_EXERCISE_ID) return CUSTOM_EXERCISE_ID;
-  const entry = catalogEntry(m, v);
-  return entry && entry.mode === mode ? v : defaultExerciseId(m, mode);
+  return catalogEntry(m, v) ? v : defaultExerciseId(m, slot);
 }
 
 /** Read per-movement state: maxima (weighted + bodyweight) and the chosen exercise variants. */

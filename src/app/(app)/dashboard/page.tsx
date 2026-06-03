@@ -106,7 +106,11 @@ export default async function DashboardPage() {
               {recent.map((log) => (
                 <li key={log.id}>
                   <Link
-                    href={`/log/${log.id}`}
+                    href={
+                      log.category === "STRENGTH" && log.status === "DONE"
+                        ? `/strength/log?id=${log.id}`
+                        : `/log/${log.id}`
+                    }
                     className="flex items-center justify-between px-4 py-3 text-sm hover:bg-slate-50"
                   >
                     <div>

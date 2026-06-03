@@ -67,13 +67,18 @@ docker run -d --name uwr-dev -p 3000:3000 -v "$PWD":/app -v uwr-npm-cache-deb:/r
   `{trainingMax?,repMax?,levelIndex?, weighted/bodyweightExerciseId, *Custom}`, **shared across
   all days**). `EXERCISE_CATALOG` lists each movement's variants for the Modify picker;
   `resolveExercise()`/`workoutForSlot()` build a movement's sets (weighted reads `trainingMax`,
-  bodyweight reads `repMax`). Whether defaults include a pull/row is the **team setting**
+  bodyweight reads `repMax`). A lift's chosen exercise can be either kind regardless of the day —
+  `resolveExercise` returns the mode from the exercise, so a weighted day can hold a bodyweight
+  lift (e.g. pull-ups for the row). Whether defaults include a pull/row is the **team setting**
   `strength.includePull` (Setting table, default on). Exercise/lift names are **i18n keys**
   (`ex.*`/`lift.*`) the engine returns and the UI translates. Actions: `actions/strength.ts`
   (+ `updateStrengthIncludePull` in `actions/trainer.ts`). UI: `/strength` (view + `program-form`
   for setup/settings — per-day equipment, per-lift Modify + inline shared maxima, live plan
-  preview, notes box), `/strength/log` (`strength-workout-logger` — the week's exercises
-  preselected as lines, or type a custom one, debounced autosave via `saveStrengthWorkout`). Model
+  preview, notes box). `/strength/log` (`strength-workout-logger`) is the **only** strength-logging
+  UI: pick a plan day to preload its exercises or start empty, debounced autosave via
+  `saveStrengthWorkout`; `?id=` edits an existing session (the generic `/log/[id]` redirects
+  STRENGTH-DONE here, and the old single-lift strength fields in `log-form`/`logSession` are
+  gone). Model
   + reasoning in `TRAINING.md`. Server-action files export **only async functions** (pure helpers
   like `buildSchedule`/`weightedAssignment`/`resolveExercise` live in `strength.ts`) — webpack
   build enforces this.

@@ -16,10 +16,6 @@ const LogSchema = z.object({
   missReason: z.string().max(300).optional(),
   // type-specific
   zone: z.string().optional(),
-  lift: z.string().optional(),
-  sets: z.coerce.number().int().min(0).max(50).optional(),
-  reps: z.coerce.number().int().min(0).max(100).optional(),
-  weight: z.coerce.number().min(0).max(1000).optional(),
   note: z.string().max(300).optional(),
 });
 
@@ -27,11 +23,9 @@ type LogData = z.infer<typeof LogSchema>;
 
 /** Build the type-specific JSON detail payload + the column values shared by create/update. */
 function sessionFields(d: LogData) {
+  // Strength DONE sessions are created by the workout logger (saveStrengthWorkout), not here.
   let details: Record<string, unknown> | undefined;
   if (d.category === "CARDIO" && d.zone) details = { zone: d.zone };
-  if (d.category === "STRENGTH" && d.lift) {
-    details = { lift: d.lift, sets: d.sets, reps: d.reps, weight: d.weight };
-  }
   if (d.note) details = { ...(details ?? {}), note: d.note };
   return {
     date: new Date(d.date),
