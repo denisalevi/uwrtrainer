@@ -53,6 +53,12 @@ docker run -d --name uwr-dev -p 3000:3000 -v "$PWD":/app -v uwr-npm-cache-deb:/r
 - **Scoring** (pure, unit-tested): `src/lib/scoring.ts`. **Aggregation** (plans+logs → week
   scores, leaderboards, team summary): `src/lib/stats.ts`. Leaderboards are computed **on the
   fly** — there is no cache table, by design (robustness over micro-perf for a small team).
+- **Strength program** (pure, unit-tested): `src/lib/strength.ts` — a Wendler 5/3/1 engine
+  that also works with zero equipment (WEIGHTED / REPS / LEVELS modes). State persists in the
+  `StrengthProgram` model (`movements` is a JSON string). Action: `actions/strength.ts`; UI:
+  `/strength` page + `strength-wizard`/`strength-program` components. Model explained in
+  `TRAINING.md`. Server-action files export **only async functions** (pure helpers like
+  `incrementFor` live in `strength.ts`, not the action file) — webpack build enforces this.
 - **i18n**: `src/lib/i18n/` — `en`/`de` dictionaries (flat dotted keys), server helper
   `getServerT()`, client `useT()` (`src/components/i18n-provider.tsx`). Locale is **per user**
   (`User.locale`), applied in the root layout.
@@ -77,6 +83,13 @@ Key files to read first: `prisma/schema.prisma`, `src/lib/scoring.ts`, `src/lib/
   `Record<DictKey,string>`, so a missing key fails the build).
 - **Server Actions are public endpoints** — always re-check auth inside them via the DAL; don't
   rely on UI gating.
+
+## Versioning
+
+SemVer, pre-1.0. `package.json` is the source of truth; a new **minor** = a shipped feature
+batch, a **patch** = fixes. Release: `npm version <patch|minor>` (bumps + creates the `vX.Y.Z`
+tag), update `CHANGELOG.md` (Keep a Changelog), then `git push --follow-tags`. The version is
+shown in Settings via `src/lib/version.ts` (set `NEXT_PUBLIC_GIT_SHA` at build for a SHA too).
 
 ## Deployment
 

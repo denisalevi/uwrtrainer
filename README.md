@@ -21,6 +21,10 @@ from a single Docker Compose stack.
   strength / cardio / mobility. Players set their own, or a trainer sets it with them.
 - **Logging** — quick session logging (rugby attendance, strength sets/reps/weight, cardio
   heart-rate zone), including logging a *missed* session with a reason.
+- **Strength program** — a guided Wendler 5/3/1-style plan that grows with you and works even
+  with **no equipment at all** (bodyweight progressions). Picks weights/reps for you, adapts
+  to how many days and minutes you can train, and explains itself in-app. Full model in
+  [`TRAINING.md`](TRAINING.md).
 - **Adherence scoring** — full adherence is worth a fixed weekly base regardless of plan
   size; missing a mandatory practice hurts more than an optional one; overshoot earns a small
   capped bonus. All tunable in [`src/lib/scoring.ts`](src/lib/scoring.ts).

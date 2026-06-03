@@ -8,6 +8,7 @@ import { updateLeaderboards } from "@/app/actions/trainer";
 import { logout } from "@/app/actions/auth";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Button, Card, CardBody, Label, Select, SectionTitle } from "@/components/ui";
+import { versionLabel } from "@/lib/version";
 
 export default async function SettingsPage() {
   const user = await requireUser();
@@ -101,6 +102,8 @@ export default async function SettingsPage() {
           </CardBody>
         </Card>
       </section>
+
+      <p className="pt-2 text-center text-xs text-slate-400">UWR Trainer {versionLabel()}</p>
     </div>
   );
 }

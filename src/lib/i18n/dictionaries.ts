@@ -162,6 +162,69 @@ export const en = {
   "day.4": "Thursday",
   "day.5": "Friday",
   "day.6": "Saturday",
+
+  "strength.title": "Strength program",
+  "strength.intro": "A guided plan that grows with you — works even with no equipment.",
+  "strength.open": "Open my strength program",
+  "strength.noProgram": "You don't have a strength program yet.",
+  "strength.setup": "Set up my program",
+  "strength.wizardIntro":
+    "Tell us what you have and how often you can train. You can start with nothing at all and refine later.",
+  "strength.equipment": "What do you have?",
+  "strength.eq.NONE": "Nothing — bodyweight only",
+  "strength.eq.PULLUP_BAR": "A pull-up bar",
+  "strength.eq.DUMBBELLS": "Dumbbells / kettlebells",
+  "strength.eq.BARBELL": "A barbell",
+  "strength.eq.FULL_GYM": "Full gym",
+  "strength.days": "Days per week",
+  "strength.minutes": "Minutes per session",
+  "strength.startTitle": "Starting point",
+  "strength.startHintWeighted":
+    "Enter a recent set per lift (weight × reps) and we'll estimate a safe starting weight. Leave blank to start light and let it ramp up.",
+  "strength.startHintBody":
+    "Optional: how many clean reps you can do now. Leave blank and we'll start gently — it's meant to feel easy at first.",
+  "strength.weight": "Weight (kg)",
+  "strength.reps": "Reps",
+  "strength.repMax": "Max clean reps",
+  "strength.level": "Starting variation",
+  "strength.create": "Start program",
+  "strength.cycle": "Cycle",
+  "strength.weekN": "Week {n}",
+  "strength.deload": "Easy week (deload)",
+  "strength.testWeek": "Test week — push the last set",
+  "strength.thisWeek": "This week",
+  "strength.set": "Set",
+  "strength.amrapSet": "max reps",
+  "strength.assistance": "Extra volume",
+  "strength.assistanceDesc": "5×10 lighter — skip it if you're short on time.",
+  "strength.changeWeek": "Show week",
+  "strength.finishCycle": "Finish this cycle",
+  "strength.finishHint":
+    "How many reps did you get on the last (max-reps) set in week 3? We'll set up your next cycle from this. Leave blank if it went to target.",
+  "strength.finishApply": "Apply & start next cycle",
+  "strength.template.FOUR_DAY": "4 days · one lift per day",
+  "strength.template.THREE_DAY": "3 days · lifts rotate across sessions",
+  "strength.template.TWO_DAY": "2 days · two lifts per session",
+  "strength.template.ONE_DAY": "1 day · short full-body session",
+  "strength.session": "Session",
+  "mv.PUSH": "Push",
+  "mv.PULL": "Pull",
+  "mv.SQUAT": "Squat",
+  "mv.HINGE": "Hinge",
+  "mv.PRESS": "Overhead",
+  "strength.explainTitle": "How this works",
+  "strength.explainTrainingMax":
+    "Training max: we don't use your true maximum but about 90% of it, so training never grinds to a limit and you always have room to grow.",
+  "strength.explainAmrap":
+    "Last set = as many good reps as possible. Beat the target and the app knows you're getting stronger — that drives your next step up.",
+  "strength.explainWave":
+    "4-week wave: three weeks get a bit heavier, the fourth is easy (deload) so you recover. Then it repeats, slightly stronger.",
+  "strength.explainAdjust":
+    "If a week feels too hard or you fall short, nothing breaks: the app keeps the same numbers next cycle, and after two short cycles in a row eases back about 10% and rebuilds. No failing.",
+  "strength.explainStart":
+    "Where to start: enter a recent set and we estimate your numbers, or just start light. Better too easy than too hard.",
+  "strength.explainSessions":
+    "Days & time decide the schedule: 4 short days, or 2 longer sessions, or one minimal full-body day — your call.",
 } as const;
 
 export type Dict = typeof en;
@@ -328,6 +391,69 @@ export const de: Record<DictKey, string> = {
   "day.4": "Donnerstag",
   "day.5": "Freitag",
   "day.6": "Samstag",
+
+  "strength.title": "Kraftprogramm",
+  "strength.intro": "Ein geführter Plan, der mit dir mitwächst — funktioniert auch ganz ohne Ausrüstung.",
+  "strength.open": "Mein Kraftprogramm öffnen",
+  "strength.noProgram": "Du hast noch kein Kraftprogramm.",
+  "strength.setup": "Programm einrichten",
+  "strength.wizardIntro":
+    "Sag uns, was du hast und wie oft du trainieren kannst. Du kannst mit gar nichts starten und später verfeinern.",
+  "strength.equipment": "Was hast du?",
+  "strength.eq.NONE": "Nichts — nur Körpergewicht",
+  "strength.eq.PULLUP_BAR": "Eine Klimmzugstange",
+  "strength.eq.DUMBBELLS": "Kurzhanteln / Kettlebells",
+  "strength.eq.BARBELL": "Eine Langhantel",
+  "strength.eq.FULL_GYM": "Volles Gym",
+  "strength.days": "Tage pro Woche",
+  "strength.minutes": "Minuten pro Einheit",
+  "strength.startTitle": "Startpunkt",
+  "strength.startHintWeighted":
+    "Gib pro Übung einen kürzlichen Satz ein (Gewicht × Wdh.) — wir schätzen ein sicheres Startgewicht. Leer lassen, um leicht zu starten.",
+  "strength.startHintBody":
+    "Optional: wie viele saubere Wiederholungen schaffst du jetzt? Leer lassen — wir starten sanft, es soll sich am Anfang leicht anfühlen.",
+  "strength.weight": "Gewicht (kg)",
+  "strength.reps": "Wdh.",
+  "strength.repMax": "Max. saubere Wdh.",
+  "strength.level": "Start-Variante",
+  "strength.create": "Programm starten",
+  "strength.cycle": "Zyklus",
+  "strength.weekN": "Woche {n}",
+  "strength.deload": "Lockere Woche (Deload)",
+  "strength.testWeek": "Testwoche — letzter Satz volle Power",
+  "strength.thisWeek": "Diese Woche",
+  "strength.set": "Satz",
+  "strength.amrapSet": "max. Wdh.",
+  "strength.assistance": "Zusatzvolumen",
+  "strength.assistanceDesc": "5×10 leichter — bei wenig Zeit weglassen.",
+  "strength.changeWeek": "Woche anzeigen",
+  "strength.finishCycle": "Zyklus abschließen",
+  "strength.finishHint":
+    "Wie viele Wiederholungen hast du im letzten (max-Wdh.) Satz in Woche 3 geschafft? Daraus richten wir den nächsten Zyklus ein. Leer lassen, wenn es nach Plan lief.",
+  "strength.finishApply": "Übernehmen & nächsten Zyklus starten",
+  "strength.template.FOUR_DAY": "4 Tage · eine Übung pro Tag",
+  "strength.template.THREE_DAY": "3 Tage · Übungen rotieren über die Einheiten",
+  "strength.template.TWO_DAY": "2 Tage · zwei Übungen pro Einheit",
+  "strength.template.ONE_DAY": "1 Tag · kurze Ganzkörper-Einheit",
+  "strength.session": "Einheit",
+  "mv.PUSH": "Drücken",
+  "mv.PULL": "Ziehen",
+  "mv.SQUAT": "Kniebeuge",
+  "mv.HINGE": "Hüftbeuge",
+  "mv.PRESS": "Überkopf",
+  "strength.explainTitle": "Wie funktioniert das?",
+  "strength.explainTrainingMax":
+    "Trainingsmaximum: Wir rechnen nicht mit deinem echten Maximum, sondern mit ca. 90 % davon — so geht's im Training nie ans Limit und du hast immer Luft nach oben.",
+  "strength.explainAmrap":
+    "Letzter Satz = so viele saubere Wiederholungen wie möglich. Übertriffst du das Ziel, weiß die App, dass du stärker wirst — das löst deine nächste Steigerung aus.",
+  "strength.explainWave":
+    "4-Wochen-Welle: drei Wochen werden etwas schwerer, die vierte ist locker (Deload) zur Erholung. Dann wiederholt sich's, etwas stärker.",
+  "strength.explainAdjust":
+    "Wenn eine Woche zu hart ist oder du's nicht schaffst, passiert nichts Schlimmes: Die App behält die Zahlen im nächsten Zyklus bei und nimmt nach zwei kurzen Zyklen in Folge ca. 10 % zurück, um neu aufzubauen. Kein Scheitern.",
+  "strength.explainStart":
+    "Wo starten: einen kürzlichen Satz eingeben — wir schätzen deine Werte — oder einfach leicht beginnen. Lieber zu leicht als zu schwer.",
+  "strength.explainSessions":
+    "Tage & Zeit bestimmen den Plan: 4 kurze Tage, oder 2 längere Einheiten, oder ein minimaler Ganzkörper-Tag — deine Wahl.",
 };
 
 export const dictionaries = { en, de } as const;

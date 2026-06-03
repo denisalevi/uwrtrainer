@@ -23,9 +23,10 @@ model User {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  plans        Plan[]       @relation("PlanOwner")
-  createdPlans Plan[]       @relation("PlanCreator")
-  sessionLogs  SessionLog[]
+  plans            Plan[]            @relation("PlanOwner")
+  createdPlans     Plan[]            @relation("PlanCreator")
+  sessionLogs      SessionLog[]
+  strengthPrograms StrengthProgram[]
 }
 
 /// Team-wide recurring practice. tier: "PRIMARY" (mandatory) | "SECONDARY" | "OPTIONAL".
@@ -104,6 +105,32 @@ model Leaderboard {
   enabled    Boolean @default(false)
   visibility String  @default("TRAINERS_ONLY")
   sortOrder  Int     @default(0)
+}
+
+/// A player's Wendler-style strength program (see src/lib/strength.ts).
+/// mode: "WEIGHTED" | "REPS" | "LEVELS". equipment: see EQUIPMENT_LEVELS.
+/// `movements` holds the per-movement state (training max in kg for WEIGHTED, or
+/// { repMax, levelIndex } for REPS/LEVELS) as a JSON string. cycle/week track progress
+/// (week 1..4; week 4 is the deload). consecutiveHolds drives the adjustment rule.
+model StrengthProgram {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mode             String
+  equipment        String   @default("NONE")
+  daysPerWeek      Int      @default(2)
+  minutesPerSession Int     @default(45)
+  trainingMaxPct   Float    @default(0.9)
+  rounding         Float    @default(2.5)
+  movements        String // JSON: per-movement state
+  cycle            Int      @default(1)
+  week             Int      @default(1)
+  consecutiveHolds Int      @default(0)
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
 }
 
 /// Generic key/value app settings (team name, scoring overrides, etc.).
