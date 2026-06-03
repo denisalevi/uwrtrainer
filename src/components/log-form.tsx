@@ -184,6 +184,15 @@ export function LogForm({
 
                 {category === "STRENGTH" && (
                   <div className="space-y-3">
+                    {suggestions.length > 0 && !editing && (
+                      <a
+                        href="/strength/log"
+                        className="flex items-center justify-between rounded-xl border border-teal-600 bg-teal-50 px-3 py-3 text-sm font-medium text-teal-800"
+                      >
+                        <span>💪 {t("strength.logWorkout")}</span>
+                        <span>›</span>
+                      </a>
+                    )}
                     {suggestions.length > 0 && (
                       <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3">
                         <Label htmlFor="fromProgram">{t("log.fromProgram")}</Label>

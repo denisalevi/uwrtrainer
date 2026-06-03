@@ -11,7 +11,21 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
-## [0.3.0] - 2026-06-03
+## [0.4.0] - 2026-06-03
+
+### Added
+- **Log a whole strength workout at once** (`/strength/log`): pick a day from your cycle,
+  every movement/set pre-shows its target, and you type what you actually did. **Auto-saves
+  as you type** (debounced) into one session log, so a dead phone loses nothing and you can
+  resume.
+- **Full strength settings**: edit everything from setup — equipment, days, minutes,
+  training-max %, rounding, and the per-movement maxima — plus a **Reset program** button.
+- **Dashboard reflects the leaderboards**: the fixed "weekly points / adherence" cards are
+  gone; instead each **enabled** leaderboard (that you're allowed to see) gets a card with
+  your current value. The streak badge follows the streak board.
+
+### Changed
+- Logging *Strength* with an active program now points to the whole-workout logger.
 
 ### Added
 - **Edit & delete logged sessions** — recent sessions on the dashboard are now tappable,

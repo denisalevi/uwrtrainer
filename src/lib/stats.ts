@@ -155,6 +155,27 @@ export async function getStreak(userId: string, weeks = 26): Promise<number> {
   return fullAdherenceStreak(pcts);
 }
 
+/**
+ * This week's value for every leaderboard metric, for one player — used to drive the
+ * dashboard cards (we only display the ones whose leaderboard is enabled/visible).
+ */
+export async function getCurrentWeekMetrics(
+  userId: string,
+): Promise<Record<LeaderboardMetric, number>> {
+  const weekStart = startOfWeek(new Date());
+  const plans = await loadPlans([userId]);
+  const logsByUser = await loadLogs([userId], weekStart, addWeeks(weekStart, 1));
+  const logs = logsByUser.get(userId) ?? [];
+  const items = buildScoreItems(activeItems(plans, userId, addDays(weekStart, 6)), logs);
+  const score = scoreWeek(items);
+  return {
+    ADHERENCE_POINTS: score.points,
+    RUGBY_PRACTICES: logs.filter((l) => l.status === "DONE" && l.category === "RUGBY").length,
+    PRIMARY_PRACTICES: logs.filter((l) => l.status === "DONE" && l.tier === "PRIMARY").length,
+    STREAK: await getStreak(userId),
+  };
+}
+
 export type LeaderRow = { userId: string; name: string; value: number };
 
 /** Compute a leaderboard for a metric over a period, sorted descending. */

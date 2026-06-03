@@ -1,17 +1,20 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
-import { getCurrentWeekDetail, getStreak } from "@/lib/stats";
+import { getCurrentWeekDetail, getCurrentWeekMetrics } from "@/lib/stats";
 import { prisma } from "@/lib/db";
+import { isTrainer, type LeaderboardMetric } from "@/lib/constants";
 import { Card, CardBody, Button, Badge, ProgressBar, SectionTitle } from "@/components/ui";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 
 export default async function DashboardPage() {
   const user = await requireUser();
   const { t } = await getServerT();
-  const [detail, streak, recent] = await Promise.all([
+  const trainer = isTrainer(user.role);
+  const [detail, metrics, boards, recent] = await Promise.all([
     getCurrentWeekDetail(user.id),
-    getStreak(user.id),
+    getCurrentWeekMetrics(user.id),
+    prisma.leaderboard.findMany({ where: { enabled: true }, orderBy: { sortOrder: "asc" } }),
     prisma.sessionLog.findMany({
       where: { userId: user.id },
       orderBy: { date: "desc" },
@@ -20,7 +23,10 @@ export default async function DashboardPage() {
     }),
   ]);
 
-  const pct = Math.round(detail.score.adherencePct * 100);
+  // Only surface a card for boards that are enabled AND visible to this user.
+  const visibleBoards = boards.filter((b) => trainer || b.visibility === "EVERYONE");
+  const streakBoard = visibleBoards.find((b) => b.metric === "STREAK");
+  const streak = metrics.STREAK;
 
   return (
     <div className="space-y-5">
@@ -29,23 +35,25 @@ export default async function DashboardPage() {
           <p className="text-sm text-slate-500">{t("dash.hello", { name: user.name })}</p>
           <h1 className="text-2xl font-bold text-slate-900">{t("dash.title")}</h1>
         </div>
-        {streak > 0 && <Badge tone="amber">🔥 {t("dash.streakWeeks", { n: streak })}</Badge>}
+        {streakBoard && streak > 0 && (
+          <Badge tone="amber">🔥 {t("dash.streakWeeks", { n: streak })}</Badge>
+        )}
       </header>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Card>
-          <CardBody>
-            <p className="text-xs text-slate-500">{t("dash.weeklyPoints")}</p>
-            <p className="mt-1 text-3xl font-bold text-teal-700">{detail.score.points}</p>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <p className="text-xs text-slate-500">{t("dash.adherence")}</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{detail.score.hasPlan ? `${pct}%` : "—"}</p>
-          </CardBody>
-        </Card>
-      </div>
+      {visibleBoards.length > 0 && (
+        <div className="grid grid-cols-2 gap-3">
+          {visibleBoards.map((b) => (
+            <Card key={b.id}>
+              <CardBody>
+                <p className="text-xs text-slate-500">{t(`lb.metric.${b.metric}` as DictKey)}</p>
+                <p className="mt-1 text-3xl font-bold text-teal-700">
+                  {metrics[b.metric as LeaderboardMetric] ?? 0}
+                </p>
+              </CardBody>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {detail.score.hasPlan ? (
         <section className="space-y-2">

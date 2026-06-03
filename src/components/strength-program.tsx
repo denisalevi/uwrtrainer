@@ -1,16 +1,24 @@
+import Link from "next/link";
 import { getServerT } from "@/lib/i18n/server";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Badge, Button, Card, CardBody, Input, Label, Select, SectionTitle } from "@/components/ui";
-import { setStrengthWeek, finishStrengthCycle, updateStrengthSettings } from "@/app/actions/strength";
+import {
+  setStrengthWeek,
+  finishStrengthCycle,
+  updateStrengthSettings,
+  resetStrengthProgram,
+} from "@/app/actions/strength";
 import {
   EQUIPMENT_LEVELS,
   SESSION_DAY_OPTIONS,
   SESSION_TIME_OPTIONS,
+  MOVEMENT_LEVELS,
   type StrengthMode,
 } from "@/lib/constants";
 import {
   currentWorkout,
   programMovements,
+  movementLabel,
   incrementFor,
   pickTemplate,
   waveWeek,
@@ -23,6 +31,7 @@ type Program = {
   equipment: string;
   daysPerWeek: number;
   minutesPerSession: number;
+  trainingMaxPct: number;
   rounding: number;
   movements: string;
   cycle: number;
@@ -59,6 +68,11 @@ export async function StrengthProgramView({ program }: { program: Program }) {
         ) : null}
         <span className="ml-auto text-xs text-slate-500">{t(`strength.template.${template.key}` as DictKey)}</span>
       </div>
+
+      {/* Primary CTA: log the whole workout */}
+      <Link href="/strength/log" className="block">
+        <Button className="w-full">➕ {t("strength.logWorkout")}</Button>
+      </Link>
 
       {/* Week selector */}
       <div className="grid grid-cols-4 gap-2">
@@ -206,9 +220,99 @@ export async function StrengthProgramView({ program }: { program: Program }) {
               </Select>
             </div>
           </div>
+
+          {/* Per-movement maxima + (weighted) % and rounding */}
+          <div className="space-y-3 border-t border-slate-100 pt-3">
+            <p className="text-xs font-medium text-slate-600">{t("strength.maxima")}</p>
+            {mode === "WEIGHTED" ? (
+              <>
+                {movements.map((m) => (
+                  <div key={m} className="flex items-center justify-between gap-3">
+                    <Label className="flex-1" htmlFor={`tm_${m}`}>
+                      {movementLabel(mode, m)}
+                    </Label>
+                    <Input
+                      id={`tm_${m}`}
+                      name={`tm_${m}`}
+                      type="number"
+                      min={0}
+                      inputMode="decimal"
+                      className="w-28"
+                      defaultValue={state[m]?.trainingMax ?? 0}
+                    />
+                  </div>
+                ))}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="trainingMaxPct">{t("strength.tmPct")}</Label>
+                    <Input
+                      id="trainingMaxPct"
+                      name="trainingMaxPct"
+                      type="number"
+                      step="0.05"
+                      min={0.7}
+                      max={1}
+                      defaultValue={program.trainingMaxPct}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="rounding">{t("strength.rounding")}</Label>
+                    <Input
+                      id="rounding"
+                      name="rounding"
+                      type="number"
+                      step="0.5"
+                      min={0.5}
+                      max={5}
+                      defaultValue={program.rounding}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              movements.map((m) => (
+                <div key={m} className="space-y-1">
+                  <Label>{t(`mv.${m}` as DictKey)}</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {mode === "LEVELS" ? (
+                      <Select name={`level_${m}`} defaultValue={String(state[m]?.levelIndex ?? 0)}>
+                        {MOVEMENT_LEVELS[m].map((lvl, i) => (
+                          <option key={i} value={i}>
+                            {lvl}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : (
+                      <div className="flex items-center text-sm text-slate-600">
+                        {movementLabel(mode, m)}
+                      </div>
+                    )}
+                    <Input
+                      name={`repmax_${m}`}
+                      type="number"
+                      min={0}
+                      inputMode="numeric"
+                      placeholder={t("strength.repMax")}
+                      defaultValue={state[m]?.repMax ?? ""}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
           <Button type="submit" variant="secondary" className="w-full">
             {t("strength.updateSettings")}
           </Button>
+        </form>
+
+        {/* Full reset */}
+        <form action={resetStrengthProgram} className="mt-3 border-t border-slate-100 pt-3">
+          <input type="hidden" name="programId" value={program.id} />
+          <Button type="submit" variant="danger" className="w-full">
+            {t("strength.reset")}
+          </Button>
+          <p className="mt-1 text-xs text-slate-400">{t("strength.resetHint")}</p>
         </form>
       </details>
 
