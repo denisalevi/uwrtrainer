@@ -11,7 +11,7 @@ type Suggestion = { id: string; label: string; sets: SetTarget[] };
 export type LoggerDay = { id: string; name: string; minutes: number; suggestions: Suggestion[] };
 
 type SetVal = { weight: string; reps: string };
-type Line = { key: string; exerciseId: string; name: string; sets: SetVal[] };
+type Line = { key: string; exerciseId: string; name: string; sets: SetVal[]; done?: boolean };
 
 let uid = 0;
 const nextKey = () => `l${Date.now()}_${uid++}`;
@@ -34,13 +34,13 @@ function ChecklistToggle({
       onClick={onToggle}
       className={cn(
         "flex w-full items-center justify-between rounded-xl border px-3 py-3 text-sm font-medium",
-        done ? "border-teal-600 bg-teal-50 text-teal-800" : "border-slate-200 bg-white text-slate-600",
+        done ? "border-teal-600 bg-teal-50 text-teal-800" : "border-rose-200 bg-rose-50 text-rose-700",
       )}
     >
       <span>
         {icon} {label}
       </span>
-      <span className={done ? "text-teal-700" : "text-slate-300"}>{done ? "✓" : "○"}</span>
+      <span className={done ? "text-teal-700" : "text-rose-400"}>{done ? "✓" : "○"}</span>
     </button>
   );
 }
@@ -106,6 +106,7 @@ export function StrengthWorkoutLogger({
       stretch,
       exercises: lines.map((l) => ({
         name: l.name,
+        done: !!l.done,
         sets: l.sets.map((s) => ({
           weight: s.weight ? Number(s.weight) : null,
           reps: s.reps ? Number(s.reps) : null,
@@ -182,6 +183,8 @@ export function StrengthWorkoutLogger({
   const addSet = (key: string) =>
     mutate((ls) => ls.map((l) => (l.key === key ? { ...l, sets: [...l.sets, { weight: "", reps: "" }] } : l)));
   const removeLine = (key: string) => mutate((ls) => ls.filter((l) => l.key !== key));
+  const toggleDone = (key: string) =>
+    mutate((ls) => ls.map((l) => (l.key === key ? { ...l, done: !l.done } : l)));
 
   function suggestionFor(l: Line): Suggestion | undefined {
     return day?.suggestions.find((s) => s.id === l.exerciseId);
@@ -249,7 +252,7 @@ export function StrengthWorkoutLogger({
         const sug = suggestionFor(l);
         const showWeight = l.exerciseId === "custom" || (sug?.sets.some((s) => s.weight != null) ?? false);
         return (
-          <Card key={l.key}>
+          <Card key={l.key} className={cn(l.done && "border-teal-400")}>
             <CardBody className="space-y-3">
               <div className="flex items-center gap-2">
                 <Select
@@ -315,6 +318,21 @@ export function StrengthWorkoutLogger({
                 <Button type="button" variant="ghost" size="sm" onClick={() => addSet(l.key)}>
                   + {t("strength.addSet")}
                 </Button>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => toggleDone(l.key)}
+                  className={cn(
+                    "flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium",
+                    l.done
+                      ? "border-teal-600 bg-teal-50 text-teal-800"
+                      : "border-rose-200 bg-rose-50 text-rose-600",
+                  )}
+                >
+                  {l.done ? "✓" : "○"} {t("log.done")}
+                </button>
               </div>
             </CardBody>
           </Card>
@@ -388,10 +406,11 @@ function safeParse(s: string): Record<string, unknown> | null {
 
 function restoreLines(details: Record<string, unknown>): Line[] {
   const ex = Array.isArray(details.exercises) ? details.exercises : [];
-  return (ex as Array<{ name?: string; sets?: Array<Record<string, unknown>> }>).map((e) => ({
+  return (ex as Array<{ name?: string; done?: boolean; sets?: Array<Record<string, unknown>> }>).map((e) => ({
     key: nextKey(),
     exerciseId: "custom",
     name: String(e.name ?? ""),
+    done: !!e.done,
     sets: (e.sets ?? []).map((s) => ({
       weight: s.weight != null ? String(s.weight) : "",
       reps: s.reps != null ? String(s.reps) : "",

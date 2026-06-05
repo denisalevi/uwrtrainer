@@ -11,6 +11,16 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-06-05
+
+### Added
+- **Per-exercise "done" tick** in the workout logger — tap the pill at the bottom-right of each
+  exercise to mark it done (turns green; the card outlines green). Saved with the session.
+
+### Changed
+- The warm-up / stretching reminders now show **reddish** until tapped, then turn green — clearer
+  "still to do" vs "done".
+
 ## [0.10.0] - 2026-06-03
 
 ### Added
