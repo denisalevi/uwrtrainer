@@ -11,6 +11,26 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-06-26
+
+### Added
+- **Team transparency for everyone.** The Team area is now visible to all members, not just
+  trainers. Open a teammate to see — read-only — their plan (committed practice slots + weekly
+  per-category targets), their public availability note, and their recent sessions, including a
+  read-only view of each strength workout's exercises, sets, and weights.
+- **Private "message to trainers"** field in the plan editor — only trainers (and you) can see it;
+  other players never do. The plan editor also now makes clear that your plan and availability note
+  are visible to the whole team.
+- **Delete button on a logged strength session** — open an existing strength session and remove it
+  from the bottom of the logger (with confirm).
+
+### Changed
+- **Clearer 5/3/1 week overview.** Each working set now shows its percentage, reps, and computed
+  weight, e.g. `65% · 5 (65 kg)` and `85% · 5+ (85 kg)`. The `+` (AMRAP) marker appears only on the
+  final set's reps in weeks 1–3 — never on a percentage and never in the deload week.
+- **Smarter strength logger.** Shows which cycle **week** you're in, and displays a live, read-only
+  **% of training max** next to each weight as you edit it.
+
 ## [0.11.0] - 2026-06-05
 
 ### Added
