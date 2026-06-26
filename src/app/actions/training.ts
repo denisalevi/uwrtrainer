@@ -108,6 +108,7 @@ export async function savePlan(formData: FormData) {
   }
 
   const availabilityNote = ((formData.get("availabilityNote") as string) || "").slice(0, 500);
+  const trainerNote = ((formData.get("trainerNote") as string) || "").slice(0, 500);
 
   const slots = await prisma.practiceSlot.findMany({ where: { active: true }, select: { id: true } });
   const slotItems = slots
@@ -122,7 +123,7 @@ export async function savePlan(formData: FormData) {
   const items = [...slotItems, ...catItems];
 
   await prisma.$transaction(async (tx) => {
-    await tx.user.update({ where: { id: targetUserId }, data: { availabilityNote } });
+    await tx.user.update({ where: { id: targetUserId }, data: { availabilityNote, trainerNote } });
 
     const active = await tx.plan.findFirst({
       where: { userId: targetUserId, validTo: null },

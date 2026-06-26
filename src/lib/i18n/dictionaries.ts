@@ -110,6 +110,10 @@ export const en = {
   "plan.mandatoryNote": "The mandatory practice is included for everyone.",
   "plan.targetPerWeek": "Times per week",
   "plan.noteOptional": "Note (optional)",
+  "plan.teamVisibleHint": "Your plan and this availability note are visible to the whole team.",
+  "plan.trainerNote": "Message to trainers",
+  "plan.trainerNoteHint": "Private — only trainers can see this, not other players.",
+  "plan.trainerNotePlaceholder": "Anything just for the trainers? e.g. an injury, a scheduling conflict…",
 
   "lb.title": "Leaderboards",
   "lb.metric.ADHERENCE_POINTS": "Plan adherence points",
@@ -136,6 +140,9 @@ export const en = {
   "team.promote": "Make trainer",
   "team.demote": "Make player",
   "team.player.title": "{name}",
+  "team.trainerNotePrivate": "Private — trainer note",
+  "team.trainerNotePrivateHint": "Only trainers can see this. The player wrote it for the trainers.",
+  "team.noWorkoutDetail": "No workout details recorded.",
 
   "slots.title": "Team practices",
   "slots.intro": "The weekly schedule everyone trains against.",
@@ -454,6 +461,10 @@ export const de: Record<DictKey, string> = {
   "plan.mandatoryNote": "Das Pflichttraining ist für alle enthalten.",
   "plan.targetPerWeek": "Mal pro Woche",
   "plan.noteOptional": "Notiz (optional)",
+  "plan.teamVisibleHint": "Dein Plan und diese Verfügbarkeitsnotiz sind für das ganze Team sichtbar.",
+  "plan.trainerNote": "Nachricht an die Trainer",
+  "plan.trainerNoteHint": "Privat — nur Trainer sehen das, andere Spieler:innen nicht.",
+  "plan.trainerNotePlaceholder": "Etwas nur für die Trainer? z. B. Verletzung, Terminkonflikt…",
 
   "lb.title": "Ranglisten",
   "lb.metric.ADHERENCE_POINTS": "Plan-Treue-Punkte",
@@ -480,6 +491,9 @@ export const de: Record<DictKey, string> = {
   "team.promote": "Zum Trainer machen",
   "team.demote": "Zum Spieler machen",
   "team.player.title": "{name}",
+  "team.trainerNotePrivate": "Privat — Trainer-Notiz",
+  "team.trainerNotePrivateHint": "Nur Trainer sehen das. Die Spielerin / der Spieler hat es für die Trainer geschrieben.",
+  "team.noWorkoutDetail": "Keine Trainingsdetails erfasst.",
 
   "slots.title": "Team-Trainings",
   "slots.intro": "Der Wochenplan, an dem alle gemessen werden.",

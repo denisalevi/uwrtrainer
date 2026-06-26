@@ -12,6 +12,7 @@ export type CurrentUser = {
   role: string;
   locale: Locale;
   availabilityNote: string | null;
+  trainerNote: string | null;
 };
 
 /**
@@ -32,6 +33,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       role: true,
       locale: true,
       availabilityNote: true,
+      trainerNote: true,
     },
   });
   if (!user) return null;

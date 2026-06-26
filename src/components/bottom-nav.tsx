@@ -16,14 +16,14 @@ const PLAYER_ITEMS: Item[] = [
   { href: "/settings", labelKey: "nav.settings", icon: "⚙️" },
 ];
 
-const TRAINER_ITEM: Item = { href: "/team", labelKey: "nav.team", icon: "👥" };
+const TEAM_ITEM: Item = { href: "/team", labelKey: "nav.team", icon: "👥" };
 
-export function BottomNav({ isTrainer }: { isTrainer: boolean }) {
+export function BottomNav() {
   const pathname = usePathname();
   const { t } = useT();
-  const items = isTrainer
-    ? [...PLAYER_ITEMS.slice(0, 4), TRAINER_ITEM, PLAYER_ITEMS[4]]
-    : PLAYER_ITEMS;
+  // The team area is readable by every member (read-only for non-trainers), so
+  // the Team tab is shown to everyone. Keep it before Settings.
+  const items = [...PLAYER_ITEMS.slice(0, 4), TEAM_ITEM, PLAYER_ITEMS[4]];
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-md border-t border-slate-200 bg-white/95 backdrop-blur bottom-safe">

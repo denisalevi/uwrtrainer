@@ -14,7 +14,10 @@ export async function PlanEditor({ userId }: { userId: string }) {
 
   const [slots, user, activePlan] = await Promise.all([
     prisma.practiceSlot.findMany({ where: { active: true }, orderBy: { dayOfWeek: "asc" } }),
-    prisma.user.findUnique({ where: { id: userId }, select: { availabilityNote: true } }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { availabilityNote: true, trainerNote: true },
+    }),
     prisma.plan.findFirst({
       where: { userId, validTo: null },
       orderBy: { validFrom: "desc" },
@@ -39,10 +42,21 @@ export async function PlanEditor({ userId }: { userId: string }) {
 
       <section className="space-y-2">
         <SectionTitle>{t("plan.availability")}</SectionTitle>
+        <p className="text-xs text-slate-500">{t("plan.teamVisibleHint")}</p>
         <Textarea
           name="availabilityNote"
           defaultValue={user?.availabilityNote ?? ""}
           placeholder={t("plan.availabilityPlaceholder")}
+        />
+      </section>
+
+      <section className="space-y-2">
+        <SectionTitle>{t("plan.trainerNote")}</SectionTitle>
+        <p className="text-xs text-slate-500">{t("plan.trainerNoteHint")}</p>
+        <Textarea
+          name="trainerNote"
+          defaultValue={user?.trainerNote ?? ""}
+          placeholder={t("plan.trainerNotePlaceholder")}
         />
       </section>
 

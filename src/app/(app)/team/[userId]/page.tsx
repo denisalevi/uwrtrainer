@@ -2,10 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/dal";
+import { isTrainer, CATEGORIES } from "@/lib/constants";
 import { setRole } from "@/app/actions/trainer";
 import { PlanEditor } from "@/components/plan-editor";
+import { StrengthWorkoutView } from "@/components/strength-workout-view";
 import type { DictKey } from "@/lib/i18n/dictionaries";
-import { Card, Badge, Button, SectionTitle } from "@/components/ui";
+import { Card, CardBody, Badge, Button, SectionTitle } from "@/components/ui";
 
 export default async function PlayerDetailPage({
   params,
@@ -14,15 +17,26 @@ export default async function PlayerDetailPage({
 }) {
   const { userId } = await params;
   const { t } = await getServerT();
+  const viewer = await requireUser();
+  const viewerIsTrainer = isTrainer(viewer.role);
 
-  const [player, recent] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, email: true, role: true } }),
+  const [player, recent, activePlan, slots] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, role: true, availabilityNote: true, trainerNote: true },
+    }),
     prisma.sessionLog.findMany({
       where: { userId },
       orderBy: { date: "desc" },
-      take: 8,
+      take: 15,
       include: { practiceSlot: { select: { label: true } } },
     }),
+    prisma.plan.findFirst({
+      where: { userId, validTo: null },
+      orderBy: { validFrom: "desc" },
+      include: { items: { include: { practiceSlot: { select: { label: true } } } } },
+    }),
+    prisma.practiceSlot.findMany({ where: { active: true }, orderBy: { dayOfWeek: "asc" } }),
   ]);
   if (!player) notFound();
 
@@ -39,7 +53,7 @@ export default async function PlayerDetailPage({
         <p className="text-sm text-slate-500">{player.email}</p>
       </header>
 
-      {player.role !== "ADMIN" && (
+      {viewerIsTrainer && player.role !== "ADMIN" && (
         <form action={setRole}>
           <input type="hidden" name="userId" value={player.id} />
           <input type="hidden" name="role" value={player.role === "PLAYER" ? "TRAINER" : "PLAYER"} />
@@ -56,31 +70,193 @@ export default async function PlayerDetailPage({
         ) : (
           <Card>
             <ul className="divide-y divide-slate-100">
-              {recent.map((log) => (
-                <li key={log.id} className="px-4 py-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-slate-800">
-                      {log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey)}
-                    </span>
-                    <Badge tone={log.status === "DONE" ? "green" : "red"}>
-                      {t(log.status === "DONE" ? "log.done" : "log.missed")}
-                    </Badge>
-                  </div>
-                  <div className="mt-0.5 text-slate-400">
-                    {log.date.toLocaleDateString()}
-                    {log.missReason ? ` · ${log.missReason}` : ""}
-                  </div>
-                </li>
-              ))}
+              {recent.map((log) => {
+                const isStrength = log.category === "STRENGTH" && log.status === "DONE";
+                const title = log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey);
+                return (
+                  <li key={log.id} className="text-sm">
+                    <details className="group">
+                      <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 active:bg-slate-50">
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium text-slate-800">{title}</span>
+                          <span className="mt-0.5 block text-slate-400">
+                            {log.date.toLocaleDateString()}
+                            {log.durationMin ? ` · ${log.durationMin} ${t("common.minutes")}` : ""}
+                            {log.missReason ? ` · ${log.missReason}` : ""}
+                          </span>
+                        </span>
+                        <span className="flex items-center gap-2">
+                          <Badge tone={log.status === "DONE" ? "green" : "red"}>
+                            {t(log.status === "DONE" ? "log.done" : "log.missed")}
+                          </Badge>
+                          <span className="text-slate-400 group-open:rotate-90">›</span>
+                        </span>
+                      </summary>
+                      <div className="px-4 pb-3">
+                        {isStrength ? (
+                          <StrengthWorkoutView details={log.details} />
+                        ) : (
+                          <dl className="space-y-1 text-slate-600">
+                            <div className="flex gap-2">
+                              <dt className="text-slate-400">{t("log.chooseCategory")}</dt>
+                              <dd>{title}</dd>
+                            </div>
+                            <div className="flex gap-2">
+                              <dt className="text-slate-400">{t("log.date")}</dt>
+                              <dd>{log.date.toLocaleDateString()}</dd>
+                            </div>
+                            <div className="flex gap-2">
+                              <dt className="text-slate-400">{t("log.status")}</dt>
+                              <dd>{t(log.status === "DONE" ? "log.done" : "log.missed")}</dd>
+                            </div>
+                            {log.durationMin != null && (
+                              <div className="flex gap-2">
+                                <dt className="text-slate-400">{t("log.duration")}</dt>
+                                <dd>
+                                  {log.durationMin} {t("common.minutes")}
+                                </dd>
+                              </div>
+                            )}
+                            {log.missReason && (
+                              <div className="flex gap-2">
+                                <dt className="text-slate-400">{t("log.missReason")}</dt>
+                                <dd>{log.missReason}</dd>
+                              </div>
+                            )}
+                          </dl>
+                        )}
+                      </div>
+                    </details>
+                  </li>
+                );
+              })}
             </ul>
           </Card>
         )}
       </section>
 
-      <section className="space-y-2">
-        <SectionTitle>{t("team.editPlan")}</SectionTitle>
-        <PlanEditor userId={player.id} />
-      </section>
+      {viewerIsTrainer ? (
+        <section className="space-y-2">
+          <SectionTitle>{t("team.editPlan")}</SectionTitle>
+          <PlanEditor userId={player.id} />
+        </section>
+      ) : (
+        <PlanReadOnly
+          t={t}
+          slots={slots}
+          plan={activePlan}
+          availabilityNote={player.availabilityNote}
+        />
+      )}
+
+      {viewerIsTrainer && player.trainerNote && (
+        <section className="space-y-2">
+          <SectionTitle>{t("team.trainerNotePrivate")}</SectionTitle>
+          <Card>
+            <CardBody className="space-y-1">
+              <p className="text-xs text-amber-700">{t("team.trainerNotePrivateHint")}</p>
+              <p className="whitespace-pre-wrap text-sm text-slate-700">{player.trainerNote}</p>
+            </CardBody>
+          </Card>
+        </section>
+      )}
     </div>
+  );
+}
+
+type PlanWithItems = {
+  items: Array<{
+    category: string;
+    practiceSlotId: string | null;
+    targetPerWeek: number;
+    practiceSlot: { label: string } | null;
+  }>;
+} | null;
+
+/** Read-only plan/commitment card for non-trainer viewers. */
+function PlanReadOnly({
+  t,
+  slots,
+  plan,
+  availabilityNote,
+}: {
+  t: Awaited<ReturnType<typeof getServerT>>["t"];
+  slots: Array<{ id: string; label: string; dayOfWeek: number; time: string | null; tier: string }>;
+  plan: PlanWithItems;
+  availabilityNote: string | null;
+}) {
+  const items = plan?.items ?? [];
+  const committedSlotIds = new Set(
+    items.filter((i) => i.practiceSlotId).map((i) => i.practiceSlotId as string),
+  );
+  const catTargets = CATEGORIES.filter((c) => c !== "RUGBY")
+    .map((c) => ({
+      c,
+      n: items.find((i) => i.category === c && !i.practiceSlotId)?.targetPerWeek ?? 0,
+    }))
+    .filter((x) => x.n > 0);
+  const committedSlots = slots.filter((s) => committedSlotIds.has(s.id));
+
+  return (
+    <section className="space-y-4">
+      <div className="space-y-2">
+        <SectionTitle>{t("plan.availability")}</SectionTitle>
+        <Card>
+          <CardBody>
+            {availabilityNote ? (
+              <p className="whitespace-pre-wrap text-sm text-slate-700">{availabilityNote}</p>
+            ) : (
+              <p className="text-sm text-slate-400">{t("common.none")}</p>
+            )}
+          </CardBody>
+        </Card>
+      </div>
+
+      <div className="space-y-2">
+        <SectionTitle>{t("plan.committedPractices")}</SectionTitle>
+        <Card>
+          <CardBody className="space-y-1">
+            {committedSlots.length === 0 ? (
+              <p className="text-sm text-slate-400">{t("plan.noItems")}</p>
+            ) : (
+              committedSlots.map((s) => (
+                <div key={s.id} className="flex items-center gap-3 py-1.5">
+                  <span className="flex-1 text-sm text-slate-800">
+                    {s.label}
+                    <span className="ml-2 text-slate-400">
+                      {t(`day.${s.dayOfWeek}` as DictKey)}
+                      {s.time ? ` · ${s.time}` : ""}
+                    </span>
+                  </span>
+                  <Badge tone={s.tier === "PRIMARY" ? "teal" : "slate"}>
+                    {t(`tier.${s.tier}` as DictKey)}
+                  </Badge>
+                </div>
+              ))
+            )}
+          </CardBody>
+        </Card>
+      </div>
+
+      <div className="space-y-2">
+        <SectionTitle>{t("plan.otherCommitments")}</SectionTitle>
+        <Card>
+          <CardBody className="space-y-1">
+            {catTargets.length === 0 ? (
+              <p className="text-sm text-slate-400">{t("plan.noItems")}</p>
+            ) : (
+              catTargets.map(({ c, n }) => (
+                <div key={c} className="flex items-center justify-between py-1.5">
+                  <span className="text-sm text-slate-800">{t(`cat.${c}` as DictKey)}</span>
+                  <span className="text-sm text-slate-500">
+                    {n} {t("plan.perWeek")}
+                  </span>
+                </div>
+              ))
+            )}
+          </CardBody>
+        </Card>
+      </div>
+    </section>
   );
 }
