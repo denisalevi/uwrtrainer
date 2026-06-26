@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/i18n-provider";
 import { saveStrengthWorkout } from "@/app/actions/strength";
+import { deleteSession } from "@/app/actions/training";
 import { Button, Card, CardBody, Input, Label, Select, cn } from "@/components/ui";
 
 type SetTarget = { reps: number; weight: number | null; amrap: boolean };
-type Suggestion = { id: string; label: string; sets: SetTarget[] };
+type Suggestion = { id: string; label: string; trainingMax?: number; sets: SetTarget[] };
 export type LoggerDay = { id: string; name: string; minutes: number; suggestions: Suggestion[] };
 
 type SetVal = { weight: string; reps: string };
@@ -195,7 +196,12 @@ export function StrengthWorkoutLogger({
       {/* Day selector — pick a day from your plan to preload it, or start empty. */}
       {days.length >= 1 && (
         <div>
-          <Label>{t("strength.chooseDay")}</Label>
+          <div className="flex items-center justify-between">
+            <Label>{t("strength.chooseDay")}</Label>
+            <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-medium text-teal-700">
+              {t("strength.weekN", { n: week })}
+            </span>
+          </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
             {days.map((d) => (
               <button
@@ -285,6 +291,9 @@ export function StrengthWorkoutLogger({
               <div className="space-y-2">
                 {l.sets.map((s, i) => {
                   const target = sug?.sets[i];
+                  const tm = sug?.trainingMax;
+                  const w = Number(s.weight);
+                  const pct = tm && tm > 0 && w > 0 ? Math.round((w / tm) * 100) : null;
                   return (
                     <div key={i} className="flex items-center gap-2">
                       <span className="w-12 shrink-0 text-xs text-slate-500">
@@ -300,6 +309,9 @@ export function StrengthWorkoutLogger({
                           value={s.weight}
                           onChange={(e) => setField(l.key, i, "weight", e.target.value)}
                         />
+                      )}
+                      {showWeight && pct != null && (
+                        <span className="shrink-0 text-xs text-slate-400">{pct}%</span>
                       )}
                       <Input
                         type="number"
@@ -392,6 +404,21 @@ export function StrengthWorkoutLogger({
           {t("strength.finishWorkout")}
         </Button>
       </div>
+
+      {/* Delete — only for an existing (already-saved) session opened via ?id= / resume. */}
+      {resume?.id && (
+        <form
+          action={deleteSession}
+          onSubmit={(e) => {
+            if (!confirm(t("log.delete"))) e.preventDefault();
+          }}
+        >
+          <input type="hidden" name="id" value={resume.id} />
+          <Button type="submit" variant="danger" className="w-full">
+            {t("log.delete")}
+          </Button>
+        </form>
+      )}
     </div>
   );
 }

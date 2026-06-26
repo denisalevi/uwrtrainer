@@ -50,6 +50,7 @@ export default async function StrengthLogPage({
       suggestions: day.exercises.map((e, i) => ({
         id: `slot-${i}`,
         label: exLabel(e),
+        trainingMax: state[e.movement]?.trainingMax,
         sets: e.sets.map((x) => ({ reps: x.reps, weight: x.weight ?? null, amrap: !!x.amrap })),
       })),
     }));
