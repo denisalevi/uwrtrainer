@@ -77,6 +77,16 @@ describe("weightedWorkout", () => {
     expect(w.sets.map((s) => s.weight)).toEqual([57.5, 67.5, 77.5]);
     expect(w.sets[2].amrap).toBe(true);
   });
+  it("carries each set's percentage from the wave (only the last set is AMRAP)", () => {
+    const w = weightedWorkout(90, 1, { movementLabel: "Squat" });
+    expect(w.sets.map((s) => s.pct)).toEqual([0.65, 0.75, 0.85]);
+    expect(w.sets.map((s) => s.amrap)).toEqual([false, false, true]);
+  });
+  it("deload week (4) has no AMRAP set but still carries percentages", () => {
+    const w = weightedWorkout(90, 4, { movementLabel: "Squat" });
+    expect(w.sets.map((s) => s.pct)).toEqual([0.4, 0.5, 0.6]);
+    expect(w.sets.some((s) => s.amrap)).toBe(false);
+  });
   it("adds Boring But Big assistance only when asked", () => {
     const plain = weightedWorkout(90, 1, { movementLabel: "Squat" });
     const big = weightedWorkout(90, 1, { movementLabel: "Squat", withAssistance: true });
@@ -92,6 +102,7 @@ describe("bodyweightWorkout", () => {
     expect(w.sets.map((s) => s.reps)).toEqual([7, 8, 9]);
     expect(w.sets[2].amrap).toBe(true);
     expect(w.sets[0].weight).toBeUndefined();
+    expect(w.sets.map((s) => s.pct)).toEqual([0.65, 0.75, 0.85]);
   });
   it("never prescribes fewer than 1 rep", () => {
     const w = bodyweightWorkout(1, 1, { movementLabel: "Pull-up" });

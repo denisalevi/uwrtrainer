@@ -134,6 +134,8 @@ export type WorkoutSet = {
   weight?: number;
   reps: number;
   amrap: boolean;
+  /** Fraction of the training/rep max this set is based on (from the wave), e.g. 0.65. */
+  pct?: number;
 };
 
 export type MovementWorkout = {
@@ -163,6 +165,7 @@ export function weightedWorkout(
     weight: roundToIncrement(trainingMax * s.pct, inc),
     reps: s.reps,
     amrap: !!s.amrap,
+    pct: s.pct,
   }));
   return {
     mode: "WEIGHTED",
@@ -191,6 +194,7 @@ export function bodyweightWorkout(
   const sets = w.sets.map((s) => ({
     reps: Math.max(1, Math.round(s.pct * repMax)),
     amrap: !!s.amrap,
+    pct: s.pct,
   }));
   return {
     mode: opts.mode ?? "LEVELS",

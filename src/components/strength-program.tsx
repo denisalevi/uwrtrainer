@@ -33,10 +33,11 @@ type Program = {
   week: number;
 };
 
-function setSummary(sets: WorkoutSet[]): string {
-  const top = sets[sets.length - 1];
-  const reps = `${sets.length}×${top.reps}${top.amrap ? "+" : ""}`;
-  return top.weight != null ? `${reps} · ${top.weight} kg` : reps;
+function setLine(set: WorkoutSet): string {
+  const pct = set.pct != null ? `${Math.round(set.pct * 100)}%` : "";
+  const reps = `${set.reps}${set.amrap ? "+" : ""}`;
+  const head = pct ? `${pct} · ${reps}` : reps;
+  return set.weight != null ? `${head} (${set.weight} kg)` : head;
 }
 
 export async function StrengthProgramView({
@@ -120,12 +121,18 @@ export async function StrengthProgramView({
               {day.exercises.map((e, i) => (
                 <li
                   key={i}
-                  className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-1.5 text-sm"
+                  className="rounded-lg bg-slate-50 px-3 py-1.5 text-sm"
                 >
-                  <span className="min-w-0 truncate text-slate-800">
+                  <span className="block min-w-0 truncate text-slate-800">
                     {exLabel(e)} <span className="text-slate-400">({t(`tool.${e.tool}` as DictKey)})</span>
                   </span>
-                  <span className="shrink-0 font-medium text-slate-900">{setSummary(e.sets)}</span>
+                  <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-medium text-slate-900">
+                    {e.sets.map((s, j) => (
+                      <span key={j} className="tabular-nums">
+                        {setLine(s)}
+                      </span>
+                    ))}
+                  </span>
                 </li>
               ))}
             </ul>
