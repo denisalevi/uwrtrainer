@@ -11,6 +11,26 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-06-28
+
+### Added
+- **Editable practice slots.** Trainers can now edit an existing practice slot's label, day, time,
+  and tier (e.g. switch a practice between mandatory/optional) — not just toggle it active or delete.
+- **More flexible commitments.** Rugby is now a weekly *count* ("how many rugby sessions per week")
+  at the top of the page, with the specific practices kept as an optional "which one(s)". You can
+  also add your own **custom activities** (climbing, spinning, swimming, …) with a weekly count.
+- **Browse training weeks without activating them.** On the strength program you can tap through
+  weeks 1–4 to preview each week's sets/percentages; the active week is always shown at the top, and
+  an explicit "Set as active week" button changes it. The **cycle number is now editable** too, so
+  someone joining mid-program can set where they are.
+- **Current training max shown in the logger**, above each lift's sets, so the per-set percentages
+  have clear context.
+
+### Changed
+- The commitment page is reordered: weekly **session counts first**, then team practices, then the
+  team-visible comment, then the private trainer comment.
+- The plan intro no longer mentions earning points (points only apply if scoring is enabled).
+
 ## [0.12.0] - 2026-06-26
 
 ### Added
