@@ -22,6 +22,8 @@ type FeedLog = {
   details: string | null;
 };
 
+type Absentee = { userId: string; userName: string; hasReason: boolean };
+
 /** yyyy-mm-dd in local time, used as the day-group key. */
 function dayKey(d: Date): string {
   const y = d.getFullYear();
@@ -50,20 +52,33 @@ export default async function FeedPage() {
   const start = addDays(today, -6);
   const end = addDays(today, 1); // exclusive upper bound = tomorrow midnight
 
-  const rows = await prisma.sessionLog.findMany({
-    // The feed is "what people DID" — exclude auto-generated MISSED rows entirely.
-    // (The in-week per-practice missed-rugby "add yourself" affordance lives on the
-    // dashboard / profile, not here.)
-    where: {
-      date: { gte: start, lt: end },
-      NOT: { status: "MISSED", auto: true },
-    },
-    orderBy: { date: "desc" },
-    include: {
-      user: { select: { name: true } },
-      practiceSlot: { select: { label: true } },
-    },
-  });
+  const [rows, missedRows] = await Promise.all([
+    prisma.sessionLog.findMany({
+      // The feed is "what people DID" — exclude auto-generated MISSED rows as standalone entries.
+      // (Ticked-practice missed is surfaced ONLY inside its practice event, see `missedBySlotDay`.)
+      where: {
+        date: { gte: start, lt: end },
+        NOT: { status: "MISSED", auto: true },
+      },
+      orderBy: { date: "desc" },
+      include: {
+        user: { select: { name: true } },
+        practiceSlot: { select: { label: true } },
+      },
+    }),
+    // Ticked-practice auto-MISSED rows (bucket 1): used only to annotate the matching practice
+    // event with "Committed but didn't come: …". Never shown as their own feed entries.
+    prisma.sessionLog.findMany({
+      where: {
+        date: { gte: start, lt: end },
+        status: "MISSED",
+        auto: true,
+        category: "RUGBY",
+        NOT: { practiceSlotId: null },
+      },
+      include: { user: { select: { name: true } } },
+    }),
+  ]);
 
   const logs: FeedLog[] = rows.map((l) => ({
     id: l.id,
@@ -79,6 +94,15 @@ export default async function FeedPage() {
     practiceLabel: l.practiceSlot?.label ?? null,
     details: l.details,
   }));
+
+  // Index absentees by slot|day so each practice event can show who committed but didn't come.
+  const missedBySlotDay = new Map<string, Absentee[]>();
+  for (const m of missedRows) {
+    const key = `${m.practiceSlotId}|${dayKey(m.date)}`;
+    const arr = missedBySlotDay.get(key) ?? [];
+    arr.push({ userId: m.userId, userName: m.user.name, hasReason: !!m.missReason });
+    missedBySlotDay.set(key, arr);
+  }
 
   // Group by day (most recent first).
   const byDay = new Map<string, FeedLog[]>();
@@ -106,7 +130,13 @@ export default async function FeedPage() {
         <p className="text-sm text-slate-500">{t("feed.empty")}</p>
       ) : (
         dayKeys.map((k) => (
-          <DaySection key={k} t={t} label={dayLabel(t, k, today)} logs={byDay.get(k)!} />
+          <DaySection
+            key={k}
+            t={t}
+            label={dayLabel(t, k, today)}
+            logs={byDay.get(k)!}
+            missedBySlotDay={missedBySlotDay}
+          />
         ))
       )}
     </div>
@@ -128,10 +158,12 @@ async function DaySection({
   t,
   label,
   logs,
+  missedBySlotDay,
 }: {
   t: ServerT;
   label: string;
   logs: FeedLog[];
+  missedBySlotDay: Map<string, Absentee[]>;
 }) {
   // Aggregate rugby attendance by practice slot (DONE only → "{n} went to {label}").
   const rugbyDone = logs.filter(
@@ -154,28 +186,58 @@ async function DaySection({
       <SectionTitle>{label}</SectionTitle>
       <Card>
         <ul className="divide-y divide-slate-100">
-          {Array.from(rugbyBySlot.entries()).map(([slotId, attendees]) => (
-            <li key={`rugby-${slotId}`} className="text-sm">
-              <details className="group">
-                <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 active:bg-slate-50">
-                  <span className="font-medium text-slate-800">
-                    🏉{" "}
-                    {t("feed.wentToPractice", {
-                      n: attendees.length,
-                      label: attendees[0].practiceLabel ?? t("cat.RUGBY"),
-                    })}
-                  </span>
-                  <span className="text-slate-400 group-open:rotate-90">›</span>
-                </summary>
-                <div className="px-4 pb-3 text-slate-600">
-                  <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
-                    {t("feed.attendees")}
-                  </p>
-                  <p>{attendees.map((a) => a.userName).join(", ")}</p>
-                </div>
-              </details>
-            </li>
-          ))}
+          {Array.from(rugbyBySlot.entries()).map(([slotId, attendees]) => {
+            const absentees =
+              missedBySlotDay.get(`${slotId}|${dayKey(attendees[0].date)}`) ?? [];
+            return (
+              <li key={`rugby-${slotId}`} className="text-sm">
+                <details className="group">
+                  <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 active:bg-slate-50">
+                    <span className="font-medium text-slate-800">
+                      🏉{" "}
+                      {t("feed.wentToPractice", {
+                        n: attendees.length,
+                        label: attendees[0].practiceLabel ?? t("cat.RUGBY"),
+                      })}
+                    </span>
+                    <span className="text-slate-400 group-open:rotate-90">›</span>
+                  </summary>
+                  <div className="space-y-2 px-4 pb-3 text-slate-600">
+                    <div>
+                      <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
+                        {t("feed.attendees")}
+                      </p>
+                      <p>{attendees.map((a) => a.userName).join(", ")}</p>
+                    </div>
+                    {absentees.length > 0 && (
+                      <div>
+                        <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
+                          {t("feed.didNotCome")}
+                        </p>
+                        <p>
+                          {absentees.map((a, i) => (
+                            <span key={a.userId}>
+                              {i > 0 && ", "}
+                              {a.hasReason ? (
+                                <Link
+                                  href={`/team/${a.userId}`}
+                                  className="text-teal-700 underline"
+                                >
+                                  {a.userName}
+                                </Link>
+                              ) : (
+                                a.userName
+                              )}
+                            </span>
+                          ))}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </details>
+              </li>
+            );
+          })}
 
           {others.map((l) => (
             <FeedItem key={l.id} t={t} log={l} />
