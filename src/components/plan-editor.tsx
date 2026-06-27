@@ -47,27 +47,7 @@ export async function PlanEditor({ userId }: { userId: string }) {
       <input type="hidden" name="userId" value={userId} />
 
       <section className="space-y-2">
-        <SectionTitle>{t("plan.availability")}</SectionTitle>
-        <p className="text-xs text-slate-500">{t("plan.teamVisibleHint")}</p>
-        <Textarea
-          name="availabilityNote"
-          defaultValue={user?.availabilityNote ?? ""}
-          placeholder={t("plan.availabilityPlaceholder")}
-        />
-      </section>
-
-      <section className="space-y-2">
-        <SectionTitle>{t("plan.trainerNote")}</SectionTitle>
-        <p className="text-xs text-slate-500">{t("plan.trainerNoteHint")}</p>
-        <Textarea
-          name="trainerNote"
-          defaultValue={user?.trainerNote ?? ""}
-          placeholder={t("plan.trainerNotePlaceholder")}
-        />
-      </section>
-
-      <section className="space-y-2">
-        <SectionTitle>{t("plan.otherCommitments")}</SectionTitle>
+        <SectionTitle>{t("plan.sessionsPerWeek")}</SectionTitle>
         <Card>
           <CardBody className="space-y-3">
             <div className="flex items-center justify-between gap-3">
@@ -168,6 +148,26 @@ export async function PlanEditor({ userId }: { userId: string }) {
             ))}
           </CardBody>
         </Card>
+      </section>
+
+      <section className="space-y-2">
+        <SectionTitle>{t("plan.availability")}</SectionTitle>
+        <p className="text-xs text-slate-500">{t("plan.teamVisibleHint")}</p>
+        <Textarea
+          name="availabilityNote"
+          defaultValue={user?.availabilityNote ?? ""}
+          placeholder={t("plan.availabilityPlaceholder")}
+        />
+      </section>
+
+      <section className="space-y-2">
+        <SectionTitle>{t("plan.trainerNote")}</SectionTitle>
+        <p className="text-xs text-slate-500">{t("plan.trainerNoteHint")}</p>
+        <Textarea
+          name="trainerNote"
+          defaultValue={user?.trainerNote ?? ""}
+          placeholder={t("plan.trainerNotePlaceholder")}
+        />
       </section>
 
       <Button type="submit" className="w-full">

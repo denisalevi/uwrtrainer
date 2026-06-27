@@ -99,7 +99,8 @@ export const en = {
   "log.pickMovement": "Choose a movement…",
 
   "plan.title": "My plan",
-  "plan.intro": "Your agreed weekly commitments. Keeping to these earns points.",
+  "plan.intro": "Your agreed weekly commitments — what you're aiming for each week.",
+  "plan.sessionsPerWeek": "How many sessions per week do you commit to?",
   "plan.availability": "My availability",
   "plan.availabilityPlaceholder": "When and how much can you train? e.g. ‘Mon + Wed evenings, 1 gym session’",
   "plan.saveAvailability": "Save availability",
@@ -456,7 +457,8 @@ export const de: Record<DictKey, string> = {
   "log.pickMovement": "Übung wählen…",
 
   "plan.title": "Mein Plan",
-  "plan.intro": "Deine vereinbarten Wochenziele. Einhalten bringt Punkte.",
+  "plan.intro": "Deine vereinbarten Wochenziele — was du dir pro Woche vornimmst.",
+  "plan.sessionsPerWeek": "Wie viele Einheiten pro Woche nimmst du dir vor?",
   "plan.availability": "Meine Verfügbarkeit",
   "plan.availabilityPlaceholder": "Wann und wie viel kannst du trainieren? z. B. ‚Mo + Mi abends, 1 Gym‘",
   "plan.saveAvailability": "Verfügbarkeit speichern",
