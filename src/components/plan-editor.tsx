@@ -4,6 +4,7 @@ import { savePlan } from "@/app/actions/training";
 import { CATEGORIES, type Category } from "@/lib/constants";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Button, Card, CardBody, Input, Label, Textarea, Badge, SectionTitle } from "@/components/ui";
+import { CustomActivities } from "@/components/custom-activities";
 
 /**
  * Server-rendered plan form. Works without JS (plain form -> savePlan action).
@@ -36,11 +37,10 @@ export async function PlanEditor({ userId }: { userId: string }) {
   const catTarget = (c: Category) =>
     items.find((i) => i.category === c && !i.practiceSlotId)?.targetPerWeek ?? 0;
 
-  // Saved custom OTHER activities (label in `note`); render them plus a couple of blank rows.
+  // Saved custom OTHER activities (label in `note`) seed the dynamic rows below.
   const otherItems = items
     .filter((i) => i.category === "OTHER")
     .map((i) => ({ name: i.note ?? "", n: i.targetPerWeek }));
-  const otherRows = [...otherItems, { name: "", n: 0 }, { name: "", n: 0 }];
 
   return (
     <form action={savePlan} className="space-y-5">
@@ -82,37 +82,7 @@ export async function PlanEditor({ userId }: { userId: string }) {
                 </div>
               </div>
             ))}
-          </CardBody>
-        </Card>
-      </section>
-
-      <section className="space-y-2">
-        <SectionTitle>{t("plan.customActivities")}</SectionTitle>
-        <p className="text-xs text-slate-500">{t("plan.customActivitiesHint")}</p>
-        <Card>
-          <CardBody className="space-y-3">
-            {otherRows.map((row, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <Input
-                  type="text"
-                  name={`other_name_${i}`}
-                  defaultValue={row.name}
-                  maxLength={60}
-                  placeholder={t("plan.customActivityPlaceholder")}
-                  className="flex-1"
-                />
-                <Input
-                  type="number"
-                  name={`other_n_${i}`}
-                  min={0}
-                  max={21}
-                  defaultValue={row.n || undefined}
-                  inputMode="numeric"
-                  className="w-20 text-center"
-                />
-                <span className="text-xs text-slate-500">{t("plan.perWeek")}</span>
-              </div>
-            ))}
+            <CustomActivities initial={otherItems} />
           </CardBody>
         </Card>
       </section>
