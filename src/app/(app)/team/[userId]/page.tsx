@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/dal";
 import { isTrainer, CATEGORIES } from "@/lib/constants";
 import { setRole } from "@/app/actions/trainer";
+import { deleteSession } from "@/app/actions/training";
 import { PlanEditor } from "@/components/plan-editor";
 import { StrengthWorkoutView } from "@/components/strength-workout-view";
 import type { DictKey } from "@/lib/i18n/dictionaries";
@@ -86,6 +87,7 @@ export default async function PlayerDetailPage({
                           </span>
                         </span>
                         <span className="flex items-center gap-2">
+                          {log.auto && <Badge tone="amber">{t("missed.autoBadge")}</Badge>}
                           <Badge tone={log.status === "DONE" ? "green" : "red"}>
                             {t(log.status === "DONE" ? "log.done" : "log.missed")}
                           </Badge>
@@ -124,6 +126,17 @@ export default async function PlayerDetailPage({
                               </div>
                             )}
                           </dl>
+                        )}
+                        {log.auto && (
+                          <p className="mt-2 text-xs text-amber-700">{t("missed.autoHint")}</p>
+                        )}
+                        {log.auto && (viewerIsTrainer || viewer.id === player.id) && (
+                          <form action={deleteSession} className="mt-2">
+                            <input type="hidden" name="id" value={log.id} />
+                            <Button type="submit" variant="danger" size="sm">
+                              {t("common.delete")}
+                            </Button>
+                          </form>
                         )}
                       </div>
                     </details>

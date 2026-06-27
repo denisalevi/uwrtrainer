@@ -89,6 +89,8 @@ export async function deleteSession(formData: FormData) {
 
   revalidatePath("/dashboard");
   revalidatePath("/leaderboards");
+  revalidatePath("/feed");
+  revalidatePath(`/team/${existing.userId}`);
   redirect("/dashboard");
 }
 

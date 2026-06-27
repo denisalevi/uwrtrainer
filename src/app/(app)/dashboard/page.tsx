@@ -5,6 +5,7 @@ import { getCurrentWeekDetail, getCurrentWeekMetrics } from "@/lib/stats";
 import { prisma } from "@/lib/db";
 import { isTrainer, type LeaderboardMetric } from "@/lib/constants";
 import { Card, CardBody, Button, Badge, ProgressBar, SectionTitle } from "@/components/ui";
+import { deleteSession } from "@/app/actions/training";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 
 export default async function DashboardPage() {
@@ -112,33 +113,49 @@ export default async function DashboardPage() {
         ) : (
           <Card>
             <ul className="divide-y divide-slate-100">
-              {recent.map((log) => (
-                <li key={log.id}>
-                  <Link
-                    href={
-                      log.category === "STRENGTH" && log.status === "DONE"
-                        ? `/strength/log?id=${log.id}`
-                        : `/log/${log.id}`
-                    }
-                    className="flex items-center justify-between px-4 py-3 text-sm hover:bg-slate-50"
-                  >
-                    <div>
-                      <span className="font-medium text-slate-800">
-                        {log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey)}
-                      </span>
-                      <span className="ml-2 text-slate-400">
-                        {log.date.toLocaleDateString()}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge tone={log.status === "DONE" ? "green" : "red"}>
-                        {t(log.status === "DONE" ? "log.done" : "log.missed")}
-                      </Badge>
-                      <span className="text-slate-300">›</span>
-                    </div>
-                  </Link>
-                </li>
-              ))}
+              {recent.map((log) => {
+                // Auto-MISSED rugby links to the attendance recorder (so you can add yourself,
+                // flipping missed → done); other auto rows are deletable in place. Manual
+                // entries open the editor.
+                const isAutoRugbyMissed =
+                  log.auto && log.status === "MISSED" && log.category === "RUGBY" && log.practiceSlotId;
+                const href = isAutoRugbyMissed
+                  ? `/attendance?slot=${log.practiceSlotId}&date=${log.date.toISOString().slice(0, 10)}`
+                  : log.category === "STRENGTH" && log.status === "DONE"
+                    ? `/strength/log?id=${log.id}`
+                    : `/log/${log.id}`;
+                return (
+                  <li key={log.id} className="flex items-center px-4 py-3 text-sm">
+                    <Link href={href} className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="font-medium text-slate-800">
+                          {log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey)}
+                        </span>
+                        <span className="ml-2 text-slate-400">{log.date.toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {log.auto && <Badge tone="amber">{t("missed.autoBadge")}</Badge>}
+                        <Badge tone={log.status === "DONE" ? "green" : "red"}>
+                          {t(log.status === "DONE" ? "log.done" : "log.missed")}
+                        </Badge>
+                        <span className="text-slate-300">›</span>
+                      </div>
+                    </Link>
+                    {log.auto && (
+                      <form action={deleteSession} className="ml-2 shrink-0">
+                        <input type="hidden" name="id" value={log.id} />
+                        <button
+                          type="submit"
+                          aria-label={t("common.delete")}
+                          className="px-1 text-slate-400 hover:text-red-600"
+                        >
+                          ✕
+                        </button>
+                      </form>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </Card>
         )}
