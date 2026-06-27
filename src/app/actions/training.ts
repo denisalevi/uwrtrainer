@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
 import { isTrainer, CATEGORIES, SESSION_STATUSES } from "@/lib/constants";
-import { reconcileRugbyMissed } from "@/lib/missed";
+import { reconcileRugbyMissed, selfHealCountWeek } from "@/lib/missed";
 
 const LogSchema = z.object({
   category: z.enum(CATEGORIES),
@@ -46,9 +46,13 @@ export async function logSession(formData: FormData) {
   const parsed = LogSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Invalid session data");
 
+  const fields = sessionFields(parsed.data);
   await prisma.sessionLog.create({
-    data: { userId: user.id, ...sessionFields(parsed.data) },
+    data: { userId: user.id, ...fields },
   });
+
+  // Self-heal: a DONE log for a past, already-reconciled week shrinks that week's missed count.
+  if (parsed.data.status === "DONE") await selfHealCountWeek(user.id, fields.date);
 
   revalidatePath("/dashboard");
   revalidatePath("/leaderboards");
@@ -61,14 +65,25 @@ export async function updateSession(formData: FormData) {
   if (!user) redirect("/login");
   const id = String(formData.get("id") ?? "");
 
-  const existing = await prisma.sessionLog.findUnique({ where: { id }, select: { userId: true } });
+  const existing = await prisma.sessionLog.findUnique({
+    where: { id },
+    select: { userId: true, date: true },
+  });
   if (!existing) throw new Error("Session not found");
   if (existing.userId !== user.id && !isTrainer(user.role)) throw new Error("Not authorized");
 
   const parsed = LogSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Invalid session data");
 
-  await prisma.sessionLog.update({ where: { id }, data: sessionFields(parsed.data) });
+  const fields = sessionFields(parsed.data);
+  await prisma.sessionLog.update({ where: { id }, data: fields });
+
+  // Self-heal both the old and the new date's week (the edit may have moved the session, or
+  // flipped DONE↔MISSED) so any reconciled past week's missed count self-corrects.
+  await selfHealCountWeek(existing.userId, existing.date);
+  if (fields.date.getTime() !== existing.date.getTime()) {
+    await selfHealCountWeek(existing.userId, fields.date);
+  }
 
   revalidatePath("/dashboard");
   revalidatePath("/leaderboards");
@@ -81,17 +96,60 @@ export async function deleteSession(formData: FormData) {
   if (!user) redirect("/login");
   const id = String(formData.get("id") ?? "");
 
-  const existing = await prisma.sessionLog.findUnique({ where: { id }, select: { userId: true } });
+  const existing = await prisma.sessionLog.findUnique({
+    where: { id },
+    select: { userId: true, date: true, status: true, auto: true },
+  });
   if (!existing) throw new Error("Session not found");
   if (existing.userId !== user.id && !isTrainer(user.role)) throw new Error("Not authorized");
 
+  // Auto-MISSED rows are NOT manually deletable. They're resolved only via "Add yourself" /
+  // "Log the session" (which flips them to DONE / shrinks the count) or cleared by recompute.
+  if (existing.auto && existing.status === "MISSED") {
+    throw new Error("Auto-missed entries cannot be deleted");
+  }
+
   await prisma.sessionLog.delete({ where: { id } });
+
+  // Self-heal: deleting a DONE log in a reconciled past week may re-open a shortfall.
+  if (existing.status === "DONE") await selfHealCountWeek(existing.userId, existing.date);
 
   revalidatePath("/dashboard");
   revalidatePath("/leaderboards");
   revalidatePath("/feed");
   revalidatePath(`/team/${existing.userId}`);
   redirect("/dashboard");
+}
+
+/**
+ * Set / clear the `missReason` on the caller's OWN auto-MISSED row (either bucket: a ticked-practice
+ * row or a count-shortfall summary). This is the "Give a reason" resolve action — the row is not
+ * deletable, but the person can explain it, and the reason is team-visible on their profile/feed.
+ *
+ * Auth: OWNER only — a user may only annotate their own missed rows (`targetUserId === me.id`),
+ * even trainers can't write someone else's reason. No redirect: this is called inline (the page
+ * is revalidated so the reason shows immediately).
+ */
+export async function setMissedReason(formData: FormData) {
+  const me = await getCurrentUser();
+  if (!me) redirect("/login");
+  const id = String(formData.get("id") ?? "");
+  const reason = String(formData.get("missReason") ?? "").slice(0, 300).trim() || null;
+
+  const existing = await prisma.sessionLog.findUnique({
+    where: { id },
+    select: { userId: true, status: true, auto: true },
+  });
+  if (!existing) throw new Error("Session not found");
+  // Owner-only, and only on the auto-MISSED rows this affordance is meant for.
+  if (existing.userId !== me.id) throw new Error("Not authorized");
+  if (!(existing.auto && existing.status === "MISSED")) throw new Error("Not a missed entry");
+
+  await prisma.sessionLog.update({ where: { id }, data: { missReason: reason } });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/feed");
+  revalidatePath(`/team/${existing.userId}`);
 }
 
 /**
@@ -167,6 +225,12 @@ export async function logPracticeAttendance(formData: FormData) {
 
   // Reconcile auto-MISSED for this practice (present wins; committed-absent get auto-missed).
   await reconcileRugbyMissed(practiceSlotId, date);
+
+  // Self-heal: if this practice falls in a past, already-reconciled week, recompute each touched
+  // user's rugby count summary (newly-present users shrink it; newly-absent ticked users are
+  // already counted via their bucket-1 row, so the remainder math stays consistent).
+  const touchedUserIds = new Set<string>([...checkedIds]);
+  for (const userId of touchedUserIds) await selfHealCountWeek(userId, date);
 
   revalidatePath("/feed");
   revalidatePath("/dashboard");

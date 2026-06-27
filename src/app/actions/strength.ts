@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
+import { selfHealCountWeek } from "@/lib/missed";
 import {
   MOVEMENTS,
   MOVEMENT_LEVELS,
@@ -334,6 +335,7 @@ export async function saveStrengthWorkout(input: {
     });
     if (!existing || existing.userId !== user.id) throw new Error("Not authorized");
     await prisma.sessionLog.update({ where: { id: input.logId }, data });
+    await selfHealCountWeek(user.id, data.date);
     revalidatePath("/dashboard");
     return { id: input.logId };
   }
@@ -341,6 +343,7 @@ export async function saveStrengthWorkout(input: {
   const created = await prisma.sessionLog.create({
     data: { userId: user.id, category: "STRENGTH", status: "DONE", ...data },
   });
+  await selfHealCountWeek(user.id, data.date);
   revalidatePath("/dashboard");
   return { id: created.id };
 }

@@ -3,14 +3,26 @@ import { prisma } from "@/lib/db";
 import { startOfWeek, addWeeks, addDays } from "@/lib/dates";
 
 /**
- * Auto-MISSED reconciliation. Two mechanisms, both producing
- * `SessionLog { status: "MISSED", auto: true }` rows (user-deletable, badged "auto"):
+ * Auto-MISSED reconciliation. Two SEPARATE buckets, both producing
+ * `SessionLog { status: "MISSED", auto: true }` rows (badged "auto", NOT manually deletable):
  *
- *  1. Rugby, event-driven (`reconcileRugbyMissed`): driven by attendance recording.
- *  2. Non-rugby, weekly (`reconcileWeek` / scheduler): committed count shortfalls.
+ *  (1) Ticked-practice missed — specific, event-driven, per person, tied to a practice slot+date.
+ *      Created by `reconcileRugbyMissed` when a TICKED practice (a `{RUGBY, practiceSlotId:S,
+ *      target:0}` marker) gets attendance logged and the user is absent. These STAY as their own
+ *      detailed rows (`practiceSlotId != null`) — they are NOT folded into the weekly summary.
  *
- * Dedup invariant: for a (user, slot, date) rugby pair there is never BOTH a DONE
+ *  (2) Count-shortfall missed — end-of-week, generic, one summary row per category where short>0
+ *      (`practiceSlotId == null`, counts in `details`). Created by `reconcileNonRugbyWeek` only
+ *      after a week has closed (+ grace). For RUGBY the shortfall subtracts the ticked misses so
+ *      the two buckets never double-count.
+ *
+ * Dedup invariant (bucket 1): for a (user, slot, date) rugby pair there is never BOTH a DONE
  * and an auto-MISSED row — being marked present removes the auto-MISSED.
+ *
+ * Freeze: when `reconcileNonRugbyWeek` first creates a week's summary rows it snapshots each
+ * category's `target` into the row's `details`. On any later recompute of that SAME closed week
+ * we use the STORED target (not the live plan), so changing a commitment never alters closed
+ * weeks — only the `done` count (and thus `missed`) may change via late logging.
  */
 
 /** Local-day [start, end) bounds for a given date (the SessionLog `date` is stored at day granularity). */
@@ -21,10 +33,11 @@ function dayBounds(date: Date): { dayStart: Date; dayEnd: Date } {
 }
 
 /**
- * Event-driven rugby missed reconciliation for one practice slot on one date.
+ * Bucket (1): event-driven ticked-practice rugby missed reconciliation for one practice slot on
+ * one date.
  *
  * For practice `slotId` on `date`:
- *  - Every user with a committed marker for that slot (a PlanItem category=RUGBY +
+ *  - Every user with a TICKED marker for that slot (a PlanItem category=RUGBY +
  *    practiceSlotId=slotId, from their active plan) who is NOT present (has no DONE rugby
  *    log for slot+date) gets ONE auto-MISSED rugby log for slot+date (created if absent).
  *  - Any user who IS present has any auto-MISSED for slot+date removed (present wins).
@@ -45,9 +58,6 @@ export async function reconcileRugbyMissed(slotId: string, date: Date): Promise<
     select: { plan: { select: { userId: true } } },
   });
   const committedUserIds = Array.from(new Set(planItems.map((p) => p.plan.userId)));
-  if (committedUserIds.length === 0) {
-    // Still need to clear stale auto-missed for anyone marked present below.
-  }
 
   // Existing rugby logs (DONE or auto-MISSED) for this slot on this day.
   const existing = await prisma.sessionLog.findMany({
@@ -122,9 +132,12 @@ export async function reconcileRugbyMissed(slotId: string, date: Date): Promise<
   return Array.from(touched);
 }
 
-// ── Part C: weekly non-rugby reconciliation ───────────────────────────────────────────────
+// ── Bucket (2): weekly count-shortfall reconciliation ─────────────────────────────────────────
 
 const LAST_RECONCILED_WEEK_KEY = "missed.lastReconciledWeek";
+
+/** Days after a week ends before we reconcile it — late-logging grace period. */
+export const RECONCILE_GRACE_DAYS = 3;
 
 /** ISO-week key (e.g. "2026-W26") for a Monday week-start date — used as the idempotency guard. */
 export function isoWeekKey(weekStart: Date): string {
@@ -137,165 +150,7 @@ export function isoWeekKey(weekStart: Date): string {
   return `${year}-W${String(week).padStart(2, "0")}`;
 }
 
-/**
- * Reconcile committed-count shortfalls for a SINGLE completed week, producing ONE summary
- * auto-MISSED row per under-met category (RUGBY included).
- *
- * For each user and each count commitment active that week — the weekly RUGBY count
- * (`category:"RUGBY", practiceSlotId:null, targetPerWeek>0`) plus the non-rugby count items
- * (STRENGTH/CARDIO/MOBILITY/OTHER) — shortfall = max(0, targetPerWeek − DONE that week). When
- * shortfall > 0 we keep exactly ONE summary auto-MISSED row carrying the counts in `details`
- * (`{ missed, target, note? }`) so the UI can render a "missed N of M …" label. The row is dated
- * on the last day (Sunday) of the week.
- *
- * Rugby de-dup: the in-week event-driven per-practice rugby auto-MISSED rows
- * (`auto:true, category:"RUGBY", practiceSlotId != null`) for the week are DELETED first, so the
- * weekly summary doesn't double-count them; they collapse into the single summary row.
- *
- * Idempotent within a week: re-running keeps a single summary row per category (updating its
- * counts), never duplicating. Pure-ish: takes the week-start explicitly so it's testable and
- * manually triggerable. Returns number of summary rows created or updated.
- */
-export async function reconcileNonRugbyWeek(weekStart: Date): Promise<number> {
-  const weekEnd = addWeeks(weekStart, 1);
-
-  // Active plans overlapping the week (validFrom <= weekEnd-ish, validTo null or >= weekStart).
-  const ref = addDays(weekStart, 6);
-  const plans = await prisma.plan.findMany({
-    where: { validFrom: { lte: ref }, OR: [{ validTo: null }, { validTo: { gte: ref } }] },
-    include: { items: true },
-    orderBy: { validFrom: "desc" },
-  });
-
-  // One active plan per user (most recent validFrom wins).
-  const planByUser = new Map<string, (typeof plans)[number]>();
-  for (const p of plans) {
-    if (!planByUser.has(p.userId)) planByUser.set(p.userId, p);
-  }
-  if (planByUser.size === 0) return 0;
-
-  const userIds = Array.from(planByUser.keys());
-  const logs = await prisma.sessionLog.findMany({
-    where: { userId: { in: userIds }, date: { gte: weekStart, lt: weekEnd } },
-    select: {
-      id: true,
-      userId: true,
-      category: true,
-      status: true,
-      auto: true,
-      practiceSlotId: true,
-      details: true,
-    },
-  });
-
-  // Index logs by user.
-  const logsByUser = new Map<string, typeof logs>();
-  for (const l of logs) {
-    const arr = logsByUser.get(l.userId) ?? [];
-    arr.push(l);
-    logsByUser.set(l.userId, arr);
-  }
-
-  const missedDate = addDays(weekStart, 6); // Sunday of the week.
-  missedDate.setHours(12, 0, 0, 0);
-
-  // De-dup: drop the in-week per-practice event-driven rugby auto-MISSED rows for this week.
-  // They stay actionable during the week; at week close they collapse into the single summary.
-  const perPracticeRugbyMissedIds = logs
-    .filter((l) => l.status === "MISSED" && l.auto && l.category === "RUGBY" && l.practiceSlotId)
-    .map((l) => l.id);
-
-  // Existing weekly summary rows (auto-MISSED, no practiceSlot) we may update/delete/keep.
-  const existingSummaries = logs.filter(
-    (l) => l.status === "MISSED" && l.auto && !l.practiceSlotId,
-  );
-
-  type Summary = { userId: string; category: string; missed: number; target: number; note: string | null };
-  const wanted: Summary[] = [];
-
-  for (const [userId, plan] of planByUser) {
-    const userLogs = logsByUser.get(userId) ?? [];
-    // All count commitments (practiceSlotId null, target > 0) — RUGBY plus the others.
-    const items = plan.items.filter((it) => !it.practiceSlotId && it.targetPerWeek > 0);
-    for (const it of items) {
-      const noteLabel = it.category === "OTHER" ? (it.note ?? "").trim() || null : null;
-
-      // DONE for this category this week. Rugby is counted across practices (any DONE rugby log,
-      // slot or not); the others are non-slot DONE logs of the matching category (+OTHER note).
-      const done = userLogs.filter((l) => {
-        if (l.status !== "DONE" || l.category !== it.category) return false;
-        if (it.category === "RUGBY") return true;
-        return !l.practiceSlotId && (it.category !== "OTHER" || matchesOtherNote(l.details, noteLabel));
-      }).length;
-
-      const shortfall = Math.max(0, it.targetPerWeek - done);
-      if (shortfall > 0) {
-        wanted.push({ userId, category: it.category, missed: shortfall, target: it.targetPerWeek, note: noteLabel });
-      }
-    }
-  }
-
-  // Match wanted summaries to existing summary rows (by user+category+OTHER-note) to update in
-  // place; create the rest; delete any stale summary rows that are no longer wanted.
-  const summaryKey = (userId: string, category: string, note: string | null) =>
-    `${userId}|${category}|${note ?? ""}`;
-  const existingByKey = new Map<string, (typeof existingSummaries)[number]>();
-  for (const s of existingSummaries) {
-    const note = s.category === "OTHER" ? noteFromDetails(s.details) : null;
-    // Keep only the first per key; any extras are duplicates to be removed.
-    const key = summaryKey(s.userId, s.category, note);
-    if (!existingByKey.has(key)) existingByKey.set(key, s);
-  }
-
-  const usedSummaryIds = new Set<string>();
-  const ops: ReturnType<
-    typeof prisma.sessionLog.update | typeof prisma.sessionLog.create
-  >[] = [];
-  let changed = 0;
-
-  for (const w of wanted) {
-    const key = summaryKey(w.userId, w.category, w.note);
-    const detailsObj: Record<string, unknown> = { missed: w.missed, target: w.target };
-    if (w.note) detailsObj.note = w.note;
-    const details = JSON.stringify(detailsObj);
-    const existing = existingByKey.get(key);
-    if (existing) {
-      usedSummaryIds.add(existing.id);
-      if (existing.details !== details) {
-        ops.push(prisma.sessionLog.update({ where: { id: existing.id }, data: { details } }));
-        changed++;
-      }
-    } else {
-      ops.push(
-        prisma.sessionLog.create({
-          data: {
-            userId: w.userId,
-            category: w.category,
-            status: "MISSED",
-            auto: true,
-            practiceSlotId: null,
-            details,
-            date: missedDate,
-          },
-        }),
-      );
-      changed++;
-    }
-  }
-
-  // Stale summary rows (no longer wanted, or duplicates) get removed.
-  const staleSummaryIds = existingSummaries
-    .filter((s) => !usedSummaryIds.has(s.id))
-    .map((s) => s.id);
-
-  const idsToDelete = [...perPracticeRugbyMissedIds, ...staleSummaryIds];
-  if (idsToDelete.length) {
-    await prisma.sessionLog.deleteMany({ where: { id: { in: idsToDelete } } });
-  }
-  if (ops.length) await prisma.$transaction(ops);
-
-  return changed;
-}
+type CountItem = { category: string; target: number; note: string | null };
 
 /** Read an OTHER note label out of a log's details JSON (summary or plain note), if any. */
 function noteFromDetails(details: string | null): string | null {
@@ -320,11 +175,243 @@ function matchesOtherNote(details: string | null, noteLabel: string | null): boo
   }
 }
 
+/** The active count commitments (practiceSlotId null, target>0) for a user in the given week. */
+function countItemsFromPlan(
+  items: { category: string; practiceSlotId: string | null; targetPerWeek: number; note: string | null }[],
+): CountItem[] {
+  return items
+    .filter((it) => !it.practiceSlotId && it.targetPerWeek > 0)
+    .map((it) => ({
+      category: it.category,
+      target: it.targetPerWeek,
+      note: it.category === "OTHER" ? (it.note ?? "").trim() || null : null,
+    }));
+}
+
 /**
- * The scheduler tick: reconcile the most-recently-COMPLETED ISO week exactly once.
- * Uses the `missed.lastReconciledWeek` Setting as an idempotency guard so it runs once per week
- * even across restarts or multiple same-day checks. Never runs for the current (incomplete) week.
- * Safe to call as often as you like. Returns a small status object.
+ * Reconcile committed-count shortfalls for a SINGLE completed week, producing ONE summary
+ * auto-MISSED row per under-met category — for ALL users with an active plan that week.
+ *
+ * See `reconcileWeekForUser` for the per-user core (this just fans out over users). Returns the
+ * number of summary rows created/updated/removed across all users.
+ */
+export async function reconcileNonRugbyWeek(weekStart: Date): Promise<number> {
+  const ref = addDays(weekStart, 6);
+  const plans = await prisma.plan.findMany({
+    where: { validFrom: { lte: ref }, OR: [{ validTo: null }, { validTo: { gte: ref } }] },
+    select: { userId: true },
+    orderBy: { validFrom: "desc" },
+  });
+  const userIds = Array.from(new Set(plans.map((p) => p.userId)));
+  let changed = 0;
+  for (const userId of userIds) {
+    changed += await reconcileWeekForUser(weekStart, userId);
+  }
+  return changed;
+}
+
+/**
+ * Count-shortfall reconcile for ONE user and ONE (closed) week. Idempotent.
+ *
+ * For each count commitment active that week — the weekly RUGBY count
+ * (`category:"RUGBY", practiceSlotId:null, target>0`) plus the non-rugby count items
+ * (STRENGTH/CARDIO/MOBILITY/OTHER):
+ *  - `done` = DONE logs of that category in the week (rugby across all practices; others non-slot
+ *    + matching OTHER note).
+ *  - non-rugby: `short = max(0, target − done)`.
+ *  - RUGBY:     `short = max(0, target − rugbyDone − tickedMissesThisWeek)` so the ticked-practice
+ *    bucket (1) rows are never double-counted by the summary.
+ *
+ * FREEZE: the `target` used is the STORED one from an existing summary row when present (the week
+ * is already closed/snapshotted); only on first creation do we snapshot the live plan target.
+ * This means changing a commitment never alters a closed week — only `done` (late logging) does.
+ *
+ * Bucket (1) ticked-practice rugby missed rows are LEFT ALONE (they stay as their own detailed
+ * rows). We only count them, never delete/collapse them.
+ *
+ * Returns the number of summary rows created/updated/removed for this user+week.
+ */
+export async function reconcileWeekForUser(weekStart: Date, userId: string): Promise<number> {
+  const weekEnd = addWeeks(weekStart, 1);
+  const ref = addDays(weekStart, 6);
+
+  const plan = await prisma.plan.findFirst({
+    where: {
+      userId,
+      validFrom: { lte: ref },
+      OR: [{ validTo: null }, { validTo: { gte: ref } }],
+    },
+    orderBy: { validFrom: "desc" },
+    include: { items: true },
+  });
+
+  const logs = await prisma.sessionLog.findMany({
+    where: { userId, date: { gte: weekStart, lt: weekEnd } },
+    select: {
+      id: true,
+      category: true,
+      status: true,
+      auto: true,
+      practiceSlotId: true,
+      details: true,
+    },
+  });
+
+  const missedDate = addDays(weekStart, 6); // Sunday of the week.
+  missedDate.setHours(12, 0, 0, 0);
+
+  // Existing summary rows for this user+week (auto-MISSED, no practiceSlot). These carry the
+  // FROZEN target snapshot in details.
+  const existingSummaries = logs.filter(
+    (l) => l.status === "MISSED" && l.auto && !l.practiceSlotId,
+  );
+  const summaryKey = (category: string, note: string | null) => `${category}|${note ?? ""}`;
+  const existingByKey = new Map<string, (typeof existingSummaries)[number]>();
+  for (const s of existingSummaries) {
+    const note = s.category === "OTHER" ? noteFromDetails(s.details) : null;
+    const key = summaryKey(s.category, note);
+    if (!existingByKey.has(key)) existingByKey.set(key, s);
+  }
+
+  // The live plan count commitments (used for FIRST creation only).
+  const liveItems = plan ? countItemsFromPlan(plan.items) : [];
+  const liveByKey = new Map<string, CountItem>();
+  for (const it of liveItems) liveByKey.set(summaryKey(it.category, it.note), it);
+
+  // Ticked-practice rugby misses this week (bucket 1) — counted, never collapsed.
+  const tickedRugbyMisses = logs.filter(
+    (l) => l.status === "MISSED" && l.auto && l.category === "RUGBY" && l.practiceSlotId,
+  ).length;
+
+  // The set of category/note keys to evaluate: union of live commitments and existing frozen
+  // summary rows (a closed week keeps its frozen rows even if the plan later dropped the item).
+  const keys = new Set<string>([...liveByKey.keys(), ...existingByKey.keys()]);
+
+  type Want = { category: string; note: string | null; missed: number; target: number };
+  const wanted: Want[] = [];
+
+  for (const key of keys) {
+    const existing = existingByKey.get(key);
+    const live = liveByKey.get(key);
+    // FREEZE: prefer the stored snapshot target; fall back to the live plan on first creation.
+    const stored = existing ? parseStoredTarget(existing.details) : null;
+    const target = stored ?? live?.target ?? 0;
+    if (target <= 0) continue;
+    const category = existing?.category ?? live!.category;
+    const note =
+      category === "OTHER"
+        ? existing
+          ? noteFromDetails(existing.details)
+          : (live?.note ?? null)
+        : null;
+
+    const done = logs.filter((l) => {
+      if (l.status !== "DONE" || l.category !== category) return false;
+      if (category === "RUGBY") return true;
+      return !l.practiceSlotId && (category !== "OTHER" || matchesOtherNote(l.details, note));
+    }).length;
+
+    const short =
+      category === "RUGBY"
+        ? Math.max(0, target - done - tickedRugbyMisses)
+        : Math.max(0, target - done);
+
+    if (short > 0) wanted.push({ category, note, missed: short, target });
+  }
+
+  const usedSummaryIds = new Set<string>();
+  const ops: ReturnType<
+    typeof prisma.sessionLog.update | typeof prisma.sessionLog.create
+  >[] = [];
+  let changed = 0;
+
+  for (const w of wanted) {
+    const key = summaryKey(w.category, w.note);
+    const detailsObj: Record<string, unknown> = { missed: w.missed, target: w.target };
+    if (w.note) detailsObj.note = w.note;
+    const details = JSON.stringify(detailsObj);
+    const existing = existingByKey.get(key);
+    if (existing) {
+      usedSummaryIds.add(existing.id);
+      if (existing.details !== details) {
+        ops.push(prisma.sessionLog.update({ where: { id: existing.id }, data: { details } }));
+        changed++;
+      }
+    } else {
+      ops.push(
+        prisma.sessionLog.create({
+          data: {
+            userId,
+            category: w.category,
+            status: "MISSED",
+            auto: true,
+            practiceSlotId: null,
+            details,
+            date: missedDate,
+          },
+        }),
+      );
+      changed++;
+    }
+  }
+
+  // Stale summary rows (shortfall self-healed to 0 via late logging, or duplicates) get removed.
+  const staleSummaryIds = existingSummaries
+    .filter((s) => !usedSummaryIds.has(s.id))
+    .map((s) => s.id);
+  if (staleSummaryIds.length) {
+    await prisma.sessionLog.deleteMany({ where: { id: { in: staleSummaryIds } } });
+    changed += staleSummaryIds.length;
+  }
+  if (ops.length) await prisma.$transaction(ops);
+
+  return changed;
+}
+
+/** Read the FROZEN target snapshot out of an existing summary row's details, if present. */
+function parseStoredTarget(details: string | null): number | null {
+  if (!details) return null;
+  try {
+    const d = JSON.parse(details) as { target?: number };
+    return typeof d.target === "number" ? d.target : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Has the week starting at `weekStart` already been reconciled? A week's count summary rows only
+ * exist once the scheduler has run it, which happens once `now >= weekEnd + grace`. So a week is
+ * "reconciled" (has — or imminently will have — summary rows worth healing) exactly when its
+ * end + grace is in the past. Pure time check; `now` is injectable for tests.
+ */
+export function isWeekReconciled(weekStart: Date, now: Date = new Date()): boolean {
+  const due = addDays(addWeeks(weekStart, 1), RECONCILE_GRACE_DAYS);
+  return now >= due;
+}
+
+/**
+ * Self-heal hook: when a DONE session is added/removed for `date`, if that date falls in an
+ * ALREADY-reconciled past week, re-run that week's count reconcile for `userId` (using the FROZEN
+ * stored targets) so the missed count self-corrects. No-op for the current/open week (no summary
+ * rows exist there yet). Safe to call unconditionally from the mutating actions.
+ */
+export async function selfHealCountWeek(
+  userId: string,
+  date: Date,
+  now: Date = new Date(),
+): Promise<void> {
+  const ws = startOfWeek(date);
+  if (ws.getTime() >= startOfWeek(now).getTime()) return; // current/future week: no summary yet.
+  if (!isWeekReconciled(ws, now)) return; // closed but still in grace: nothing to heal yet.
+  await reconcileWeekForUser(ws, userId);
+}
+
+/**
+ * The scheduler tick: reconcile the most-recently-COMPLETED ISO week exactly once, but only after
+ * a grace period (~3 days) so late logging lands first. Uses the `missed.lastReconciledWeek`
+ * Setting as an idempotency guard so it runs once per week even across restarts or multiple
+ * same-day checks. Never runs for the current (incomplete) week. Returns a small status object.
  */
 export async function runWeeklyReconcileIfDue(
   now: Date = new Date(),
@@ -332,6 +419,12 @@ export async function runWeeklyReconcileIfDue(
   const currentWeekStart = startOfWeek(now);
   const lastCompletedWeekStart = addWeeks(currentWeekStart, -1);
   const week = isoWeekKey(lastCompletedWeekStart);
+
+  // Grace: only reconcile the just-closed week once we're past weekEnd + grace days, so late
+  // logging lands first. Until then, do nothing this tick (a later tick will pick it up).
+  if (!isWeekReconciled(lastCompletedWeekStart, now)) {
+    return { ran: false, week };
+  }
 
   const guard = await prisma.setting.findUnique({ where: { key: LAST_RECONCILED_WEEK_KEY } });
   if (guard?.value === week) return { ran: false, week };
