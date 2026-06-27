@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
-import { addSlot, setSlotActive } from "@/app/actions/trainer";
+import { addSlot, setSlotActive, updateSlot } from "@/app/actions/trainer";
 import { PRACTICE_TIERS } from "@/lib/constants";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Card, CardBody, Button, Badge, Input, Label, Select, SectionTitle, cn } from "@/components/ui";
@@ -71,26 +71,83 @@ export default async function PracticesPage() {
           <Card>
             <ul className="divide-y divide-slate-100">
               {slots.map((s) => (
-                <li key={s.id} className={cn("flex items-center gap-3 px-4 py-3", !s.active && "opacity-50")}>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-slate-800">{s.label}</span>
-                      <Badge tone={s.tier === "PRIMARY" ? "teal" : "slate"}>
-                        {t(`tier.${s.tier}` as DictKey)}
-                      </Badge>
+                <li key={s.id} className={cn("flex flex-col gap-3 px-4 py-3", !s.active && "opacity-50")}>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-800">{s.label}</span>
+                        <Badge tone={s.tier === "PRIMARY" ? "teal" : "slate"}>
+                          {t(`tier.${s.tier}` as DictKey)}
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        {t(`day.${s.dayOfWeek}` as DictKey)}
+                        {s.time ? ` · ${s.time}` : ""}
+                      </div>
                     </div>
-                    <div className="text-xs text-slate-400">
-                      {t(`day.${s.dayOfWeek}` as DictKey)}
-                      {s.time ? ` · ${s.time}` : ""}
-                    </div>
+                    <form action={setSlotActive}>
+                      <input type="hidden" name="slotId" value={s.id} />
+                      <input type="hidden" name="active" value={(!s.active).toString()} />
+                      <Button type="submit" variant={s.active ? "ghost" : "secondary"} size="sm">
+                        {s.active ? t("common.delete") : t("slots.active")}
+                      </Button>
+                    </form>
                   </div>
-                  <form action={setSlotActive}>
-                    <input type="hidden" name="slotId" value={s.id} />
-                    <input type="hidden" name="active" value={(!s.active).toString()} />
-                    <Button type="submit" variant={s.active ? "ghost" : "secondary"} size="sm">
-                      {s.active ? t("common.delete") : t("slots.active")}
-                    </Button>
-                  </form>
+                  <details className="group">
+                    <summary className="cursor-pointer text-sm text-teal-700">
+                      {t("common.edit")}
+                    </summary>
+                    <form action={updateSlot} className="mt-3 space-y-3">
+                      <input type="hidden" name="slotId" value={s.id} />
+                      <div>
+                        <Label htmlFor={`label-${s.id}`}>{t("slots.label")}</Label>
+                        <Input
+                          id={`label-${s.id}`}
+                          name="label"
+                          defaultValue={s.label}
+                          required
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label htmlFor={`dayOfWeek-${s.id}`}>{t("slots.day")}</Label>
+                          <Select
+                            id={`dayOfWeek-${s.id}`}
+                            name="dayOfWeek"
+                            defaultValue={String(s.dayOfWeek)}
+                          >
+                            {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                              <option key={d} value={d}>
+                                {t(`day.${d}` as DictKey)}
+                              </option>
+                            ))}
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor={`time-${s.id}`}>{t("slots.time")}</Label>
+                          <Input
+                            id={`time-${s.id}`}
+                            name="time"
+                            placeholder="19:00"
+                            defaultValue={s.time ?? ""}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor={`tier-${s.id}`}>{t("slots.tier")}</Label>
+                        <Select id={`tier-${s.id}`} name="tier" defaultValue={s.tier}>
+                          {PRACTICE_TIERS.map((tier) => (
+                            <option key={tier} value={tier}>
+                              {t(`tier.${tier}` as DictKey)}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                      <Button type="submit" size="sm" className="w-full">
+                        {t("common.save")}
+                      </Button>
+                    </form>
+                  </details>
                 </li>
               ))}
             </ul>

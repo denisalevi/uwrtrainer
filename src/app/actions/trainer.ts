@@ -31,6 +31,19 @@ export async function addSlot(formData: FormData) {
   revalidatePath("/team/practices");
 }
 
+export async function updateSlot(formData: FormData) {
+  await requireTrainerAction();
+  const slotId = formData.get("slotId") as string;
+  if (!slotId) throw new Error("Invalid practice");
+  const parsed = SlotSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Invalid practice");
+  await prisma.practiceSlot.update({
+    where: { id: slotId },
+    data: { ...parsed.data, time: parsed.data.time || null },
+  });
+  revalidatePath("/team/practices");
+}
+
 export async function setSlotActive(formData: FormData) {
   await requireTrainerAction();
   const id = formData.get("slotId") as string;
