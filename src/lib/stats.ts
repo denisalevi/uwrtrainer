@@ -57,11 +57,20 @@ function buildScoreItems(
   logs: LogRow[],
 ): (ScoreItem & { note: string | null; label: string | null })[] {
   return items.map((it) => {
-    const done = it.practiceSlotId
-      ? logs.filter((l) => l.status === "DONE" && l.practiceSlotId === it.practiceSlotId).length
-      : logs.filter(
-          (l) => l.status === "DONE" && l.category === it.category && !l.practiceSlotId,
-        ).length;
+    let done: number;
+    if (it.practiceSlotId) {
+      // A specific committed practice slot — count completions of that slot.
+      done = logs.filter((l) => l.status === "DONE" && l.practiceSlotId === it.practiceSlotId).length;
+    } else if (it.category === "RUGBY") {
+      // Authoritative weekly rugby count: any DONE rugby session counts, whether or not it
+      // was logged against a specific practice slot.
+      done = logs.filter((l) => l.status === "DONE" && l.category === "RUGBY").length;
+    } else {
+      // Generic count-based commitment (STRENGTH/CARDIO/MOBILITY/OTHER).
+      done = logs.filter(
+        (l) => l.status === "DONE" && l.category === it.category && !l.practiceSlotId,
+      ).length;
+    }
     return {
       category: it.category as Category,
       tier: it.tier,

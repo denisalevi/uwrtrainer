@@ -36,6 +36,12 @@ export async function PlanEditor({ userId }: { userId: string }) {
   const catTarget = (c: Category) =>
     items.find((i) => i.category === c && !i.practiceSlotId)?.targetPerWeek ?? 0;
 
+  // Saved custom OTHER activities (label in `note`); render them plus a couple of blank rows.
+  const otherItems = items
+    .filter((i) => i.category === "OTHER")
+    .map((i) => ({ name: i.note ?? "", n: i.targetPerWeek }));
+  const otherRows = [...otherItems, { name: "", n: 0 }, { name: "", n: 0 }];
+
   return (
     <form action={savePlan} className="space-y-5">
       <input type="hidden" name="userId" value={userId} />
@@ -61,8 +67,79 @@ export async function PlanEditor({ userId }: { userId: string }) {
       </section>
 
       <section className="space-y-2">
+        <SectionTitle>{t("plan.otherCommitments")}</SectionTitle>
+        <Card>
+          <CardBody className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <Label className="flex-1">{t("plan.rugbyPerWeek")}</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  name="cat_RUGBY"
+                  min={0}
+                  max={21}
+                  defaultValue={catTarget("RUGBY")}
+                  inputMode="numeric"
+                  className="w-20 text-center"
+                />
+                <span className="text-xs text-slate-500">{t("plan.perWeek")}</span>
+              </div>
+            </div>
+            {CATEGORIES.filter((c) => c !== "RUGBY" && c !== "OTHER").map((c) => (
+              <div key={c} className="flex items-center justify-between gap-3">
+                <Label className="flex-1">{t(`cat.${c}` as DictKey)}</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    name={`cat_${c}`}
+                    min={0}
+                    max={21}
+                    defaultValue={catTarget(c)}
+                    inputMode="numeric"
+                    className="w-20 text-center"
+                  />
+                  <span className="text-xs text-slate-500">{t("plan.perWeek")}</span>
+                </div>
+              </div>
+            ))}
+          </CardBody>
+        </Card>
+      </section>
+
+      <section className="space-y-2">
+        <SectionTitle>{t("plan.customActivities")}</SectionTitle>
+        <p className="text-xs text-slate-500">{t("plan.customActivitiesHint")}</p>
+        <Card>
+          <CardBody className="space-y-3">
+            {otherRows.map((row, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  name={`other_name_${i}`}
+                  defaultValue={row.name}
+                  maxLength={60}
+                  placeholder={t("plan.customActivityPlaceholder")}
+                  className="flex-1"
+                />
+                <Input
+                  type="number"
+                  name={`other_n_${i}`}
+                  min={0}
+                  max={21}
+                  defaultValue={row.n || undefined}
+                  inputMode="numeric"
+                  className="w-20 text-center"
+                />
+                <span className="text-xs text-slate-500">{t("plan.perWeek")}</span>
+              </div>
+            ))}
+          </CardBody>
+        </Card>
+      </section>
+
+      <section className="space-y-2">
         <SectionTitle>{t("plan.committedPractices")}</SectionTitle>
-        <p className="text-xs text-slate-500">{t("plan.mandatoryNote")}</p>
+        <p className="text-xs text-slate-500">{t("plan.committedPracticesHint")}</p>
         <Card>
           <CardBody className="space-y-1">
             {slots.length === 0 && <p className="text-sm text-slate-500">{t("slots.none")}</p>}
@@ -88,31 +165,6 @@ export async function PlanEditor({ userId }: { userId: string }) {
                   {t(`tier.${s.tier}` as DictKey)}
                 </Badge>
               </label>
-            ))}
-          </CardBody>
-        </Card>
-      </section>
-
-      <section className="space-y-2">
-        <SectionTitle>{t("plan.otherCommitments")}</SectionTitle>
-        <Card>
-          <CardBody className="space-y-3">
-            {CATEGORIES.filter((c) => c !== "RUGBY").map((c) => (
-              <div key={c} className="flex items-center justify-between gap-3">
-                <Label className="flex-1">{t(`cat.${c}` as DictKey)}</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    name={`cat_${c}`}
-                    min={0}
-                    max={21}
-                    defaultValue={catTarget(c)}
-                    inputMode="numeric"
-                    className="w-20 text-center"
-                  />
-                  <span className="text-xs text-slate-500">{t("plan.perWeek")}</span>
-                </div>
-              </div>
             ))}
           </CardBody>
         </Card>

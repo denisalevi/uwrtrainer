@@ -93,8 +93,10 @@ export async function deleteSession(formData: FormData) {
 
 /**
  * Replace a player's active plan from a simple form:
- *  - slot_<id> = "on"  -> a RUGBY commitment to that practice (target 1)
+ *  - cat_RUGBY = number -> authoritative weekly rugby target (a single RUGBY count item)
+ *  - slot_<id> = "on"  -> a marker (target 0) for the specific practice(s) committed to
  *  - cat_<CATEGORY> = number (times/week, 0 = not committed)
+ *  - other_name_<i> + other_n_<i> -> custom OTHER activities (label + times/week)
  *  - availabilityNote
  * If `userId` is present and differs from the caller, requires a trainer.
  */
@@ -110,17 +112,51 @@ export async function savePlan(formData: FormData) {
   const availabilityNote = ((formData.get("availabilityNote") as string) || "").slice(0, 500);
   const trainerNote = ((formData.get("trainerNote") as string) || "").slice(0, 500);
 
-  const slots = await prisma.practiceSlot.findMany({ where: { active: true }, select: { id: true } });
-  const slotItems = slots
-    .filter((s) => formData.get(`slot_${s.id}`))
-    .map((s) => ({ category: "RUGBY", practiceSlotId: s.id, targetPerWeek: 1 }));
+  type Item = {
+    category: string;
+    practiceSlotId: string | null;
+    targetPerWeek: number;
+    note?: string | null;
+  };
 
-  const catItems = CATEGORIES.filter((c) => c !== "RUGBY")
+  // Rugby is now an authoritative weekly NUMBER (cat_RUGBY). The committed practice slots are
+  // stored as pure markers (targetPerWeek 0 → ignored by scoreWeek) so the UI can still show
+  // which specific practice(s) the player aims for, without inflating the rugby target.
+  const rugbyN = Number(formData.get("cat_RUGBY") ?? 0);
+  const rugbyItem: Item[] =
+    Number.isFinite(rugbyN) && rugbyN > 0
+      ? [{ category: "RUGBY", practiceSlotId: null, targetPerWeek: Math.min(rugbyN, 21) }]
+      : [];
+
+  const slots = await prisma.practiceSlot.findMany({ where: { active: true }, select: { id: true } });
+  const slotItems: Item[] = slots
+    .filter((s) => formData.get(`slot_${s.id}`))
+    .map((s) => ({ category: "RUGBY", practiceSlotId: s.id, targetPerWeek: 0 }));
+
+  // Count-based commitments for the non-rugby fixed categories (excluding OTHER, which is custom).
+  const catItems: Item[] = CATEGORIES.filter((c) => c !== "RUGBY" && c !== "OTHER")
     .map((c) => ({ c, n: Number(formData.get(`cat_${c}`) ?? 0) }))
     .filter((x) => Number.isFinite(x.n) && x.n > 0)
-    .map((x) => ({ category: x.c, targetPerWeek: Math.min(x.n, 21), practiceSlotId: null as string | null }));
+    .map((x) => ({ category: x.c, targetPerWeek: Math.min(x.n, 21), practiceSlotId: null }));
 
-  const items = [...slotItems, ...catItems];
+  // Custom "Other" activities: indexed label + number pairs (other_name_<i> / other_n_<i>).
+  const otherItems: Item[] = [];
+  for (const [key, value] of formData.entries()) {
+    const m = /^other_name_(\d+)$/.exec(key);
+    if (!m) continue;
+    const label = String(value ?? "").trim().slice(0, 60);
+    const n = Number(formData.get(`other_n_${m[1]}`) ?? 0);
+    if (label && Number.isFinite(n) && n > 0) {
+      otherItems.push({
+        category: "OTHER",
+        practiceSlotId: null,
+        targetPerWeek: Math.min(n, 21),
+        note: label,
+      });
+    }
+  }
+
+  const items = [...rugbyItem, ...slotItems, ...catItems, ...otherItems];
 
   await prisma.$transaction(async (tx) => {
     await tx.user.update({ where: { id: targetUserId }, data: { availabilityNote, trainerNote } });

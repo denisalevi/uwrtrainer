@@ -60,11 +60,14 @@ export default async function DashboardPage() {
           <SectionTitle>{t("dash.title")}</SectionTitle>
           <Card>
             <CardBody className="space-y-4">
-              {detail.items.map((item, i) => (
+              {detail.items.filter((item) => item.target > 0).map((item, i) => (
                 <div key={i}>
                   <div className="mb-1 flex items-center justify-between text-sm">
                     <span className="font-medium text-slate-800">
-                      {item.label ?? t(`cat.${item.category}` as DictKey)}
+                      {item.label ??
+                        (item.category === "OTHER" && item.note
+                          ? item.note
+                          : t(`cat.${item.category}` as DictKey))}
                       {item.tier && (
                         <span className="ml-2 align-middle">
                           <Badge tone={item.tier === "PRIMARY" ? "teal" : "slate"}>

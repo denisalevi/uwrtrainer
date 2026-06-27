@@ -169,6 +169,7 @@ type PlanWithItems = {
     category: string;
     practiceSlotId: string | null;
     targetPerWeek: number;
+    note: string | null;
     practiceSlot: { label: string } | null;
   }>;
 } | null;
@@ -189,12 +190,17 @@ function PlanReadOnly({
   const committedSlotIds = new Set(
     items.filter((i) => i.practiceSlotId).map((i) => i.practiceSlotId as string),
   );
-  const catTargets = CATEGORIES.filter((c) => c !== "RUGBY")
+  const rugbyTarget = items.find((i) => i.category === "RUGBY" && !i.practiceSlotId)?.targetPerWeek ?? 0;
+  const catTargets = CATEGORIES.filter((c) => c !== "RUGBY" && c !== "OTHER")
     .map((c) => ({
       c,
       n: items.find((i) => i.category === c && !i.practiceSlotId)?.targetPerWeek ?? 0,
     }))
     .filter((x) => x.n > 0);
+  const otherTargets = items
+    .filter((i) => i.category === "OTHER" && i.targetPerWeek > 0)
+    .map((i) => ({ label: i.note ?? "", n: i.targetPerWeek }))
+    .filter((x) => x.label);
   const committedSlots = slots.filter((s) => committedSlotIds.has(s.id));
 
   return (
@@ -242,17 +248,35 @@ function PlanReadOnly({
         <SectionTitle>{t("plan.otherCommitments")}</SectionTitle>
         <Card>
           <CardBody className="space-y-1">
-            {catTargets.length === 0 ? (
+            {rugbyTarget === 0 && catTargets.length === 0 && otherTargets.length === 0 ? (
               <p className="text-sm text-slate-400">{t("plan.noItems")}</p>
             ) : (
-              catTargets.map(({ c, n }) => (
-                <div key={c} className="flex items-center justify-between py-1.5">
-                  <span className="text-sm text-slate-800">{t(`cat.${c}` as DictKey)}</span>
-                  <span className="text-sm text-slate-500">
-                    {n} {t("plan.perWeek")}
-                  </span>
-                </div>
-              ))
+              <>
+                {rugbyTarget > 0 && (
+                  <div className="flex items-center justify-between py-1.5">
+                    <span className="text-sm text-slate-800">{t("plan.rugbyPerWeek")}</span>
+                    <span className="text-sm text-slate-500">
+                      {rugbyTarget} {t("plan.perWeek")}
+                    </span>
+                  </div>
+                )}
+                {catTargets.map(({ c, n }) => (
+                  <div key={c} className="flex items-center justify-between py-1.5">
+                    <span className="text-sm text-slate-800">{t(`cat.${c}` as DictKey)}</span>
+                    <span className="text-sm text-slate-500">
+                      {n} {t("plan.perWeek")}
+                    </span>
+                  </div>
+                ))}
+                {otherTargets.map(({ label, n }, i) => (
+                  <div key={`other-${i}`} className="flex items-center justify-between py-1.5">
+                    <span className="text-sm text-slate-800">{label}</span>
+                    <span className="text-sm text-slate-500">
+                      {n} {t("plan.perWeek")}
+                    </span>
+                  </div>
+                ))}
+              </>
             )}
           </CardBody>
         </Card>

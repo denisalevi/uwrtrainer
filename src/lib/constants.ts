@@ -3,7 +3,7 @@
 export const ROLES = ["PLAYER", "TRAINER", "ADMIN"] as const;
 export type Role = (typeof ROLES)[number];
 
-export const CATEGORIES = ["RUGBY", "STRENGTH", "CARDIO", "MOBILITY"] as const;
+export const CATEGORIES = ["RUGBY", "STRENGTH", "CARDIO", "MOBILITY", "OTHER"] as const;
 export type Category = (typeof CATEGORIES)[number];
 
 export const PRACTICE_TIERS = ["PRIMARY", "SECONDARY", "OPTIONAL"] as const;
