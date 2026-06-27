@@ -51,7 +51,7 @@ export default async function StrengthLogPage({
         id: `slot-${i}`,
         label: exLabel(e),
         trainingMax: state[e.movement]?.trainingMax,
-        sets: e.sets.map((x) => ({ reps: x.reps, weight: x.weight ?? null, amrap: !!x.amrap })),
+        sets: e.sets.map((x) => ({ reps: x.reps, weight: x.weight ?? null, amrap: !!x.amrap, pct: x.pct ?? null })),
       })),
     }));
   }
