@@ -11,6 +11,34 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-06-28
+
+### Added
+- **Activity feed.** A new Feed tab shows what the team did over the last 7 days, grouped by day.
+  Rugby practices are aggregated into one event ("8 went to Tuesday practice", tap to expand the
+  names); each practice event also lists **who committed but didn't come** (with reasons linking to
+  their profile). It's an activity overview, not the leaderboard.
+- **Group rugby attendance.** Anyone can record who came to a practice by ticking names off the team
+  roster (de-duplicated, additive — others can add themselves later).
+- **Missed-session tracking.** Commitments you don't meet are surfaced automatically, in two kinds:
+  a specific *"you missed [that practice]"* for a practice you ticked (resolve by **adding
+  yourself**), and an end-of-week *"Missed N of M strength/rugby/… sessions"* for your weekly counts.
+  Missed entries aren't deletable — you resolve them by **logging the session** you actually did or
+  **giving a reason** (reasons show on your profile). Past weeks are **frozen** to that week's
+  commitment (changing your plan only affects the current/future weeks), and **logging a session
+  late auto-corrects** that week. A small in-app weekly job (with a few days' grace) creates the
+  end-of-week entries — no external setup.
+- **Custom activities inline.** On the commitment page, custom activities (climbing, swimming, …)
+  now live in the same "sessions per week" list with a **"+ Add custom activity"** button.
+
+### Changed
+- **Only you can edit your own commitments.** Trainers can no longer change another player's plan;
+  the plan on a player's profile is read-only for everyone (trainers keep role promote/demote).
+
+### Fixed
+- Commitment page: the practices hint now correctly points to the availability note **below** it
+  (was "above" after the section reorder).
+
 ## [0.13.0] - 2026-06-28
 
 ### Added
