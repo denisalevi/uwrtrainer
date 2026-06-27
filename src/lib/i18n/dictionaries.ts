@@ -74,6 +74,8 @@ export const en = {
   "missed.autoBadge": "auto",
   "missed.autoHint": "Auto-added because this was on your plan and not logged.",
   "missed.addYourself": "I was there — add me",
+  "missed.weeklySummary": "Missed {missed} of {target} {activity} sessions",
+  "missed.weeklyHint": "Automatic end-of-week entry: you logged fewer than your weekly commitment.",
 
   "cat.RUGBY": "Rugby practice",
   "cat.STRENGTH": "Strength",
@@ -464,6 +466,8 @@ export const de: Record<DictKey, string> = {
   "missed.autoBadge": "auto",
   "missed.autoHint": "Automatisch ergänzt, weil es im Plan stand und nicht eingetragen wurde.",
   "missed.addYourself": "Ich war da — hinzufügen",
+  "missed.weeklySummary": "{missed} von {target} {activity}-Einheiten verpasst",
+  "missed.weeklyHint": "Automatischer Wochenabschluss: weniger eingetragen als dein Wochenziel.",
 
   "cat.RUGBY": "Rugby-Training",
   "cat.STRENGTH": "Kraft",

@@ -51,7 +51,13 @@ export default async function FeedPage() {
   const end = addDays(today, 1); // exclusive upper bound = tomorrow midnight
 
   const rows = await prisma.sessionLog.findMany({
-    where: { date: { gte: start, lt: end } },
+    // The feed is "what people DID" — exclude auto-generated MISSED rows entirely.
+    // (The in-week per-practice missed-rugby "add yourself" affordance lives on the
+    // dashboard / profile, not here.)
+    where: {
+      date: { gte: start, lt: end },
+      NOT: { status: "MISSED", auto: true },
+    },
     orderBy: { date: "desc" },
     include: {
       user: { select: { name: true } },

@@ -138,16 +138,23 @@ export function isoWeekKey(weekStart: Date): string {
 }
 
 /**
- * Reconcile non-rugby committed-count shortfalls for a SINGLE completed week.
+ * Reconcile committed-count shortfalls for a SINGLE completed week, producing ONE summary
+ * auto-MISSED row per under-met category (RUGBY included).
  *
- * For each user and each non-rugby count commitment (STRENGTH/CARDIO/MOBILITY/OTHER count item
- * in their plan active that week), shortfall = max(0, targetPerWeek − DONE logs of that category
- * that week). Create that many generic auto-MISSED rows (no practiceSlot; category set; for OTHER
- * the note label is carried), dated on the last day (Sunday) of the week.
+ * For each user and each count commitment active that week — the weekly RUGBY count
+ * (`category:"RUGBY", practiceSlotId:null, targetPerWeek>0`) plus the non-rugby count items
+ * (STRENGTH/CARDIO/MOBILITY/OTHER) — shortfall = max(0, targetPerWeek − DONE that week). When
+ * shortfall > 0 we keep exactly ONE summary auto-MISSED row carrying the counts in `details`
+ * (`{ missed, target, note? }`) so the UI can render a "missed N of M …" label. The row is dated
+ * on the last day (Sunday) of the week.
  *
- * Idempotent within a week: counts existing auto-MISSED of the same category (+note) already
- * created for the week and only tops up the difference. Pure-ish: takes the week-start explicitly
- * so it's testable and manually triggerable. Returns number of rows created.
+ * Rugby de-dup: the in-week event-driven per-practice rugby auto-MISSED rows
+ * (`auto:true, category:"RUGBY", practiceSlotId != null`) for the week are DELETED first, so the
+ * weekly summary doesn't double-count them; they collapse into the single summary row.
+ *
+ * Idempotent within a week: re-running keeps a single summary row per category (updating its
+ * counts), never duplicating. Pure-ish: takes the week-start explicitly so it's testable and
+ * manually triggerable. Returns number of summary rows created or updated.
  */
 export async function reconcileNonRugbyWeek(weekStart: Date): Promise<number> {
   const weekEnd = addWeeks(weekStart, 1);
@@ -170,7 +177,15 @@ export async function reconcileNonRugbyWeek(weekStart: Date): Promise<number> {
   const userIds = Array.from(planByUser.keys());
   const logs = await prisma.sessionLog.findMany({
     where: { userId: { in: userIds }, date: { gte: weekStart, lt: weekEnd } },
-    select: { userId: true, category: true, status: true, auto: true, practiceSlotId: true, details: true },
+    select: {
+      id: true,
+      userId: true,
+      category: true,
+      status: true,
+      auto: true,
+      practiceSlotId: true,
+      details: true,
+    },
   });
 
   // Index logs by user.
@@ -181,63 +196,116 @@ export async function reconcileNonRugbyWeek(weekStart: Date): Promise<number> {
     logsByUser.set(l.userId, arr);
   }
 
-  type Create = { userId: string; category: string; details: string | null };
-  const toCreate: Create[] = [];
+  const missedDate = addDays(weekStart, 6); // Sunday of the week.
+  missedDate.setHours(12, 0, 0, 0);
+
+  // De-dup: drop the in-week per-practice event-driven rugby auto-MISSED rows for this week.
+  // They stay actionable during the week; at week close they collapse into the single summary.
+  const perPracticeRugbyMissedIds = logs
+    .filter((l) => l.status === "MISSED" && l.auto && l.category === "RUGBY" && l.practiceSlotId)
+    .map((l) => l.id);
+
+  // Existing weekly summary rows (auto-MISSED, no practiceSlot) we may update/delete/keep.
+  const existingSummaries = logs.filter(
+    (l) => l.status === "MISSED" && l.auto && !l.practiceSlotId,
+  );
+
+  type Summary = { userId: string; category: string; missed: number; target: number; note: string | null };
+  const wanted: Summary[] = [];
 
   for (const [userId, plan] of planByUser) {
     const userLogs = logsByUser.get(userId) ?? [];
-    // Non-rugby count commitments only (practiceSlotId null, category != RUGBY, target > 0).
-    const items = plan.items.filter(
-      (it) => it.category !== "RUGBY" && !it.practiceSlotId && it.targetPerWeek > 0,
-    );
+    // All count commitments (practiceSlotId null, target > 0) — RUGBY plus the others.
+    const items = plan.items.filter((it) => !it.practiceSlotId && it.targetPerWeek > 0);
     for (const it of items) {
       const noteLabel = it.category === "OTHER" ? (it.note ?? "").trim() || null : null;
 
-      const done = userLogs.filter(
-        (l) =>
-          l.status === "DONE" &&
-          l.category === it.category &&
-          !l.practiceSlotId &&
-          (it.category !== "OTHER" || matchesOtherNote(l.details, noteLabel)),
-      ).length;
-
-      const existingAuto = userLogs.filter(
-        (l) =>
-          l.status === "MISSED" &&
-          l.auto &&
-          l.category === it.category &&
-          !l.practiceSlotId &&
-          (it.category !== "OTHER" || matchesOtherNote(l.details, noteLabel)),
-      ).length;
+      // DONE for this category this week. Rugby is counted across practices (any DONE rugby log,
+      // slot or not); the others are non-slot DONE logs of the matching category (+OTHER note).
+      const done = userLogs.filter((l) => {
+        if (l.status !== "DONE" || l.category !== it.category) return false;
+        if (it.category === "RUGBY") return true;
+        return !l.practiceSlotId && (it.category !== "OTHER" || matchesOtherNote(l.details, noteLabel));
+      }).length;
 
       const shortfall = Math.max(0, it.targetPerWeek - done);
-      const needed = Math.max(0, shortfall - existingAuto);
-      for (let i = 0; i < needed; i++) {
-        toCreate.push({
-          userId,
-          category: it.category,
-          details: noteLabel ? JSON.stringify({ note: noteLabel }) : null,
-        });
+      if (shortfall > 0) {
+        wanted.push({ userId, category: it.category, missed: shortfall, target: it.targetPerWeek, note: noteLabel });
       }
     }
   }
 
-  if (toCreate.length === 0) return 0;
+  // Match wanted summaries to existing summary rows (by user+category+OTHER-note) to update in
+  // place; create the rest; delete any stale summary rows that are no longer wanted.
+  const summaryKey = (userId: string, category: string, note: string | null) =>
+    `${userId}|${category}|${note ?? ""}`;
+  const existingByKey = new Map<string, (typeof existingSummaries)[number]>();
+  for (const s of existingSummaries) {
+    const note = s.category === "OTHER" ? noteFromDetails(s.details) : null;
+    // Keep only the first per key; any extras are duplicates to be removed.
+    const key = summaryKey(s.userId, s.category, note);
+    if (!existingByKey.has(key)) existingByKey.set(key, s);
+  }
 
-  const missedDate = addDays(weekStart, 6); // Sunday of the week.
-  missedDate.setHours(12, 0, 0, 0);
-  await prisma.sessionLog.createMany({
-    data: toCreate.map((c) => ({
-      userId: c.userId,
-      category: c.category,
-      status: "MISSED",
-      auto: true,
-      practiceSlotId: null,
-      details: c.details,
-      date: missedDate,
-    })),
-  });
-  return toCreate.length;
+  const usedSummaryIds = new Set<string>();
+  const ops: ReturnType<
+    typeof prisma.sessionLog.update | typeof prisma.sessionLog.create
+  >[] = [];
+  let changed = 0;
+
+  for (const w of wanted) {
+    const key = summaryKey(w.userId, w.category, w.note);
+    const detailsObj: Record<string, unknown> = { missed: w.missed, target: w.target };
+    if (w.note) detailsObj.note = w.note;
+    const details = JSON.stringify(detailsObj);
+    const existing = existingByKey.get(key);
+    if (existing) {
+      usedSummaryIds.add(existing.id);
+      if (existing.details !== details) {
+        ops.push(prisma.sessionLog.update({ where: { id: existing.id }, data: { details } }));
+        changed++;
+      }
+    } else {
+      ops.push(
+        prisma.sessionLog.create({
+          data: {
+            userId: w.userId,
+            category: w.category,
+            status: "MISSED",
+            auto: true,
+            practiceSlotId: null,
+            details,
+            date: missedDate,
+          },
+        }),
+      );
+      changed++;
+    }
+  }
+
+  // Stale summary rows (no longer wanted, or duplicates) get removed.
+  const staleSummaryIds = existingSummaries
+    .filter((s) => !usedSummaryIds.has(s.id))
+    .map((s) => s.id);
+
+  const idsToDelete = [...perPracticeRugbyMissedIds, ...staleSummaryIds];
+  if (idsToDelete.length) {
+    await prisma.sessionLog.deleteMany({ where: { id: { in: idsToDelete } } });
+  }
+  if (ops.length) await prisma.$transaction(ops);
+
+  return changed;
+}
+
+/** Read an OTHER note label out of a log's details JSON (summary or plain note), if any. */
+function noteFromDetails(details: string | null): string | null {
+  if (!details) return null;
+  try {
+    const d = JSON.parse(details) as { note?: string };
+    return (d.note ?? "").trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 /** Does a log's details JSON carry the given OTHER note label (loose match; null label matches anything)? */

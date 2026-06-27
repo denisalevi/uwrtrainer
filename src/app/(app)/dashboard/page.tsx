@@ -7,6 +7,7 @@ import { isTrainer, type LeaderboardMetric } from "@/lib/constants";
 import { Card, CardBody, Button, Badge, ProgressBar, SectionTitle } from "@/components/ui";
 import { deleteSession } from "@/app/actions/training";
 import type { DictKey } from "@/lib/i18n/dictionaries";
+import { weeklySummaryLabel } from "@/lib/missed-label";
 
 export default async function DashboardPage() {
   const user = await requireUser();
@@ -124,12 +125,17 @@ export default async function DashboardPage() {
                   : log.category === "STRENGTH" && log.status === "DONE"
                     ? `/strength/log?id=${log.id}`
                     : `/log/${log.id}`;
+                // Weekly auto-missed summary rows carry count phrasing ("missed N of M …").
+                const summaryLabel =
+                  log.auto && log.status === "MISSED" && !log.practiceSlotId
+                    ? weeklySummaryLabel(t, log.category, log.details)
+                    : null;
                 return (
                   <li key={log.id} className="flex items-center px-4 py-3 text-sm">
                     <Link href={href} className="flex min-w-0 flex-1 items-center justify-between gap-2">
                       <div className="min-w-0">
                         <span className="font-medium text-slate-800">
-                          {log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey)}
+                          {summaryLabel ?? log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey)}
                         </span>
                         <span className="ml-2 text-slate-400">{log.date.toLocaleDateString()}</span>
                       </div>

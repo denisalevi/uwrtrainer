@@ -9,6 +9,7 @@ import { deleteSession } from "@/app/actions/training";
 import { PlanEditor } from "@/components/plan-editor";
 import { StrengthWorkoutView } from "@/components/strength-workout-view";
 import type { DictKey } from "@/lib/i18n/dictionaries";
+import { weeklySummaryLabel } from "@/lib/missed-label";
 import { Card, CardBody, Badge, Button, SectionTitle } from "@/components/ui";
 
 export default async function PlayerDetailPage({
@@ -73,7 +74,11 @@ export default async function PlayerDetailPage({
             <ul className="divide-y divide-slate-100">
               {recent.map((log) => {
                 const isStrength = log.category === "STRENGTH" && log.status === "DONE";
-                const title = log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey);
+                const summaryLabel =
+                  log.auto && log.status === "MISSED" && !log.practiceSlotId
+                    ? weeklySummaryLabel(t, log.category, log.details)
+                    : null;
+                const title = summaryLabel ?? log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey);
                 return (
                   <li key={log.id} className="text-sm">
                     <details className="group">
@@ -128,7 +133,9 @@ export default async function PlayerDetailPage({
                           </dl>
                         )}
                         {log.auto && (
-                          <p className="mt-2 text-xs text-amber-700">{t("missed.autoHint")}</p>
+                          <p className="mt-2 text-xs text-amber-700">
+                            {t(summaryLabel ? "missed.weeklyHint" : "missed.autoHint")}
+                          </p>
                         )}
                         {log.auto && (viewerIsTrainer || viewer.id === player.id) && (
                           <form action={deleteSession} className="mt-2">
