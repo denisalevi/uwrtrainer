@@ -11,6 +11,7 @@ type Item = { href: string; labelKey: DictKey; icon: string };
 const PLAYER_ITEMS: Item[] = [
   { href: "/dashboard", labelKey: "nav.dashboard", icon: "🏠" },
   { href: "/log", labelKey: "nav.log", icon: "➕" },
+  { href: "/feed", labelKey: "nav.feed", icon: "📰" },
   { href: "/plan", labelKey: "nav.plan", icon: "📋" },
   { href: "/leaderboards", labelKey: "nav.leaderboards", icon: "🏆" },
   { href: "/settings", labelKey: "nav.settings", icon: "⚙️" },
@@ -21,9 +22,10 @@ const TEAM_ITEM: Item = { href: "/team", labelKey: "nav.team", icon: "👥" };
 export function BottomNav() {
   const pathname = usePathname();
   const { t } = useT();
-  // The team area is readable by every member (read-only for non-trainers), so
-  // the Team tab is shown to everyone. Keep it before Settings.
-  const items = [...PLAYER_ITEMS.slice(0, 4), TEAM_ITEM, PLAYER_ITEMS[4]];
+  // The feed is for everyone (read-only team overview). The team area is also readable by
+  // every member (read-only for non-trainers), so the Team tab is shown to everyone too.
+  // Keep Team before Settings.
+  const items = [...PLAYER_ITEMS.slice(0, 5), TEAM_ITEM, PLAYER_ITEMS[5]];
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-md border-t border-slate-200 bg-white/95 backdrop-blur bottom-safe">
