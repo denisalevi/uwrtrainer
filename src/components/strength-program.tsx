@@ -4,6 +4,7 @@ import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Badge, Button, Card, CardBody, Input, Label, SectionTitle } from "@/components/ui";
 import {
   setStrengthWeek,
+  setStrengthCycle,
   finishStrengthCycle,
   updateStrengthSettings,
   resetStrengthProgram,
@@ -43,9 +44,11 @@ function setLine(set: WorkoutSet): string {
 export async function StrengthProgramView({
   program,
   includePull,
+  previewWeek,
 }: {
   program: Program;
   includePull: boolean;
+  previewWeek?: number;
 }) {
   const { t } = await getServerT();
   const state: ProgramState = JSON.parse(program.movements);
@@ -56,49 +59,87 @@ export async function StrengthProgramView({
   const layout: WeightedLayout = (WEIGHTED_LAYOUTS as readonly string[]).includes(program.weightedLayout)
     ? (program.weightedLayout as WeightedLayout)
     : "ROTATE";
-  const wave = waveWeek(program.week);
-  const schedule = buildSchedule(days, state, { includePull, layout, week: program.week });
+  const activeWeek = program.week;
+  const viewWeek = previewWeek ?? activeWeek;
+  const wave = waveWeek(activeWeek);
+  const schedule = buildSchedule(days, state, { includePull, layout, week: viewWeek });
   const exLabel = (e: PlannedExercise): string =>
     e.exerciseId === CUSTOM_EXERCISE_ID ? e.custom || t("strength.exerciseName") : t(e.labelKey as DictKey);
 
   return (
     <div className="space-y-4">
-      {/* Status line */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="teal">
-          {t("strength.cycle")} {program.cycle}
-        </Badge>
-        <Badge tone={wave.deload ? "amber" : "slate"}>{t("strength.weekN", { n: program.week })}</Badge>
-        {wave.deload ? (
-          <span className="text-sm text-amber-700">{t("strength.deload")}</span>
-        ) : program.week === 3 ? (
-          <span className="text-sm text-teal-700">{t("strength.testWeek")}</span>
-        ) : null}
+      {/* Status line — always shows the ACTIVE state */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="teal">
+            {t("strength.cycle")} {program.cycle}
+          </Badge>
+          <Badge tone={wave.deload ? "amber" : "slate"}>{t("strength.activeWeek", { n: activeWeek })}</Badge>
+          {wave.deload ? (
+            <span className="text-sm text-amber-700">{t("strength.deload")}</span>
+          ) : activeWeek === 3 ? (
+            <span className="text-sm text-teal-700">{t("strength.testWeek")}</span>
+          ) : null}
+          {viewWeek !== activeWeek ? (
+            <span className="text-sm font-medium text-slate-500">{t("strength.previewing", { n: viewWeek })}</span>
+          ) : null}
+        </div>
+
+        {/* Editable cycle number (for a mid-program joiner) */}
+        <form action={setStrengthCycle} className="flex items-center gap-2">
+          <input type="hidden" name="programId" value={program.id} />
+          <Label htmlFor="cycle" className="text-xs text-slate-500">
+            {t("strength.cycle")}
+          </Label>
+          <Input
+            id="cycle"
+            name="cycle"
+            type="number"
+            min={1}
+            max={99}
+            inputMode="numeric"
+            defaultValue={program.cycle}
+            className="w-20"
+          />
+          <Button type="submit" variant="secondary" className="px-3 py-1.5 text-sm">
+            {t("strength.setCycle")}
+          </Button>
+        </form>
       </div>
 
       <Link href="/strength/log" className="block">
         <Button className="w-full">➕ {t("strength.logWorkout")}</Button>
       </Link>
 
-      {/* Week selector */}
-      <div className="grid grid-cols-4 gap-2">
-        {[1, 2, 3, 4].map((w) => (
-          <form key={w} action={setStrengthWeek}>
-            <input type="hidden" name="programId" value={program.id} />
-            <input type="hidden" name="week" value={w} />
-            <button
-              type="submit"
+      {/* Week selector — preview-only navigation, does NOT activate */}
+      <div className="space-y-2">
+        <p className="text-xs text-slate-500">{t("strength.weekPreviewHint")}</p>
+        <div className="grid grid-cols-4 gap-2">
+          {[1, 2, 3, 4].map((w) => (
+            <Link
+              key={w}
+              href={`/strength?week=${w}`}
+              scroll={false}
               className={
-                "w-full rounded-xl border px-2 py-2 text-sm font-medium " +
-                (program.week === w
+                "block w-full rounded-xl border px-2 py-2 text-center text-sm font-medium " +
+                (viewWeek === w
                   ? "border-teal-600 bg-teal-50 text-teal-800"
                   : "border-slate-200 bg-white text-slate-600")
               }
             >
               {t("strength.weekN", { n: w })}
-            </button>
+            </Link>
+          ))}
+        </div>
+        {viewWeek !== activeWeek ? (
+          <form action={setStrengthWeek}>
+            <input type="hidden" name="programId" value={program.id} />
+            <input type="hidden" name="week" value={viewWeek} />
+            <Button type="submit" className="w-full">
+              {t("strength.setActiveWeek", { n: viewWeek })}
+            </Button>
           </form>
-        ))}
+        ) : null}
       </div>
 
       {/* Per-day exercises for the current week (auto-laid-out) */}

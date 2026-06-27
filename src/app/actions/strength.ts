@@ -235,6 +235,20 @@ export async function setStrengthWeek(formData: FormData) {
   revalidatePath("/strength");
 }
 
+const CycleSchema = z.object({ programId: z.string(), cycle: z.coerce.number().int().min(1).max(99) });
+
+export async function setStrengthCycle(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  const parsed = CycleSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Invalid cycle");
+  await prisma.strengthProgram.updateMany({
+    where: { id: parsed.data.programId, userId: user.id },
+    data: { cycle: parsed.data.cycle },
+  });
+  revalidatePath("/strength");
+}
+
 /**
  * Close out a 4-week cycle: apply the adjustment rule (increase / hold / reduce) to every
  * movement's maxima (both the weighted training max and the bodyweight rep/level), advance

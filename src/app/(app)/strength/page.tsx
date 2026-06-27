@@ -6,9 +6,21 @@ import { SETTING_INCLUDE_PULL, DEFAULT_INCLUDE_PULL } from "@/lib/constants";
 import { StrengthWizard } from "@/components/strength-wizard";
 import { StrengthProgramView } from "@/components/strength-program";
 
-export default async function StrengthPage() {
+export default async function StrengthPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const user = await requireUser();
   const { t } = await getServerT();
+
+  const { week: weekParam } = await searchParams;
+  const rawWeek = Array.isArray(weekParam) ? weekParam[0] : weekParam;
+  const parsedWeek = Math.trunc(Number(rawWeek));
+  const previewWeek =
+    rawWeek != null && Number.isFinite(parsedWeek) && parsedWeek >= 1 && parsedWeek <= 4
+      ? parsedWeek
+      : undefined;
 
   const [program, pullSetting] = await Promise.all([
     prisma.strengthProgram.findFirst({
@@ -34,7 +46,7 @@ export default async function StrengthPage() {
         <p className="mt-1 text-sm text-slate-500">{t("strength.intro")}</p>
       </header>
       {program && program.days && program.days !== "[]" ? (
-        <StrengthProgramView program={program} includePull={includePull} />
+        <StrengthProgramView program={program} includePull={includePull} previewWeek={previewWeek} />
       ) : (
         <StrengthWizard includePull={includePull} />
       )}
