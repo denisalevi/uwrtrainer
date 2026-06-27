@@ -40,18 +40,20 @@ export function CustomActivities({ initial }: { initial: CustomActivity[] }) {
             onChange={(e) => setField(row.key, "name", e.target.value)}
             maxLength={60}
             placeholder={t("plan.customActivityPlaceholder")}
-            className="flex-1"
+            className="min-w-0 flex-1"
           />
-          <Input
-            type="number"
-            name={`other_n_${i}`}
-            min={0}
-            max={21}
-            value={row.n}
-            onChange={(e) => setField(row.key, "n", e.target.value)}
-            inputMode="numeric"
-            className="w-20 text-center"
-          />
+          <div className="w-20 shrink-0">
+            <Input
+              type="number"
+              name={`other_n_${i}`}
+              min={0}
+              max={21}
+              value={row.n}
+              onChange={(e) => setField(row.key, "n", e.target.value)}
+              inputMode="numeric"
+              className="text-center"
+            />
+          </div>
           <span className="text-xs text-slate-500">{t("plan.perWeek")}</span>
           <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(row.key)}>
             ✕

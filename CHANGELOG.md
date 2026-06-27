@@ -11,6 +11,12 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-06-28
+
+### Fixed
+- Commitment page: custom-activity rows had the name box squeezed tiny and the number box stretched
+  wide. The name field now takes the space and the number field stays compact.
+
 ## [0.14.0] - 2026-06-28
 
 ### Added
