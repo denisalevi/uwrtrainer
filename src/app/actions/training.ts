@@ -183,14 +183,15 @@ export async function logPracticeAttendance(formData: FormData) {
  *  - cat_<CATEGORY> = number (times/week, 0 = not committed)
  *  - other_name_<i> + other_n_<i> -> custom OTHER activities (label + times/week)
  *  - availabilityNote
- * If `userId` is present and differs from the caller, requires a trainer.
+ * Self-only: a user may only save their own plan. If `userId` is present and differs
+ * from the caller, the action throws (trainers cannot edit another player's plan).
  */
 export async function savePlan(formData: FormData) {
   const me = await getCurrentUser();
   if (!me) redirect("/login");
 
   const targetUserId = (formData.get("userId") as string) || me.id;
-  if (targetUserId !== me.id && !isTrainer(me.role)) {
+  if (targetUserId !== me.id) {
     throw new Error("Not authorized");
   }
 

@@ -6,7 +6,6 @@ import { requireUser } from "@/lib/dal";
 import { isTrainer, CATEGORIES } from "@/lib/constants";
 import { setRole } from "@/app/actions/trainer";
 import { deleteSession } from "@/app/actions/training";
-import { PlanEditor } from "@/components/plan-editor";
 import { StrengthWorkoutView } from "@/components/strength-workout-view";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { weeklySummaryLabel } from "@/lib/missed-label";
@@ -155,19 +154,12 @@ export default async function PlayerDetailPage({
         )}
       </section>
 
-      {viewerIsTrainer ? (
-        <section className="space-y-2">
-          <SectionTitle>{t("team.editPlan")}</SectionTitle>
-          <PlanEditor userId={player.id} />
-        </section>
-      ) : (
-        <PlanReadOnly
-          t={t}
-          slots={slots}
-          plan={activePlan}
-          availabilityNote={player.availabilityNote}
-        />
-      )}
+      <PlanReadOnly
+        t={t}
+        slots={slots}
+        plan={activePlan}
+        availabilityNote={player.availabilityNote}
+      />
 
       {viewerIsTrainer && player.trainerNote && (
         <section className="space-y-2">
