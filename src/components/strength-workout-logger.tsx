@@ -7,7 +7,7 @@ import { saveStrengthWorkout } from "@/app/actions/strength";
 import { deleteSession } from "@/app/actions/training";
 import { Button, Card, CardBody, Input, Label, Select, cn } from "@/components/ui";
 
-type SetTarget = { reps: number; weight: number | null; amrap: boolean; pct?: number | null };
+type SetTarget = { reps: number; weight: number | null; amrap: boolean };
 type Suggestion = { id: string; label: string; trainingMax?: number; sets: SetTarget[] };
 export type LoggerDay = { id: string; name: string; minutes: number; suggestions: Suggestion[] };
 
@@ -288,10 +288,18 @@ export function StrengthWorkoutLogger({
                 />
               )}
 
+              {showWeight && sug?.trainingMax != null && (
+                <div className="text-xs text-slate-400">
+                  {t("strength.currentMax")}: {sug.trainingMax} kg
+                </div>
+              )}
+
               <div className="space-y-2">
                 {l.sets.map((s, i) => {
                   const target = sug?.sets[i];
-                  const pct = target?.pct != null ? Math.round(target.pct * 100) : null;
+                  const tm = sug?.trainingMax;
+                  const w = Number(s.weight);
+                  const pct = tm && tm > 0 && w > 0 ? Math.round((w / tm) * 100) : null;
                   return (
                     <div key={i} className="flex items-center gap-2">
                       <span className="w-12 shrink-0 text-xs text-slate-500">
