@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
 import { isTrainer, CATEGORIES, SESSION_STATUSES } from "@/lib/constants";
+import { reconcileRugbyMissed } from "@/lib/missed";
 
 const LogSchema = z.object({
   category: z.enum(CATEGORIES),
@@ -89,6 +90,88 @@ export async function deleteSession(formData: FormData) {
   revalidatePath("/dashboard");
   revalidatePath("/leaderboards");
   redirect("/dashboard");
+}
+
+/**
+ * Record group rugby attendance for a practice slot + date.
+ * Any logged-in member may use this (not just trainers). Additive + de-duplicated:
+ * for each checked user, if they have no existing DONE rugby SessionLog for that slot+date,
+ * create one `{ category:"RUGBY", status:"DONE", practiceSlotId, date }`. Then reconcile
+ * auto-MISSED for that practice (present users lose their auto-missed; committed-but-absent
+ * users gain one — see reconcileRugbyMissed).
+ *
+ * Form: practiceSlotId, date (yyyy-mm-dd), and `present_<userId>` = "on" for each attendee.
+ */
+export async function logPracticeAttendance(formData: FormData) {
+  const me = await getCurrentUser();
+  if (!me) redirect("/login");
+
+  const practiceSlotId = String(formData.get("practiceSlotId") ?? "");
+  const dateStr = String(formData.get("date") ?? "");
+  if (!practiceSlotId || !dateStr) throw new Error("Missing practice or date");
+
+  const slot = await prisma.practiceSlot.findUnique({
+    where: { id: practiceSlotId },
+    select: { id: true },
+  });
+  if (!slot) throw new Error("Practice not found");
+
+  // Normalize to local midnight so dedup compares whole-day.
+  const date = new Date(dateStr);
+  date.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(date);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
+  // Checked user ids.
+  const checkedIds = new Set<string>();
+  for (const [key, value] of formData.entries()) {
+    const m = /^present_(.+)$/.exec(key);
+    if (m && value) checkedIds.add(m[1]);
+  }
+
+  if (checkedIds.size > 0) {
+    // Validate against real users, and find who already has a DONE rugby log for slot+date.
+    const validUsers = await prisma.user.findMany({
+      where: { id: { in: Array.from(checkedIds) } },
+      select: { id: true },
+    });
+    const validIds = validUsers.map((u) => u.id);
+
+    const alreadyDone = await prisma.sessionLog.findMany({
+      where: {
+        userId: { in: validIds },
+        category: "RUGBY",
+        status: "DONE",
+        practiceSlotId,
+        date: { gte: date, lt: dayEnd },
+      },
+      select: { userId: true },
+    });
+    const alreadyDoneIds = new Set(alreadyDone.map((l) => l.userId));
+
+    const toCreate = validIds.filter((id) => !alreadyDoneIds.has(id));
+    if (toCreate.length > 0) {
+      await prisma.sessionLog.createMany({
+        data: toCreate.map((userId) => ({
+          userId,
+          category: "RUGBY",
+          status: "DONE",
+          practiceSlotId,
+          date,
+        })),
+      });
+    }
+  }
+
+  // Reconcile auto-MISSED for this practice (present wins; committed-absent get auto-missed).
+  await reconcileRugbyMissed(practiceSlotId, date);
+
+  revalidatePath("/feed");
+  revalidatePath("/dashboard");
+  revalidatePath("/leaderboards");
+  for (const userId of checkedIds) revalidatePath(`/team/${userId}`);
+
+  redirect("/feed");
 }
 
 /**

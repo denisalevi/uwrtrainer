@@ -90,6 +90,7 @@ model SessionLog {
   practiceSlotId String?
   practiceSlot   PracticeSlot? @relation(fields: [practiceSlotId], references: [id])
   details        String? // JSON string
+  auto           Boolean       @default(false) // true = auto-generated MISSED entry (see lib/missed.ts)
   createdAt      DateTime      @default(now())
 
   @@index([userId, date])

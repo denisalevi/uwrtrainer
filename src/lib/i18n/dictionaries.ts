@@ -48,6 +48,32 @@ export const en = {
   "nav.leaderboards": "Boards",
   "nav.team": "Team",
   "nav.settings": "Settings",
+  "nav.feed": "Feed",
+
+  // ── Group attendance (Part A) ──
+  "attendance.title": "Practice attendance",
+  "attendance.subtitle": "Mark who came to a rugby practice.",
+  "attendance.whichPractice": "Which practice?",
+  "attendance.date": "Date",
+  "attendance.whoCame": "Who came?",
+  "attendance.you": "(you)",
+  "attendance.save": "Record attendance",
+  "attendance.recordButton": "Record attendance",
+
+  // ── Activity feed (Part B) ──
+  "feed.title": "Activity feed",
+  "feed.subtitle": "What the team did in the last 7 days.",
+  "feed.empty": "Nothing logged in the last 7 days.",
+  "feed.today": "Today",
+  "feed.yesterday": "Yesterday",
+  "feed.wentToPractice": "{n} went to {label}",
+  "feed.attendees": "Attendees",
+  "feed.missedPractice": "{n} missed {label}",
+
+  // ── Auto-missed badge (Part C) ──
+  "missed.autoBadge": "auto",
+  "missed.autoHint": "Auto-added because this was on your plan and not logged.",
+  "missed.addYourself": "I was there — add me",
 
   "cat.RUGBY": "Rugby practice",
   "cat.STRENGTH": "Strength",
@@ -412,6 +438,32 @@ export const de: Record<DictKey, string> = {
   "nav.leaderboards": "Ranglisten",
   "nav.team": "Team",
   "nav.settings": "Einstellungen",
+  "nav.feed": "Feed",
+
+  // ── Gruppen-Anwesenheit (Teil A) ──
+  "attendance.title": "Trainingsanwesenheit",
+  "attendance.subtitle": "Markiere, wer beim Rugby-Training war.",
+  "attendance.whichPractice": "Welches Training?",
+  "attendance.date": "Datum",
+  "attendance.whoCame": "Wer war da?",
+  "attendance.you": "(du)",
+  "attendance.save": "Anwesenheit speichern",
+  "attendance.recordButton": "Anwesenheit erfassen",
+
+  // ── Aktivitäts-Feed (Teil B) ──
+  "feed.title": "Aktivitäts-Feed",
+  "feed.subtitle": "Was das Team in den letzten 7 Tagen gemacht hat.",
+  "feed.empty": "Nichts in den letzten 7 Tagen eingetragen.",
+  "feed.today": "Heute",
+  "feed.yesterday": "Gestern",
+  "feed.wentToPractice": "{n} waren bei {label}",
+  "feed.attendees": "Teilnehmer",
+  "feed.missedPractice": "{n} haben {label} verpasst",
+
+  // ── Auto-Verpasst-Badge (Teil C) ──
+  "missed.autoBadge": "auto",
+  "missed.autoHint": "Automatisch ergänzt, weil es im Plan stand und nicht eingetragen wurde.",
+  "missed.addYourself": "Ich war da — hinzufügen",
 
   "cat.RUGBY": "Rugby-Training",
   "cat.STRENGTH": "Kraft",
