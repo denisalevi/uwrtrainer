@@ -29,13 +29,20 @@ export type ExistingSession = {
 export function LogForm({
   slots,
   existing,
+  defaultCategory,
+  defaultDate,
 }: {
   slots: Slot[];
   existing?: ExistingSession;
+  /** Prefill a fresh (non-editing) log, e.g. from a count-shortfall "Log the session" link. */
+  defaultCategory?: Category;
+  defaultDate?: string;
 }) {
   const { t } = useT();
   const editing = !!existing;
-  const [category, setCategory] = useState<Category>(existing?.category ?? "RUGBY");
+  const [category, setCategory] = useState<Category>(
+    existing?.category ?? defaultCategory ?? "RUGBY",
+  );
   const [status, setStatus] = useState<SessionStatus>(existing?.status ?? "DONE");
   const today = new Date().toISOString().slice(0, 10);
 
@@ -98,7 +105,13 @@ export function LogForm({
           <CardBody className="space-y-4">
             <div>
               <Label htmlFor="date">{t("log.date")}</Label>
-              <Input id="date" name="date" type="date" defaultValue={existing?.date ?? today} required />
+              <Input
+                id="date"
+                name="date"
+                type="date"
+                defaultValue={existing?.date ?? defaultDate ?? today}
+                required
+              />
             </div>
 
             {category === "RUGBY" && (

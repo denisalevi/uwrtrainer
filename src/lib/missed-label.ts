@@ -36,3 +36,39 @@ export function weeklySummaryLabel(
     category === "OTHER" && s.note ? s.note : t(`cat.${category}` as DictKey);
   return t("missed.weeklySummary", { missed: s.missed, target: s.target, activity });
 }
+
+/** yyyy-mm-dd (local) for a date, used to prefill loggers from a missed row's date. */
+function dayKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * The primary resolve action (href + i18n label key) for an auto-MISSED row.
+ *  - Ticked-practice row (bucket 1: RUGBY + practiceSlotId): "Add yourself" → /attendance prefilled
+ *    for that slot+date; logging present removes the row via reconcile.
+ *  - Count-shortfall summary (bucket 2: no practiceSlotId): "Log the session" → the right logger
+ *    for that category, prefilled with a date in that week (the row's date):
+ *      STRENGTH → /strength/log, everything else → /log?category=…&date=…
+ */
+export function missedResolveAction(log: {
+  category: string;
+  practiceSlotId: string | null;
+  date: Date;
+}): { href: string; labelKey: DictKey } {
+  if (log.practiceSlotId && log.category === "RUGBY") {
+    return {
+      href: `/attendance?slot=${log.practiceSlotId}&date=${dayKey(log.date)}`,
+      labelKey: "missed.addYourself",
+    };
+  }
+  if (log.category === "STRENGTH") {
+    return { href: "/strength/log", labelKey: "missed.logSession" };
+  }
+  return {
+    href: `/log?category=${log.category}&date=${dayKey(log.date)}`,
+    labelKey: "missed.logSession",
+  };
+}

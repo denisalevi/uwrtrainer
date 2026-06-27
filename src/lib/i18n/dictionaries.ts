@@ -69,6 +69,7 @@ export const en = {
   "feed.wentToPractice": "{n} went to {label}",
   "feed.attendees": "Attendees",
   "feed.missedPractice": "{n} missed {label}",
+  "feed.didNotCome": "Committed but didn't come",
 
   // ── Auto-missed badge (Part C) ──
   "missed.autoBadge": "auto",
@@ -76,6 +77,12 @@ export const en = {
   "missed.addYourself": "I was there — add me",
   "missed.weeklySummary": "Missed {missed} of {target} {activity} sessions",
   "missed.weeklyHint": "Automatic end-of-week entry: you logged fewer than your weekly commitment.",
+  "missed.logSession": "Log the session",
+  "missed.giveReason": "Give a reason",
+  "missed.reasonPlaceholder": "Why was this missed? (visible to the team)",
+  "missed.reasonSave": "Save reason",
+  "missed.reasonSaved": "Reason saved",
+  "missed.reasonLabel": "Reason",
 
   "cat.RUGBY": "Rugby practice",
   "cat.STRENGTH": "Strength",
@@ -460,6 +467,7 @@ export const de: Record<DictKey, string> = {
   "feed.wentToPractice": "{n} waren bei {label}",
   "feed.attendees": "Teilnehmer",
   "feed.missedPractice": "{n} haben {label} verpasst",
+  "feed.didNotCome": "Zugesagt, aber nicht gekommen",
 
   // ── Auto-Verpasst-Badge (Teil C) ──
   "missed.autoBadge": "auto",
@@ -467,6 +475,12 @@ export const de: Record<DictKey, string> = {
   "missed.addYourself": "Ich war da — hinzufügen",
   "missed.weeklySummary": "{missed} von {target} {activity}-Einheiten verpasst",
   "missed.weeklyHint": "Automatischer Wochenabschluss: weniger eingetragen als dein Wochenziel.",
+  "missed.logSession": "Einheit eintragen",
+  "missed.giveReason": "Grund angeben",
+  "missed.reasonPlaceholder": "Warum verpasst? (für das Team sichtbar)",
+  "missed.reasonSave": "Grund speichern",
+  "missed.reasonSaved": "Grund gespeichert",
+  "missed.reasonLabel": "Grund",
 
   "cat.RUGBY": "Rugby-Training",
   "cat.STRENGTH": "Kraft",

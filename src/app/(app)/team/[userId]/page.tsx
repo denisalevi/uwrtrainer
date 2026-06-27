@@ -5,10 +5,10 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/dal";
 import { isTrainer, CATEGORIES } from "@/lib/constants";
 import { setRole } from "@/app/actions/trainer";
-import { deleteSession } from "@/app/actions/training";
 import { StrengthWorkoutView } from "@/components/strength-workout-view";
+import { MissedActions } from "@/components/missed-actions";
 import type { DictKey } from "@/lib/i18n/dictionaries";
-import { weeklySummaryLabel } from "@/lib/missed-label";
+import { weeklySummaryLabel, missedResolveAction } from "@/lib/missed-label";
 import { Card, CardBody, Badge, Button, SectionTitle } from "@/components/ui";
 
 export default async function PlayerDetailPage({
@@ -131,18 +131,19 @@ export default async function PlayerDetailPage({
                             )}
                           </dl>
                         )}
-                        {log.auto && (
-                          <p className="mt-2 text-xs text-amber-700">
-                            {t(summaryLabel ? "missed.weeklyHint" : "missed.autoHint")}
-                          </p>
-                        )}
-                        {log.auto && (viewerIsTrainer || viewer.id === player.id) && (
-                          <form action={deleteSession} className="mt-2">
-                            <input type="hidden" name="id" value={log.id} />
-                            <Button type="submit" variant="danger" size="sm">
-                              {t("common.delete")}
-                            </Button>
-                          </form>
+                        {log.auto && log.status === "MISSED" && (
+                          <>
+                            <p className="mt-2 text-xs text-amber-700">
+                              {t(summaryLabel ? "missed.weeklyHint" : "missed.autoHint")}
+                            </p>
+                            <MissedActions
+                              logId={log.id}
+                              resolveHref={missedResolveAction(log).href}
+                              resolveLabel={t(missedResolveAction(log).labelKey)}
+                              reason={log.missReason}
+                              canGiveReason={viewer.id === player.id}
+                            />
+                          </>
                         )}
                       </div>
                     </details>
