@@ -321,14 +321,18 @@ export function ProgramForm({
                           </div>
                         </div>
                         {Number(maxima[m].estWeight) > 0 && Number(maxima[m].estReps) > 0 && (
-                          <p className="text-xs text-slate-500">
-                            {t("strength.est1rm")}:{" "}
-                            <span className="font-semibold text-slate-600 tabular-nums">
-                              {Math.round(estimateOneRepMax(Number(maxima[m].estWeight), Number(maxima[m].estReps)) * 2) / 2} kg
-                            </span>{" · "}
-                            {t("strength.estTm")}:{" "}
-                            <span className="font-semibold text-slate-700 tabular-nums">{liveTm(maxima[m])} kg</span>
-                          </p>
+                          <div className="space-y-0.5 text-xs text-slate-500">
+                            <p>
+                              {t("strength.est1rm")}:{" "}
+                              <span className="font-semibold text-slate-600 tabular-nums">
+                                {Math.round(estimateOneRepMax(Number(maxima[m].estWeight), Number(maxima[m].estReps)) * 2) / 2} kg
+                              </span>
+                            </p>
+                            <p>
+                              {t("strength.estTm")}:{" "}
+                              <span className="font-semibold text-slate-700 tabular-nums">{liveTm(maxima[m])} kg</span>
+                            </p>
+                          </div>
                         )}
                         <details className="text-xs">
                           <summary className="cursor-pointer text-slate-400">{t("strength.enterTmDirectly")}</summary>

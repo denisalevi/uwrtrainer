@@ -378,7 +378,7 @@ export const en = {
   "strength.estWeight": "Weight (kg)",
   "strength.estReps": "Clean reps",
   "strength.est1rm": "Estimated 1RM",
-  "strength.estTm": "Estimated training max",
+  "strength.estTm": "Estimated TM",
   "strength.enterTmDirectly": "Enter training max directly (advanced)",
   "strength.tmShort": "TM",
   "strength.minutesAssistHint":
@@ -790,7 +790,7 @@ export const de: Record<DictKey, string> = {
   "strength.estWeight": "Gewicht (kg)",
   "strength.estReps": "Saubere Wdh.",
   "strength.est1rm": "Geschätztes 1RM",
-  "strength.estTm": "Geschätztes Trainingsmaximum",
+  "strength.estTm": "Geschätztes TM",
   "strength.enterTmDirectly": "Trainingsmaximum direkt eingeben (erweitert)",
   "strength.tmShort": "TM",
   "strength.minutesAssistHint":
