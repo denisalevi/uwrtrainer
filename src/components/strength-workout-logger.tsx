@@ -1,17 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/i18n-provider";
 import { saveStrengthWorkout } from "@/app/actions/strength";
 import { deleteSession } from "@/app/actions/training";
 import { Button, Card, CardBody, Input, Label, Select, cn } from "@/components/ui";
 
-type SetTarget = { reps: number; weight: number | null; amrap: boolean };
-type Suggestion = { id: string; label: string; trainingMax?: number; sets: SetTarget[] };
+type SetKind = "warmup" | "main" | "bbb";
+type SetTarget = { reps: number; weight: number | null; amrap: boolean; kind?: SetKind; pct?: number | null };
+type Suggestion = {
+  id: string;
+  label: string;
+  trainingMax?: number;
+  sets: SetTarget[];
+  /** Pre-filled weight for one "Boring But Big" set on this lift; null on non-weighted lifts. */
+  bbbWeight?: number | null;
+};
 export type LoggerDay = { id: string; name: string; minutes: number; suggestions: Suggestion[] };
 
-type SetVal = { weight: string; reps: string };
+type SetVal = { weight: string; reps: string; kind: SetKind };
 type Line = { key: string; exerciseId: string; name: string; sets: SetVal[]; done?: boolean };
 
 let uid = 0;
@@ -46,6 +54,15 @@ function ChecklistToggle({
   );
 }
 
+/** Build the editable set rows for a suggestion (weights pre-filled, reps blank, kind carried). */
+function seedSets(sug: Suggestion): SetVal[] {
+  return sug.sets.map((s) => ({
+    weight: s.weight != null ? String(s.weight) : "",
+    reps: "",
+    kind: s.kind ?? "main",
+  }));
+}
+
 /** Preselect one editable line per configured exercise on the day. */
 function seedLines(day: LoggerDay | undefined): Line[] {
   if (!day) return [];
@@ -53,7 +70,7 @@ function seedLines(day: LoggerDay | undefined): Line[] {
     key: nextKey(),
     exerciseId: sug.id,
     name: sug.label,
-    sets: sug.sets.map((s) => ({ weight: s.weight != null ? String(s.weight) : "", reps: "" })),
+    sets: seedSets(sug),
   }));
 }
 
@@ -62,6 +79,7 @@ export function StrengthWorkoutLogger({
   cycle,
   week,
   days,
+  bbbReps,
   resume,
   today,
 }: {
@@ -69,6 +87,7 @@ export function StrengthWorkoutLogger({
   cycle: number;
   week: number;
   days: LoggerDay[];
+  bbbReps: number;
   resume: { id: string; details: string; durationMin: number | null } | null;
   today: string;
 }) {
@@ -111,6 +130,7 @@ export function StrengthWorkoutLogger({
         sets: l.sets.map((s) => ({
           weight: s.weight ? Number(s.weight) : null,
           reps: s.reps ? Number(s.reps) : null,
+          kind: s.kind,
         })),
       })),
     });
@@ -148,13 +168,8 @@ export function StrengthWorkoutLogger({
   function addExercise() {
     const sug = day?.suggestions[0];
     const line: Line = sug
-      ? {
-          key: nextKey(),
-          exerciseId: sug.id,
-          name: sug.label,
-          sets: sug.sets.map((s) => ({ weight: s.weight != null ? String(s.weight) : "", reps: "" })),
-        }
-      : { key: nextKey(), exerciseId: "custom", name: "", sets: [{ weight: "", reps: "" }] };
+      ? { key: nextKey(), exerciseId: sug.id, name: sug.label, sets: seedSets(sug) }
+      : { key: nextKey(), exerciseId: "custom", name: "", sets: [{ weight: "", reps: "", kind: "main" }] };
     mutate((ls) => [...ls, line]);
   }
 
@@ -162,15 +177,11 @@ export function StrengthWorkoutLogger({
     mutate((ls) =>
       ls.map((l) => {
         if (l.key !== key) return l;
-        if (exerciseId === "custom") return { ...l, exerciseId, name: "", sets: [{ weight: "", reps: "" }] };
+        if (exerciseId === "custom")
+          return { ...l, exerciseId, name: "", sets: [{ weight: "", reps: "", kind: "main" }] };
         const sug = day?.suggestions.find((s) => s.id === exerciseId);
         if (!sug) return { ...l, exerciseId };
-        return {
-          ...l,
-          exerciseId,
-          name: sug.label,
-          sets: sug.sets.map((s) => ({ weight: s.weight != null ? String(s.weight) : "", reps: "" })),
-        };
+        return { ...l, exerciseId, name: sug.label, sets: seedSets(sug) };
       }),
     );
   }
@@ -182,7 +193,18 @@ export function StrengthWorkoutLogger({
       ),
     );
   const addSet = (key: string) =>
-    mutate((ls) => ls.map((l) => (l.key === key ? { ...l, sets: [...l.sets, { weight: "", reps: "" }] } : l)));
+    mutate((ls) =>
+      ls.map((l) => (l.key === key ? { ...l, sets: [...l.sets, { weight: "", reps: "", kind: "main" }] } : l)),
+    );
+  /** Append one pre-filled "Boring But Big" set (50%-ish × configured reps) to a line. */
+  const addBbb = (key: string, weight: number) =>
+    mutate((ls) =>
+      ls.map((l) =>
+        l.key === key
+          ? { ...l, sets: [...l.sets, { weight: String(weight), reps: String(bbbReps), kind: "bbb" as const }] }
+          : l,
+      ),
+    );
   const removeLine = (key: string) => mutate((ls) => ls.filter((l) => l.key !== key));
   const toggleDone = (key: string) =>
     mutate((ls) => ls.map((l) => (l.key === key ? { ...l, done: !l.done } : l)));
@@ -295,47 +317,88 @@ export function StrengthWorkoutLogger({
               )}
 
               <div className="space-y-2">
-                {l.sets.map((s, i) => {
-                  const target = sug?.sets[i];
-                  const tm = sug?.trainingMax;
-                  const w = Number(s.weight);
-                  const pct = tm && tm > 0 && w > 0 ? Math.round((w / tm) * 100) : null;
-                  return (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="w-12 shrink-0 text-xs text-slate-500">
-                        {t("strength.set")} {i + 1}
-                      </span>
-                      {showWeight && (
+                {(() => {
+                  // Sets are grouped warm-up → working → BBB; only show section labels when the
+                  // line actually mixes kinds. Numbering resets within each section.
+                  const grouped = new Set(l.sets.map((s) => s.kind)).size > 1;
+                  const headerFor = (kind: SetKind) =>
+                    kind === "warmup"
+                      ? t("strength.warmupSets")
+                      : kind === "bbb"
+                        ? t("strength.bbb")
+                        : t("strength.workingSets");
+                  const rows: ReactNode[] = [];
+                  let lastKind: SetKind | null = null;
+                  let n = 0;
+                  l.sets.forEach((s, i) => {
+                    if (s.kind !== lastKind) {
+                      if (grouped)
+                        rows.push(
+                          <div
+                            key={`h-${i}`}
+                            className="pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400"
+                          >
+                            {headerFor(s.kind)}
+                          </div>,
+                        );
+                      lastKind = s.kind;
+                      n = 0;
+                    }
+                    n += 1;
+                    const target = sug?.sets[i];
+                    const tm = sug?.trainingMax;
+                    const w = Number(s.weight);
+                    const pct = tm && tm > 0 && w > 0 ? Math.round((w / tm) * 100) : null;
+                    rows.push(
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="w-12 shrink-0 text-xs text-slate-500">
+                          {t("strength.set")} {n}
+                        </span>
+                        {showWeight && (
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            placeholder="kg"
+                            className="w-20"
+                            value={s.weight}
+                            onChange={(e) => setField(l.key, i, "weight", e.target.value)}
+                          />
+                        )}
+                        {showWeight && pct != null && (
+                          <span className="shrink-0 text-xs text-slate-400">{pct}%</span>
+                        )}
                         <Input
                           type="number"
-                          inputMode="decimal"
+                          inputMode="numeric"
                           min={0}
-                          placeholder="kg"
+                          placeholder={
+                            target ? `${target.reps}${target.amrap ? "+" : ""}` : t("strength.reps")
+                          }
                           className="w-20"
-                          value={s.weight}
-                          onChange={(e) => setField(l.key, i, "weight", e.target.value)}
+                          value={s.reps}
+                          onChange={(e) => setField(l.key, i, "reps", e.target.value)}
                         />
-                      )}
-                      {showWeight && pct != null && (
-                        <span className="shrink-0 text-xs text-slate-400">{pct}%</span>
-                      )}
-                      <Input
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        placeholder={
-                          target ? `${target.reps}${target.amrap ? "+" : ""}` : t("strength.reps")
-                        }
-                        className="w-20"
-                        value={s.reps}
-                        onChange={(e) => setField(l.key, i, "reps", e.target.value)}
-                      />
-                    </div>
-                  );
-                })}
-                <Button type="button" variant="ghost" size="sm" onClick={() => addSet(l.key)}>
-                  + {t("strength.addSet")}
-                </Button>
+                      </div>,
+                    );
+                  });
+                  return rows;
+                })()}
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => addSet(l.key)}>
+                    + {t("strength.addSet")}
+                  </Button>
+                  {sug?.bbbWeight != null && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => addBbb(l.key, sug.bbbWeight as number)}
+                    >
+                      + {t("strength.addBBB")}
+                    </Button>
+                  )}
+                </div>
               </div>
 
               <div className="flex justify-end">
@@ -447,6 +510,7 @@ function restoreLines(details: Record<string, unknown>): Line[] {
     sets: (e.sets ?? []).map((s) => ({
       weight: s.weight != null ? String(s.weight) : "",
       reps: s.reps != null ? String(s.reps) : "",
+      kind: (s.kind === "warmup" || s.kind === "bbb" ? s.kind : "main") as SetKind,
     })),
   }));
 }
