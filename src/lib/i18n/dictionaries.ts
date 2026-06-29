@@ -234,7 +234,7 @@ export const en = {
   "strength.minutes": "Minutes per session",
   "strength.startTitle": "Starting point",
   "strength.startHintWeighted":
-    "Enter a recent set per lift (weight × reps) and we'll estimate a safe starting weight. Leave blank to start light and let it ramp up.",
+    "For each lift, enter the most weight you can do for a few clean reps — about 3–5 is ideal, leaving roughly one rep in the tank. From that we set your training max (TM): the submaximal number every working set is based on, so you start with room to grow. Not sure? Go lighter — the first cycle is meant to feel easy.",
   "strength.startHintBody":
     "Optional: how many clean reps you can do now. Leave blank and we'll start gently — it's meant to feel easy at first.",
   "strength.weight": "Weight (kg)",
@@ -642,7 +642,7 @@ export const de: Record<DictKey, string> = {
   "strength.minutes": "Minuten pro Einheit",
   "strength.startTitle": "Startpunkt",
   "strength.startHintWeighted":
-    "Gib pro Übung einen kürzlichen Satz ein (Gewicht × Wdh.) — wir schätzen ein sicheres Startgewicht. Leer lassen, um leicht zu starten.",
+    "Gib pro Übung das höchste Gewicht ein, das du für ein paar saubere Wiederholungen schaffst — etwa 3–5 sind ideal, mit rund einer Wiederholung Reserve. Daraus setzen wir dein Trainingsmaximum (TM): die submaximale Zahl, aus der jeder Arbeitssatz berechnet wird, damit du Luft nach oben hast. Unsicher? Lieber leichter — der erste Zyklus soll sich leicht anfühlen.",
   "strength.startHintBody":
     "Optional: wie viele saubere Wiederholungen schaffst du jetzt? Leer lassen — wir starten sanft, es soll sich am Anfang leicht anfühlen.",
   "strength.weight": "Gewicht (kg)",

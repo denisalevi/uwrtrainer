@@ -288,6 +288,7 @@ export function ProgramForm({
 
       {/* Per-movement exercise choices + maxima */}
       <SectionTitle>{t("strength.lifts")}</SectionTitle>
+      {anyWeighted && <p className="-mt-1 text-xs text-slate-500">{t("strength.startHintWeighted")}</p>}
       {movements.map((m) => (
         <Card key={m}>
           <CardBody className="space-y-2">
