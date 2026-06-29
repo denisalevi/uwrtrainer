@@ -54,6 +54,31 @@ describe("rounding & training max", () => {
   });
 });
 
+// The onboarding calculator: a user enters a real set (weight × clean reps) and we derive a
+// submaximal training max. The whole point is that it never overshoots — typing a tested set must
+// never produce a TM at or above what they actually lifted, and never above the estimated 1RM.
+describe("onboarding calculator never overshoots", () => {
+  const tm = (w: number, r: number) => trainingMaxFromOneRepMax(estimateOneRepMax(w, r), 0.9, 2.5);
+
+  it("a tested 3-rep max of 120 kg yields a TM well below 120 kg (the bug this fixes)", () => {
+    // Entering 120 directly as the TM breaks the wave by week 1; the calculator keeps it submaximal.
+    expect(tm(120, 3)).toBeLessThan(120);
+  });
+
+  it("the derived TM never exceeds the estimated 1RM, across a grid of inputs", () => {
+    for (const w of [40, 60, 85, 100, 142.5]) {
+      for (const r of [1, 3, 5, 8, 12]) {
+        const oneRm = estimateOneRepMax(w, r);
+        expect(tm(w, r)).toBeLessThanOrEqual(oneRm);
+      }
+    }
+  });
+
+  it("at a single clean rep the TM is ~90% of the lifted weight (still submaximal)", () => {
+    expect(tm(100, 1)).toBe(90);
+  });
+});
+
 describe("the 4-week wave", () => {
   it("week 3 is the heavy test week, week 4 is the deload", () => {
     expect(waveWeek(3).scheme).toBe("5/3/1+");

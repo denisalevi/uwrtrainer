@@ -20,6 +20,8 @@ import {
   programSlotMovements,
   suggestedMinutes,
   buildSchedule,
+  estimateOneRepMax,
+  trainingMaxFromOneRepMax,
   CUSTOM_EXERCISE_ID,
   type DayPlan,
   type ProgramState,
@@ -28,7 +30,7 @@ import {
 import { Button, Card, CardBody, Input, Label, Select, Textarea, SectionTitle, cn } from "@/components/ui";
 
 type Maxima = Record<string, { trainingMax?: number; repMax?: number; levelIndex?: number; weightedExerciseId?: string; bodyweightExerciseId?: string; weightedCustom?: string; bodyweightCustom?: string }>;
-type Mx = { tm: string; reps: string; wex: string; bex: string; wcustom: string; bcustom: string };
+type Mx = { tm: string; reps: string; estWeight: string; estReps: string; wex: string; bex: string; wcustom: string; bcustom: string };
 
 let counter = 0;
 const freshId = () => `d${Date.now()}_${counter++}`;
@@ -44,6 +46,8 @@ export function ProgramForm({
   initialLayout,
   initialNotes = "",
   includePull,
+  tmPct = 0.9,
+  rounding = 2.5,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   mode?: "create" | "edit";
@@ -55,6 +59,9 @@ export function ProgramForm({
   initialLayout: WeightedLayout;
   initialNotes?: string;
   includePull: boolean;
+  /** Submaximal buffer + loadable increment used to turn a weight×reps set into a training max — mirrors the server defaults so the live preview matches what gets stored. */
+  tmPct?: number;
+  rounding?: number;
 }) {
   const { t } = useT();
   const movements = programSlotMovements(includePull);
@@ -73,6 +80,8 @@ export function ProgramForm({
       out[m] = {
         tm: x.trainingMax != null ? String(x.trainingMax) : "",
         reps: x.repMax != null ? String(x.repMax) : "",
+        estWeight: "",
+        estReps: "",
         wex: x.weightedExerciseId ?? defaultExerciseId(m, "WEIGHTED"),
         bex: x.bodyweightExerciseId ?? defaultExerciseId(m, "BODYWEIGHT"),
         wcustom: x.weightedCustom ?? "",
@@ -104,6 +113,15 @@ export function ProgramForm({
   const setMax = (m: string, patch: Partial<Mx>) =>
     setMaxima((mx) => ({ ...mx, [m]: { ...mx[m], ...patch } }));
 
+  // The training max for a lift: estimated submaximally from a weight×reps set when both are given
+  // (the recommended path — mirrors the server's readMaxima precedence), else the directly-typed TM.
+  const liveTm = (mx: Mx): number => {
+    const w = Number(mx.estWeight);
+    const r = Number(mx.estReps);
+    if (w > 0 && r > 0) return trainingMaxFromOneRepMax(estimateOneRepMax(w, r), tmPct, rounding);
+    return Number(mx.tm) || 0;
+  };
+
   const pickEntry = (m: MovementKey, mode: SlotMode, entry: CatalogEntry) => {
     setMax(m, mode === "WEIGHTED" ? { wex: entry.id } : { bex: entry.id });
     setEditing(null);
@@ -132,7 +150,7 @@ export function ProgramForm({
   const previewState: ProgramState = {};
   for (const m of MOVEMENTS) {
     previewState[m] = {
-      trainingMax: Number(maxima[m].tm) || 0,
+      trainingMax: liveTm(maxima[m]),
       repMax: Number(maxima[m].reps) || 5,
       weightedExerciseId: maxima[m].wex,
       bodyweightExerciseId: maxima[m].bex,
@@ -161,6 +179,8 @@ export function ProgramForm({
       {MOVEMENTS.map((m) => (
         <div key={`hx_${m}`}>
           <input type="hidden" name={`tm_${m}`} value={maxima[m]?.tm ?? ""} />
+          <input type="hidden" name={`weight_${m}`} value={maxima[m]?.estWeight ?? ""} />
+          <input type="hidden" name={`reps_${m}`} value={maxima[m]?.estReps ?? ""} />
           <input type="hidden" name={`repmax_${m}`} value={maxima[m]?.reps ?? ""} />
           <input type="hidden" name={`wex_${m}`} value={maxima[m]?.wex ?? ""} />
           <input type="hidden" name={`bex_${m}`} value={maxima[m]?.bex ?? ""} />
@@ -285,10 +305,31 @@ export function ProgramForm({
                   showContext={anyWeighted && anyBodyweight}
                   editing={editing}
                   setEditing={setEditing}
-                  valueLabel={weighted ? t("strength.slotWeight") : t("strength.repMax")}
+                  valueLabel={weighted ? t("strength.estFromSet") : t("strength.repMax")}
                   field={
                     weighted ? (
-                      <Input type="number" min={0} inputMode="decimal" placeholder="kg" value={maxima[m].tm} onChange={(e) => setMax(m, { tm: e.target.value })} />
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-xs text-slate-500">{t("strength.estWeight")}</Label>
+                            <Input type="number" min={0} inputMode="decimal" placeholder="kg" value={maxima[m].estWeight} onChange={(e) => setMax(m, { estWeight: e.target.value })} />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-slate-500">{t("strength.estReps")}</Label>
+                            <Input type="number" min={1} inputMode="numeric" placeholder="reps" value={maxima[m].estReps} onChange={(e) => setMax(m, { estReps: e.target.value })} />
+                          </div>
+                        </div>
+                        {Number(maxima[m].estWeight) > 0 && Number(maxima[m].estReps) > 0 && (
+                          <p className="text-xs text-slate-500">
+                            {t("strength.estTm")}:{" "}
+                            <span className="font-semibold text-slate-700 tabular-nums">{liveTm(maxima[m])} kg</span>
+                          </p>
+                        )}
+                        <details className="text-xs">
+                          <summary className="cursor-pointer text-slate-400">{t("strength.enterTmDirectly")}</summary>
+                          <Input className="mt-1" type="number" min={0} inputMode="decimal" placeholder="kg" value={maxima[m].tm} onChange={(e) => setMax(m, { tm: e.target.value })} />
+                        </details>
+                      </div>
                     ) : (
                       <Input type="number" min={0} inputMode="numeric" placeholder={t("strength.repMax")} value={maxima[m].reps} onChange={(e) => setMax(m, { reps: e.target.value })} />
                     )

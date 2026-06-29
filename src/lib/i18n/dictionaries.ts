@@ -345,6 +345,10 @@ export const en = {
     "Days & time decide the schedule: 4 short days, or 2 longer sessions, or one minimal full-body day — your call.",
   "strength.explainAssistance":
     "Extra volume (Boring But Big): on 60+ minute sessions we add 5×10 at about 50% to build muscle. Short on time? It's dropped automatically — the main 5/3/1 sets are what matter.",
+  "strength.explainTmAcronym":
+    "TM = training max. It's the single number every working set is calculated from, shown next to each lift in your plan and your logs.",
+  "strength.explainEstimate":
+    "Setting your TM: enter the most weight you can lift for a few clean reps and we estimate it for you — kept deliberately submaximal so you don't start too heavy. You can also type a TM in directly.",
 
   // ── Slot-based setup (v0.7) ──
   "tool.BODYWEIGHT": "Bodyweight",
@@ -368,6 +372,12 @@ export const en = {
   "strength.withoutWeights": "Without weights",
   "strength.typeOwn": "Type your own",
   "strength.slotWeight": "Working weight (kg)",
+  "strength.estFromSet": "Estimate from a set",
+  "strength.estWeight": "Weight (kg)",
+  "strength.estReps": "Clean reps",
+  "strength.estTm": "Estimated training max",
+  "strength.enterTmDirectly": "Enter training max directly (advanced)",
+  "strength.tmShort": "TM",
   "strength.minutesAssistHint":
     "60+ min sessions add extra 'Boring But Big' volume (5×10 at ~50%). Shorter sessions keep just the main sets.",
   "set.strengthSection": "Strength program",
@@ -743,6 +753,10 @@ export const de: Record<DictKey, string> = {
     "Tage & Zeit bestimmen den Plan: 4 kurze Tage, oder 2 längere Einheiten, oder ein minimaler Ganzkörper-Tag — deine Wahl.",
   "strength.explainAssistance":
     "Zusatzvolumen (Boring But Big): bei Einheiten ab 60 Min ergänzen wir 5×10 mit etwa 50 % für mehr Muskelaufbau. Wenig Zeit? Wird automatisch weggelassen — die 5/3/1-Hauptsätze zählen.",
+  "strength.explainTmAcronym":
+    "TM = Trainingsmaximum. Die eine Zahl, aus der jeder Arbeitssatz berechnet wird — sie steht in deinem Plan und deinen Logs neben jeder Übung.",
+  "strength.explainEstimate":
+    "TM festlegen: Gib das höchste Gewicht ein, das du für ein paar saubere Wiederholungen schaffst — wir schätzen daraus dein TM, bewusst submaximal, damit du nicht zu schwer startest. Du kannst ein TM auch direkt eintragen.",
 
   // ── Slot-basiertes Setup (v0.7) ──
   "tool.BODYWEIGHT": "Körpergewicht",
@@ -767,6 +781,12 @@ export const de: Record<DictKey, string> = {
   "strength.withoutWeights": "Ohne Gewichte",
   "strength.typeOwn": "Eigene eingeben",
   "strength.slotWeight": "Arbeitsgewicht (kg)",
+  "strength.estFromSet": "Aus einem Satz schätzen",
+  "strength.estWeight": "Gewicht (kg)",
+  "strength.estReps": "Saubere Wdh.",
+  "strength.estTm": "Geschätztes Trainingsmaximum",
+  "strength.enterTmDirectly": "Trainingsmaximum direkt eingeben (erweitert)",
+  "strength.tmShort": "TM",
   "strength.minutesAssistHint":
     "Einheiten ab 60 Min ergänzen Zusatzvolumen ('Boring But Big', 5×10 mit ~50 %). Kürzere Einheiten behalten nur die Hauptsätze.",
   "set.strengthSection": "Kraftprogramm",
