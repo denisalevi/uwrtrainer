@@ -234,7 +234,7 @@ export const en = {
   "strength.minutes": "Minutes per session",
   "strength.startTitle": "Starting point",
   "strength.startHintWeighted":
-    "For each lift, enter the most weight you can do for a few clean reps — about 3–5 is ideal, leaving roughly one rep in the tank. From that we set your training max (TM): the submaximal number every working set is based on, so you start with room to grow. Not sure? Go lighter — the first cycle is meant to feel easy.",
+    "For each lift, enter the most weight you can do for a few clean reps — about 3–5 is ideal, leaving roughly one rep in the tank. From that we estimate your one-rep max (1RM — the most you could lift once) and set your training max (TM) to about 90% of it: the submaximal number every working set is based on, so you start with room to grow. Not sure? Go lighter — the first cycle is meant to feel easy.",
   "strength.startHintBody":
     "Optional: how many clean reps you can do now. Leave blank and we'll start gently — it's meant to feel easy at first.",
   "strength.weight": "Weight (kg)",
@@ -332,7 +332,7 @@ export const en = {
   "ex.press.hspu": "Handstand push-up",
   "strength.explainTitle": "How this works",
   "strength.explainTrainingMax":
-    "Training max: we don't use your true maximum but about 90% of it, so training never grinds to a limit and you always have room to grow.",
+    "Training max: we don't train against your 1RM but about 90% of it, so training never grinds to a limit and you always have room to grow.",
   "strength.explainAmrap":
     "Last set = as many good reps as possible. Beat the target and the app knows you're getting stronger — that drives your next step up.",
   "strength.explainWave":
@@ -345,6 +345,8 @@ export const en = {
     "Days & time decide the schedule: 4 short days, or 2 longer sessions, or one minimal full-body day — your call.",
   "strength.explainAssistance":
     "Extra volume (Boring But Big): on 60+ minute sessions we add 5×10 at about 50% to build muscle. Short on time? It's dropped automatically — the main 5/3/1 sets are what matter.",
+  "strength.explain1rm":
+    "1RM = one-rep max: the most you could lift once. We never train at it — we estimate it from a set you can actually do, then base everything on a percentage below it.",
   "strength.explainTmAcronym":
     "TM = training max. It's the single number every working set is calculated from, shown next to each lift in your plan and your logs.",
   "strength.explainEstimate":
@@ -375,6 +377,7 @@ export const en = {
   "strength.estFromSet": "Estimate from a set",
   "strength.estWeight": "Weight (kg)",
   "strength.estReps": "Clean reps",
+  "strength.est1rm": "Estimated 1RM",
   "strength.estTm": "Estimated training max",
   "strength.enterTmDirectly": "Enter training max directly (advanced)",
   "strength.tmShort": "TM",
@@ -642,7 +645,7 @@ export const de: Record<DictKey, string> = {
   "strength.minutes": "Minuten pro Einheit",
   "strength.startTitle": "Startpunkt",
   "strength.startHintWeighted":
-    "Gib pro Übung das höchste Gewicht ein, das du für ein paar saubere Wiederholungen schaffst — etwa 3–5 sind ideal, mit rund einer Wiederholung Reserve. Daraus setzen wir dein Trainingsmaximum (TM): die submaximale Zahl, aus der jeder Arbeitssatz berechnet wird, damit du Luft nach oben hast. Unsicher? Lieber leichter — der erste Zyklus soll sich leicht anfühlen.",
+    "Gib pro Übung das höchste Gewicht ein, das du für ein paar saubere Wiederholungen schaffst — etwa 3–5 sind ideal, mit rund einer Wiederholung Reserve. Daraus schätzen wir dein Einer-Maximum (1RM — das Höchste, das du einmal heben könntest) und setzen dein Trainingsmaximum (TM) auf etwa 90 % davon: die submaximale Zahl, aus der jeder Arbeitssatz berechnet wird, damit du Luft nach oben hast. Unsicher? Lieber leichter — der erste Zyklus soll sich leicht anfühlen.",
   "strength.startHintBody":
     "Optional: wie viele saubere Wiederholungen schaffst du jetzt? Leer lassen — wir starten sanft, es soll sich am Anfang leicht anfühlen.",
   "strength.weight": "Gewicht (kg)",
@@ -740,7 +743,7 @@ export const de: Record<DictKey, string> = {
   "ex.press.hspu": "Handstand-Liegestütz",
   "strength.explainTitle": "Wie funktioniert das?",
   "strength.explainTrainingMax":
-    "Trainingsmaximum: Wir rechnen nicht mit deinem echten Maximum, sondern mit ca. 90 % davon — so geht's im Training nie ans Limit und du hast immer Luft nach oben.",
+    "Trainingsmaximum: Wir trainieren nicht mit deinem 1RM, sondern mit ca. 90 % davon — so geht's im Training nie ans Limit und du hast immer Luft nach oben.",
   "strength.explainAmrap":
     "Letzter Satz = so viele saubere Wiederholungen wie möglich. Übertriffst du das Ziel, weiß die App, dass du stärker wirst — das löst deine nächste Steigerung aus.",
   "strength.explainWave":
@@ -753,6 +756,8 @@ export const de: Record<DictKey, string> = {
     "Tage & Zeit bestimmen den Plan: 4 kurze Tage, oder 2 längere Einheiten, oder ein minimaler Ganzkörper-Tag — deine Wahl.",
   "strength.explainAssistance":
     "Zusatzvolumen (Boring But Big): bei Einheiten ab 60 Min ergänzen wir 5×10 mit etwa 50 % für mehr Muskelaufbau. Wenig Zeit? Wird automatisch weggelassen — die 5/3/1-Hauptsätze zählen.",
+  "strength.explain1rm":
+    "1RM = Einer-Maximum: das Höchste, das du einmal heben könntest. Wir trainieren nie damit — wir schätzen es aus einem Satz, den du wirklich schaffst, und rechnen dann mit einem Prozentsatz darunter.",
   "strength.explainTmAcronym":
     "TM = Trainingsmaximum. Die eine Zahl, aus der jeder Arbeitssatz berechnet wird — sie steht in deinem Plan und deinen Logs neben jeder Übung.",
   "strength.explainEstimate":
@@ -784,6 +789,7 @@ export const de: Record<DictKey, string> = {
   "strength.estFromSet": "Aus einem Satz schätzen",
   "strength.estWeight": "Gewicht (kg)",
   "strength.estReps": "Saubere Wdh.",
+  "strength.est1rm": "Geschätztes 1RM",
   "strength.estTm": "Geschätztes Trainingsmaximum",
   "strength.enterTmDirectly": "Trainingsmaximum direkt eingeben (erweitert)",
   "strength.tmShort": "TM",

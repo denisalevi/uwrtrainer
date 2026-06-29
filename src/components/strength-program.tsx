@@ -264,6 +264,7 @@ export async function StrengthProgramView({
 export async function ExplainPanel() {
   const { t } = await getServerT();
   const items: DictKey[] = [
+    "strength.explain1rm",
     "strength.explainTmAcronym",
     "strength.explainTrainingMax",
     "strength.explainEstimate",
