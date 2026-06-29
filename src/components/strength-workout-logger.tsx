@@ -54,6 +54,13 @@ function ChecklistToggle({
   );
 }
 
+/** Display/order rank for set kinds; used to keep a line grouped warm-up → working → BBB. */
+const KIND_RANK: Record<SetKind, number> = { warmup: 0, main: 1, bbb: 2 };
+/** Stable sort by kind (Array.sort is stable in V8), preserving within-group order. */
+function sortByKind(sets: SetVal[]): SetVal[] {
+  return [...sets].sort((a, b) => KIND_RANK[a.kind] - KIND_RANK[b.kind]);
+}
+
 /** Build the editable set rows for a suggestion (weights pre-filled, reps blank, kind carried). */
 function seedSets(sug: Suggestion): SetVal[] {
   return sug.sets.map((s) => ({
@@ -192,19 +199,25 @@ export function StrengthWorkoutLogger({
         l.key === key ? { ...l, sets: l.sets.map((s, j) => (j === i ? { ...s, [field]: val } : s)) } : l,
       ),
     );
-  const addSet = (key: string) =>
-    mutate((ls) =>
-      ls.map((l) => (l.key === key ? { ...l, sets: [...l.sets, { weight: "", reps: "", kind: "main" }] } : l)),
-    );
-  /** Append one pre-filled "Boring But Big" set (50%-ish × configured reps) to a line. */
-  const addBbb = (key: string, weight: number) =>
+  /** Append a set of a given kind, then keep the line grouped warm-up → working → BBB. */
+  const addSetOfKind = (key: string, kind: SetKind, prefill: Partial<SetVal> = {}) =>
     mutate((ls) =>
       ls.map((l) =>
         l.key === key
-          ? { ...l, sets: [...l.sets, { weight: String(weight), reps: String(bbbReps), kind: "bbb" as const }] }
+          ? { ...l, sets: sortByKind([...l.sets, { weight: "", reps: "", kind, ...prefill }]) }
           : l,
       ),
     );
+  const addWarmup = (key: string) => addSetOfKind(key, "warmup");
+  const addSet = (key: string) => addSetOfKind(key, "main");
+  /** Append one pre-filled "Boring But Big" set (configured % × reps). */
+  const addBbb = (key: string, weight: number) =>
+    addSetOfKind(key, "bbb", { weight: String(weight), reps: String(bbbReps) });
+  /** Delete a single set row (confirm first, so a mis-tap doesn't lose it). */
+  const removeSet = (key: string, i: number) => {
+    if (!confirm(t("strength.deleteSetConfirm"))) return;
+    mutate((ls) => ls.map((l) => (l.key === key ? { ...l, sets: l.sets.filter((_, j) => j !== i) } : l)));
+  };
   const removeLine = (key: string) => mutate((ls) => ls.filter((l) => l.key !== key));
   const toggleDone = (key: string) =>
     mutate((ls) => ls.map((l) => (l.key === key ? { ...l, done: !l.done } : l)));
@@ -379,12 +392,27 @@ export function StrengthWorkoutLogger({
                           value={s.reps}
                           onChange={(e) => setField(l.key, i, "reps", e.target.value)}
                         />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={t("strength.deleteSet")}
+                          title={t("strength.deleteSet")}
+                          onClick={() => removeSet(l.key, i)}
+                        >
+                          ✕
+                        </Button>
                       </div>,
                     );
                   });
                   return rows;
                 })()}
                 <div className="flex flex-wrap gap-2">
+                  {showWeight && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => addWarmup(l.key)}>
+                      + {t("strength.addWarmupSet")}
+                    </Button>
+                  )}
                   <Button type="button" variant="ghost" size="sm" onClick={() => addSet(l.key)}>
                     + {t("strength.addSet")}
                   </Button>
