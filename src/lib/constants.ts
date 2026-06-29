@@ -83,6 +83,57 @@ export const SETTING_INCLUDE_PULL = "strength.includePull";
 export const DEFAULT_INCLUDE_PULL = true;
 
 /**
+ * Global (trainer) settings for the logger's auto-added volume. Both are stored as JSON strings
+ * in a single `Setting.value` (same precedent as `StrengthProgram.days`/`movements`).
+ * Percentages are whole numbers (40 = 40% of the training max).
+ */
+export type WarmupStep = { pct: number; reps: number };
+export type BbbConfig = { pct: number; reps: number };
+
+/** The warm-up ramp prepended before working sets on weighted lifts (Wendler classic default). */
+export const SETTING_WARMUP_SCHEME = "strength.warmupScheme";
+export const DEFAULT_WARMUP_SCHEME: WarmupStep[] = [
+  { pct: 40, reps: 5 },
+  { pct: 50, reps: 5 },
+  { pct: 60, reps: 3 },
+];
+
+/** The single "Boring But Big" set the logger adds per click (default 50% × 10). */
+export const SETTING_BBB = "strength.bbb";
+export const DEFAULT_BBB: BbbConfig = { pct: 50, reps: 10 };
+
+/** Parse the stored warm-up scheme, falling back to the default on anything malformed/empty. */
+export function parseWarmupScheme(value: string | null | undefined): WarmupStep[] {
+  if (!value) return DEFAULT_WARMUP_SCHEME;
+  try {
+    const raw = JSON.parse(value);
+    if (!Array.isArray(raw)) return DEFAULT_WARMUP_SCHEME;
+    const steps = raw
+      .map((s) => ({ pct: Number(s?.pct), reps: Number(s?.reps) }))
+      .filter((s) => Number.isFinite(s.pct) && s.pct > 0 && Number.isFinite(s.reps) && s.reps > 0);
+    return steps.length ? steps : DEFAULT_WARMUP_SCHEME;
+  } catch {
+    return DEFAULT_WARMUP_SCHEME;
+  }
+}
+
+/** Parse the stored BBB config, falling back to the default for any missing/invalid field. */
+export function parseBbbConfig(value: string | null | undefined): BbbConfig {
+  if (!value) return DEFAULT_BBB;
+  try {
+    const raw = JSON.parse(value);
+    const pct = Number(raw?.pct);
+    const reps = Number(raw?.reps);
+    return {
+      pct: Number.isFinite(pct) && pct > 0 ? pct : DEFAULT_BBB.pct,
+      reps: Number.isFinite(reps) && reps > 0 ? reps : DEFAULT_BBB.reps,
+    };
+  } catch {
+    return DEFAULT_BBB;
+  }
+}
+
+/**
  * Bodyweight difficulty ladders (easiest → hardest) for LEVELS mode. Values are i18n keys
  * (translated in the UI); start points are realistic for an active team — push starts at the
  * knee push-up, no easier. "Graduating" to the next entry replaces adding weight.

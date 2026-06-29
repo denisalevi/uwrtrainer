@@ -129,6 +129,9 @@ export function waveWeek(week: number): WaveWeek {
 
 // ───────────────────────────────────────────────────────── Generating a workout ──
 
+/** Where a set sits in the session: a warm-up ramp, a main working set, or BBB volume. */
+export type SetKind = "warmup" | "main" | "bbb";
+
 export type WorkoutSet = {
   /** Loaded weight in kg (WEIGHTED only). */
   weight?: number;
@@ -136,6 +139,8 @@ export type WorkoutSet = {
   amrap: boolean;
   /** Fraction of the training/rep max this set is based on (from the wave), e.g. 0.65. */
   pct?: number;
+  /** Section this set belongs to. Absent ⇒ treat as "main". */
+  kind?: SetKind;
 };
 
 export type MovementWorkout = {
@@ -149,7 +154,46 @@ export type MovementWorkout = {
   assistance?: { sets: number; reps: number; weight?: number };
 };
 
-const ASSISTANCE_PCT = 0.5; // Boring But Big = 5×10 at 50% of training max
+export const ASSISTANCE_PCT = 0.5; // Boring But Big = 5×10 at 50% of training max
+
+/**
+ * Warm-up ramp for a WEIGHTED lift: each step is a fraction of the training max. The scheme is
+ * configurable (a team setting); the classic Wendler default is 40/50/60% × 5/5/3. Returns an
+ * empty ramp when there's no loaded max to ramp against.
+ */
+export function warmupSets(
+  trainingMax: number,
+  increment: number,
+  scheme: { pct: number; reps: number }[],
+): WorkoutSet[] {
+  if (trainingMax <= 0) return [];
+  return scheme.map((s) => ({
+    weight: roundToIncrement(trainingMax * s.pct, increment),
+    reps: s.reps,
+    amrap: false,
+    pct: s.pct,
+    kind: "warmup" as const,
+  }));
+}
+
+/**
+ * A single "Boring But Big" assistance set at `pct` of the training max (default 50%, 10 reps).
+ * The logger adds one per click, so five clicks rebuild the classic 5×10.
+ */
+export function bbbSet(
+  trainingMax: number,
+  increment: number,
+  pct: number = ASSISTANCE_PCT,
+  reps = 10,
+): WorkoutSet {
+  return {
+    weight: roundToIncrement(trainingMax * pct, increment),
+    reps,
+    amrap: false,
+    pct,
+    kind: "bbb" as const,
+  };
+}
 
 /** WEIGHTED: working sets in kg from a training max. */
 export function weightedWorkout(
@@ -166,6 +210,7 @@ export function weightedWorkout(
     reps: s.reps,
     amrap: !!s.amrap,
     pct: s.pct,
+    kind: "main" as const,
   }));
   return {
     mode: "WEIGHTED",
@@ -195,6 +240,7 @@ export function bodyweightWorkout(
     reps: Math.max(1, Math.round(s.pct * repMax)),
     amrap: !!s.amrap,
     pct: s.pct,
+    kind: "main" as const,
   }));
   return {
     mode: opts.mode ?? "LEVELS",

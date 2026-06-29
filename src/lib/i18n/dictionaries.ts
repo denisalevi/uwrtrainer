@@ -300,6 +300,15 @@ export const en = {
   "strength.exerciseName": "Exercise name",
   "strength.addExercise": "Add exercise",
   "strength.addSet": "Add set",
+  "strength.warmupSets": "Warm-up",
+  "strength.workingSets": "Working sets",
+  "strength.bbb": "Boring But Big",
+  "strength.addBBB": "Add Boring But Big set",
+  "strength.addWarmupSet": "Add warm-up set",
+  "strength.deleteSet": "Delete set",
+  "strength.deleteSetConfirm": "Delete this set?",
+  "strength.amrapShort": "AMRAP",
+  "strength.amrapHint": "As many reps as possible — do as many good reps as you can on this last set.",
   "mv.PUSH": "Push",
   "mv.PULL": "Pull",
   "mv.SQUAT": "Squat",
@@ -387,6 +396,16 @@ export const en = {
   "set.includePull": "Include a pull exercise",
   "set.includePullHint":
     "When on, new default plans include a pull (row / pull-up). Classic Wendler is squat, bench, deadlift and press only.",
+  "set.warmupTitle": "Warm-up sets",
+  "set.warmupHint":
+    "Up to 3 ramp sets added before the working sets when logging a weighted lift, as a percentage of the training max. Leave a row blank to skip it.",
+  "set.warmupPct": "Warm-up percentage",
+  "set.warmupReps": "Warm-up reps",
+  "set.bbbTitle": "Boring But Big",
+  "set.bbbHint":
+    "The extra assistance set the logger adds one-per-click, as a percentage of the training max. Classic Wendler is 5 sets of 10 at 50%.",
+  "set.bbbPct": "Boring But Big percentage",
+  "set.bbbReps": "Boring But Big reps",
 
   // ── Auto-layout setup (v0.8) ──
   "strength.eqChoice.perDayNote": "Sets every day. You can flip any single day to weights or bodyweight below.",
@@ -711,6 +730,15 @@ export const de: Record<DictKey, string> = {
   "strength.exerciseName": "Übungsname",
   "strength.addExercise": "Übung hinzufügen",
   "strength.addSet": "Satz hinzufügen",
+  "strength.warmupSets": "Aufwärmen",
+  "strength.workingSets": "Arbeitssätze",
+  "strength.bbb": "Boring But Big",
+  "strength.addBBB": "Boring-But-Big-Satz hinzufügen",
+  "strength.addWarmupSet": "Aufwärmsatz hinzufügen",
+  "strength.deleteSet": "Satz löschen",
+  "strength.deleteSetConfirm": "Diesen Satz löschen?",
+  "strength.amrapShort": "AMRAP",
+  "strength.amrapHint": "So viele Wiederholungen wie möglich — mach bei diesem letzten Satz so viele saubere Wiederholungen, wie du kannst.",
   "mv.PUSH": "Drücken",
   "mv.PULL": "Ziehen",
   "mv.SQUAT": "Kniebeuge",
@@ -799,6 +827,16 @@ export const de: Record<DictKey, string> = {
   "set.includePull": "Zugübung einbeziehen",
   "set.includePullHint":
     "Wenn aktiv, enthalten neue Standardpläne eine Zugübung (Rudern / Klimmzug). Klassisches Wendler ist nur Kniebeuge, Bankdrücken, Kreuzheben und Schulterdrücken.",
+  "set.warmupTitle": "Aufwärmsätze",
+  "set.warmupHint":
+    "Bis zu 3 Aufwärmsätze, die beim Protokollieren einer gewichteten Übung vor den Arbeitssätzen ergänzt werden – als Prozentsatz des Trainingsmaximums. Leere Zeile = übersprungen.",
+  "set.warmupPct": "Aufwärm-Prozentsatz",
+  "set.warmupReps": "Aufwärm-Wiederholungen",
+  "set.bbbTitle": "Boring But Big",
+  "set.bbbHint":
+    "Der Zusatzsatz, den der Logger pro Klick hinzufügt – als Prozentsatz des Trainingsmaximums. Klassisches Wendler ist 5 Sätze à 10 bei 50 %.",
+  "set.bbbPct": "Boring-But-Big-Prozentsatz",
+  "set.bbbReps": "Boring-But-Big-Wiederholungen",
 
   // ── Auto-Layout-Setup (v0.8) ──
   "strength.eqChoice.perDayNote": "Gilt für alle Tage. Du kannst unten jeden einzelnen Tag auf Gewichte oder Körpergewicht umstellen.",

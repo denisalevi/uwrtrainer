@@ -1,18 +1,33 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/i18n-provider";
 import { saveStrengthWorkout } from "@/app/actions/strength";
 import { deleteSession } from "@/app/actions/training";
 import { Button, Card, CardBody, Input, Label, Select, cn } from "@/components/ui";
 
-type SetTarget = { reps: number; weight: number | null; amrap: boolean };
-type Suggestion = { id: string; label: string; trainingMax?: number; sets: SetTarget[] };
+type SetKind = "warmup" | "main" | "bbb";
+type SetTarget = { reps: number; weight: number | null; amrap: boolean; kind?: SetKind; pct?: number | null };
+type Suggestion = {
+  id: string;
+  label: string;
+  trainingMax?: number;
+  sets: SetTarget[];
+  /** Pre-filled weight for one "Boring But Big" set on this lift; null on non-weighted lifts. */
+  bbbWeight?: number | null;
+};
 export type LoggerDay = { id: string; name: string; minutes: number; suggestions: Suggestion[] };
 
-type SetVal = { weight: string; reps: string };
-type Line = { key: string; exerciseId: string; name: string; sets: SetVal[]; done?: boolean; trainingMax?: number };
+type SetVal = { weight: string; reps: string; kind: SetKind; amrap?: boolean };
+type Line = {
+  key: string;
+  exerciseId: string;
+  name: string;
+  sets: SetVal[];
+  done?: boolean;
+  trainingMax?: number;
+};
 
 let uid = 0;
 const nextKey = () => `l${Date.now()}_${uid++}`;
@@ -46,6 +61,51 @@ function ChecklistToggle({
   );
 }
 
+/** Small "(AMRAP)" tag, stacked under the set number, with a tap-to-reveal popover. */
+function AmrapLabel({ label, hint }: { label: string; hint: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        title={hint}
+        className="inline-flex items-center gap-0.5 whitespace-nowrap text-[10px] leading-tight text-slate-500"
+      >
+        ({label})
+        <span
+          aria-hidden
+          className="flex h-3 w-3 items-center justify-center rounded-full border border-current text-[8px] font-bold leading-none"
+        >
+          i
+        </span>
+      </button>
+      {open && (
+        <span className="absolute left-0 top-full z-20 mt-1 block w-44 rounded-md border border-slate-200 bg-white p-2 text-[10px] font-normal leading-snug text-slate-500 shadow-lg">
+          {hint}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Display/order rank for set kinds; used to keep a line grouped warm-up → working → BBB. */
+const KIND_RANK: Record<SetKind, number> = { warmup: 0, main: 1, bbb: 2 };
+/** Stable sort by kind (Array.sort is stable in V8), preserving within-group order. */
+function sortByKind(sets: SetVal[]): SetVal[] {
+  return [...sets].sort((a, b) => KIND_RANK[a.kind] - KIND_RANK[b.kind]);
+}
+
+/** Build the editable set rows for a suggestion (weights pre-filled, reps blank, kind carried). */
+function seedSets(sug: Suggestion): SetVal[] {
+  return sug.sets.map((s) => ({
+    weight: s.weight != null ? String(s.weight) : "",
+    reps: "",
+    kind: s.kind ?? "main",
+    amrap: s.amrap,
+  }));
+}
+
 /** Preselect one editable line per configured exercise on the day. */
 function seedLines(day: LoggerDay | undefined): Line[] {
   if (!day) return [];
@@ -54,7 +114,7 @@ function seedLines(day: LoggerDay | undefined): Line[] {
     exerciseId: sug.id,
     name: sug.label,
     trainingMax: sug.trainingMax,
-    sets: sug.sets.map((s) => ({ weight: s.weight != null ? String(s.weight) : "", reps: "" })),
+    sets: seedSets(sug),
   }));
 }
 
@@ -63,6 +123,7 @@ export function StrengthWorkoutLogger({
   cycle,
   week,
   days,
+  bbbReps,
   resume,
   today,
 }: {
@@ -70,6 +131,7 @@ export function StrengthWorkoutLogger({
   cycle: number;
   week: number;
   days: LoggerDay[];
+  bbbReps: number;
   resume: { id: string; details: string; durationMin: number | null } | null;
   today: string;
 }) {
@@ -113,6 +175,8 @@ export function StrengthWorkoutLogger({
         sets: l.sets.map((s) => ({
           weight: s.weight ? Number(s.weight) : null,
           reps: s.reps ? Number(s.reps) : null,
+          kind: s.kind,
+          amrap: s.amrap,
         })),
       })),
     });
@@ -150,14 +214,8 @@ export function StrengthWorkoutLogger({
   function addExercise() {
     const sug = day?.suggestions[0];
     const line: Line = sug
-      ? {
-          key: nextKey(),
-          exerciseId: sug.id,
-          name: sug.label,
-          trainingMax: sug.trainingMax,
-          sets: sug.sets.map((s) => ({ weight: s.weight != null ? String(s.weight) : "", reps: "" })),
-        }
-      : { key: nextKey(), exerciseId: "custom", name: "", sets: [{ weight: "", reps: "" }] };
+      ? { key: nextKey(), exerciseId: sug.id, name: sug.label, trainingMax: sug.trainingMax, sets: seedSets(sug) }
+      : { key: nextKey(), exerciseId: "custom", name: "", sets: [{ weight: "", reps: "", kind: "main" }] };
     mutate((ls) => [...ls, line]);
   }
 
@@ -165,16 +223,11 @@ export function StrengthWorkoutLogger({
     mutate((ls) =>
       ls.map((l) => {
         if (l.key !== key) return l;
-        if (exerciseId === "custom") return { ...l, exerciseId, name: "", sets: [{ weight: "", reps: "" }] };
+        if (exerciseId === "custom")
+          return { ...l, exerciseId, name: "", sets: [{ weight: "", reps: "", kind: "main" }] };
         const sug = day?.suggestions.find((s) => s.id === exerciseId);
         if (!sug) return { ...l, exerciseId };
-        return {
-          ...l,
-          exerciseId,
-          name: sug.label,
-          trainingMax: sug.trainingMax,
-          sets: sug.sets.map((s) => ({ weight: s.weight != null ? String(s.weight) : "", reps: "" })),
-        };
+        return { ...l, exerciseId, name: sug.label, trainingMax: sug.trainingMax, sets: seedSets(sug) };
       }),
     );
   }
@@ -185,8 +238,25 @@ export function StrengthWorkoutLogger({
         l.key === key ? { ...l, sets: l.sets.map((s, j) => (j === i ? { ...s, [field]: val } : s)) } : l,
       ),
     );
-  const addSet = (key: string) =>
-    mutate((ls) => ls.map((l) => (l.key === key ? { ...l, sets: [...l.sets, { weight: "", reps: "" }] } : l)));
+  /** Append a set of a given kind, then keep the line grouped warm-up → working → BBB. */
+  const addSetOfKind = (key: string, kind: SetKind, prefill: Partial<SetVal> = {}) =>
+    mutate((ls) =>
+      ls.map((l) =>
+        l.key === key
+          ? { ...l, sets: sortByKind([...l.sets, { weight: "", reps: "", kind, ...prefill }]) }
+          : l,
+      ),
+    );
+  const addWarmup = (key: string) => addSetOfKind(key, "warmup");
+  const addSet = (key: string) => addSetOfKind(key, "main");
+  /** Append one pre-filled "Boring But Big" set (configured % × reps). */
+  const addBbb = (key: string, weight: number) =>
+    addSetOfKind(key, "bbb", { weight: String(weight), reps: String(bbbReps) });
+  /** Delete a single set row (confirm first, so a mis-tap doesn't lose it). */
+  const removeSet = (key: string, i: number) => {
+    if (!confirm(t("strength.deleteSetConfirm"))) return;
+    mutate((ls) => ls.map((l) => (l.key === key ? { ...l, sets: l.sets.filter((_, j) => j !== i) } : l)));
+  };
   const removeLine = (key: string) => mutate((ls) => ls.filter((l) => l.key !== key));
   const toggleDone = (key: string) =>
     mutate((ls) => ls.map((l) => (l.key === key ? { ...l, done: !l.done } : l)));
@@ -299,47 +369,109 @@ export function StrengthWorkoutLogger({
               )}
 
               <div className="space-y-2">
-                {l.sets.map((s, i) => {
-                  const target = sug?.sets[i];
-                  const tm = sug?.trainingMax;
-                  const w = Number(s.weight);
-                  const pct = tm && tm > 0 && w > 0 ? Math.round((w / tm) * 100) : null;
-                  return (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="w-12 shrink-0 text-xs text-slate-500">
-                        {t("strength.set")} {i + 1}
-                      </span>
-                      {showWeight && (
+                {(() => {
+                  // Sets are grouped warm-up → working → BBB; only show section labels when the
+                  // line actually mixes kinds. Numbering resets within each section.
+                  const grouped = new Set(l.sets.map((s) => s.kind)).size > 1;
+                  const headerFor = (kind: SetKind) =>
+                    kind === "warmup"
+                      ? t("strength.warmupSets")
+                      : kind === "bbb"
+                        ? t("strength.bbb")
+                        : t("strength.workingSets");
+                  const rows: ReactNode[] = [];
+                  let lastKind: SetKind | null = null;
+                  let n = 0;
+                  l.sets.forEach((s, i) => {
+                    if (s.kind !== lastKind) {
+                      if (grouped)
+                        rows.push(
+                          <div
+                            key={`h-${i}`}
+                            className="pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400"
+                          >
+                            {headerFor(s.kind)}
+                          </div>,
+                        );
+                      lastKind = s.kind;
+                      n = 0;
+                    }
+                    n += 1;
+                    const target = sug?.sets[i];
+                    const tm = sug?.trainingMax;
+                    const w = Number(s.weight);
+                    const pct = tm && tm > 0 && w > 0 ? Math.round((w / tm) * 100) : null;
+                    rows.push(
+                      <div key={i} className="flex items-center gap-2">
+                        {/* "Set N" with "(AMRAP)" stacked right under it in the same cell. */}
+                        <div className="flex w-16 shrink-0 flex-col text-xs leading-tight text-slate-500">
+                          <span>
+                            {t("strength.set")} {n}
+                          </span>
+                          {s.amrap && (
+                            <AmrapLabel label={t("strength.amrapShort")} hint={t("strength.amrapHint")} />
+                          )}
+                        </div>
+                        {showWeight && (
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            placeholder="kg"
+                            className="w-20"
+                            value={s.weight}
+                            onChange={(e) => setField(l.key, i, "weight", e.target.value)}
+                          />
+                        )}
+                        {showWeight && pct != null && (
+                          <span className="shrink-0 text-xs text-slate-400">{pct}%</span>
+                        )}
                         <Input
                           type="number"
-                          inputMode="decimal"
+                          inputMode="numeric"
                           min={0}
-                          placeholder="kg"
+                          placeholder={
+                            target ? `${target.reps}${s.amrap ? "+" : ""}` : t("strength.reps")
+                          }
                           className="w-20"
-                          value={s.weight}
-                          onChange={(e) => setField(l.key, i, "weight", e.target.value)}
+                          value={s.reps}
+                          onChange={(e) => setField(l.key, i, "reps", e.target.value)}
                         />
-                      )}
-                      {showWeight && pct != null && (
-                        <span className="shrink-0 text-xs text-slate-400">{pct}%</span>
-                      )}
-                      <Input
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        placeholder={
-                          target ? `${target.reps}${target.amrap ? "+" : ""}` : t("strength.reps")
-                        }
-                        className="w-20"
-                        value={s.reps}
-                        onChange={(e) => setField(l.key, i, "reps", e.target.value)}
-                      />
-                    </div>
-                  );
-                })}
-                <Button type="button" variant="ghost" size="sm" onClick={() => addSet(l.key)}>
-                  + {t("strength.addSet")}
-                </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={t("strength.deleteSet")}
+                          title={t("strength.deleteSet")}
+                          onClick={() => removeSet(l.key, i)}
+                        >
+                          ✕
+                        </Button>
+                      </div>,
+                    );
+                  });
+                  return rows;
+                })()}
+                <div className="flex flex-wrap gap-2">
+                  {showWeight && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => addWarmup(l.key)}>
+                      + {t("strength.addWarmupSet")}
+                    </Button>
+                  )}
+                  <Button type="button" variant="ghost" size="sm" onClick={() => addSet(l.key)}>
+                    + {t("strength.addSet")}
+                  </Button>
+                  {sug?.bbbWeight != null && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => addBbb(l.key, sug.bbbWeight as number)}
+                    >
+                      + {t("strength.addBBB")}
+                    </Button>
+                  )}
+                </div>
               </div>
 
               <div className="flex justify-end">
@@ -452,6 +584,8 @@ function restoreLines(details: Record<string, unknown>): Line[] {
     sets: (e.sets ?? []).map((s) => ({
       weight: s.weight != null ? String(s.weight) : "",
       reps: s.reps != null ? String(s.reps) : "",
+      kind: (s.kind === "warmup" || s.kind === "bbb" ? s.kind : "main") as SetKind,
+      amrap: s.amrap === true,
     })),
   }));
 }

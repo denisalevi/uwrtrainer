@@ -5,6 +5,8 @@ import {
   trainingMaxFromOneRepMax,
   waveWeek,
   weightedWorkout,
+  warmupSets,
+  bbbSet,
   bodyweightWorkout,
   levelLabel,
   decideAdjustment,
@@ -117,6 +119,36 @@ describe("weightedWorkout", () => {
     const big = weightedWorkout(90, 1, { movementLabel: "Squat", withAssistance: true });
     expect(plain.assistance).toBeUndefined();
     expect(big.assistance).toEqual({ sets: 5, reps: 10, weight: 45 }); // 50% of 90
+  });
+});
+
+describe("warmupSets (configurable ramp before the working sets)", () => {
+  const scheme = [
+    { pct: 0.4, reps: 5 },
+    { pct: 0.5, reps: 5 },
+    { pct: 0.6, reps: 3 },
+  ];
+  it("ramps as a percentage of the training max, rounded, never AMRAP, tagged warmup", () => {
+    const sets = warmupSets(100, 2.5, scheme);
+    expect(sets.map((s) => s.weight)).toEqual([40, 50, 60]);
+    expect(sets.map((s) => s.reps)).toEqual([5, 5, 3]);
+    expect(sets.every((s) => s.amrap === false)).toBe(true);
+    expect(sets.every((s) => s.kind === "warmup")).toBe(true);
+  });
+  it("returns an empty ramp when there's no loaded max to ramp against", () => {
+    expect(warmupSets(0, 2.5, scheme)).toEqual([]);
+  });
+});
+
+describe("bbbSet (one Boring But Big set, configurable %/reps)", () => {
+  it("defaults to 50% of the training max for 10 reps, tagged bbb", () => {
+    const s = bbbSet(90, 2.5);
+    expect(s).toMatchObject({ weight: 45, reps: 10, amrap: false, kind: "bbb" });
+  });
+  it("honours a custom percentage and rep count", () => {
+    const s = bbbSet(100, 5, 0.6, 8);
+    expect(s.weight).toBe(60);
+    expect(s.reps).toBe(8);
   });
 });
 
