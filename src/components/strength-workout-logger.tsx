@@ -61,6 +61,30 @@ function ChecklistToggle({
   );
 }
 
+/** Small "(AMRAP)" tag tucked under the last working set, with a tap-to-reveal explanation. */
+function AmrapLabel({ label, hint }: { label: string; hint: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="pl-0">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        title={hint}
+        className="inline-flex items-center gap-1 text-[10px] leading-none text-slate-500"
+      >
+        ({label})
+        <span
+          aria-hidden
+          className="flex h-3 w-3 items-center justify-center rounded-full border border-current text-[8px] font-bold leading-none"
+        >
+          i
+        </span>
+      </button>
+      {open && <p className="mt-1 max-w-[15rem] text-[10px] leading-snug text-slate-500">{hint}</p>}
+    </div>
+  );
+}
+
 /** Display/order rank for set kinds; used to keep a line grouped warm-up → working → BBB. */
 const KIND_RANK: Record<SetKind, number> = { warmup: 0, main: 1, bbb: 2 };
 /** Stable sort by kind (Array.sort is stable in V8), preserving within-group order. */
@@ -374,7 +398,8 @@ export function StrengthWorkoutLogger({
                     const w = Number(s.weight);
                     const pct = tm && tm > 0 && w > 0 ? Math.round((w / tm) * 100) : null;
                     rows.push(
-                      <div key={i} className="flex items-center gap-2">
+                      <div key={i} className="space-y-0.5">
+                        <div className="flex items-center gap-2">
                         <span className="w-12 shrink-0 text-xs text-slate-500">
                           {t("strength.set")} {n}
                         </span>
@@ -413,15 +438,13 @@ export function StrengthWorkoutLogger({
                         >
                           ✕
                         </Button>
+                        </div>
+                        {/* Tuck "(AMRAP)" right under the set number, with a tap-to-explain ⓘ. */}
+                        {s.amrap && (
+                          <AmrapLabel label={t("strength.amrapShort")} hint={t("strength.amrapHint")} />
+                        )}
                       </div>,
                     );
-                    // Label the last working set "AMRAP" under the set number, same muted color.
-                    if (s.amrap)
-                      rows.push(
-                        <div key={`amrap-${i}`} className="-mt-1 text-xs text-slate-500">
-                          {t("strength.amrapShort")}
-                        </div>,
-                      );
                   });
                   return rows;
                 })()}
