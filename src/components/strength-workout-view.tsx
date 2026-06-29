@@ -2,7 +2,7 @@ import { getServerT } from "@/lib/i18n/server";
 import { Card, CardBody } from "@/components/ui";
 
 type ViewSet = { weight: number | null; reps: number | null; amrap?: boolean };
-type ViewExercise = { name?: string; done?: boolean; sets?: ViewSet[] };
+type ViewExercise = { name?: string; done?: boolean; trainingMax?: number; sets?: ViewSet[] };
 type ViewDetails = {
   kind?: string;
   dayName?: string;
@@ -62,6 +62,11 @@ export async function StrengthWorkoutView({
                   <span className="text-sm font-medium text-slate-800">
                     {ex.name || t("strength.exerciseName")}
                   </span>
+                  {ex.trainingMax != null && (
+                    <span className="text-xs text-slate-400 tabular-nums">
+                      {t("strength.tmShort")} {ex.trainingMax} kg
+                    </span>
+                  )}
                   {ex.done && <span className="text-xs text-teal-700">✓</span>}
                 </div>
                 {sets.length > 0 ? (

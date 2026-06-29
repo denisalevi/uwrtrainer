@@ -20,7 +20,14 @@ type Suggestion = {
 export type LoggerDay = { id: string; name: string; minutes: number; suggestions: Suggestion[] };
 
 type SetVal = { weight: string; reps: string; kind: SetKind };
-type Line = { key: string; exerciseId: string; name: string; sets: SetVal[]; done?: boolean };
+type Line = {
+  key: string;
+  exerciseId: string;
+  name: string;
+  sets: SetVal[];
+  done?: boolean;
+  trainingMax?: number;
+};
 
 let uid = 0;
 const nextKey = () => `l${Date.now()}_${uid++}`;
@@ -77,6 +84,7 @@ function seedLines(day: LoggerDay | undefined): Line[] {
     key: nextKey(),
     exerciseId: sug.id,
     name: sug.label,
+    trainingMax: sug.trainingMax,
     sets: seedSets(sug),
   }));
 }
@@ -134,6 +142,7 @@ export function StrengthWorkoutLogger({
       exercises: lines.map((l) => ({
         name: l.name,
         done: !!l.done,
+        trainingMax: l.trainingMax,
         sets: l.sets.map((s) => ({
           weight: s.weight ? Number(s.weight) : null,
           reps: s.reps ? Number(s.reps) : null,
@@ -175,7 +184,7 @@ export function StrengthWorkoutLogger({
   function addExercise() {
     const sug = day?.suggestions[0];
     const line: Line = sug
-      ? { key: nextKey(), exerciseId: sug.id, name: sug.label, sets: seedSets(sug) }
+      ? { key: nextKey(), exerciseId: sug.id, name: sug.label, trainingMax: sug.trainingMax, sets: seedSets(sug) }
       : { key: nextKey(), exerciseId: "custom", name: "", sets: [{ weight: "", reps: "", kind: "main" }] };
     mutate((ls) => [...ls, line]);
   }
@@ -188,7 +197,7 @@ export function StrengthWorkoutLogger({
           return { ...l, exerciseId, name: "", sets: [{ weight: "", reps: "", kind: "main" }] };
         const sug = day?.suggestions.find((s) => s.id === exerciseId);
         if (!sug) return { ...l, exerciseId };
-        return { ...l, exerciseId, name: sug.label, sets: seedSets(sug) };
+        return { ...l, exerciseId, name: sug.label, trainingMax: sug.trainingMax, sets: seedSets(sug) };
       }),
     );
   }
@@ -530,11 +539,12 @@ function safeParse(s: string): Record<string, unknown> | null {
 
 function restoreLines(details: Record<string, unknown>): Line[] {
   const ex = Array.isArray(details.exercises) ? details.exercises : [];
-  return (ex as Array<{ name?: string; done?: boolean; sets?: Array<Record<string, unknown>> }>).map((e) => ({
+  return (ex as Array<{ name?: string; done?: boolean; trainingMax?: number; sets?: Array<Record<string, unknown>> }>).map((e) => ({
     key: nextKey(),
     exerciseId: "custom",
     name: String(e.name ?? ""),
     done: !!e.done,
+    trainingMax: typeof e.trainingMax === "number" ? e.trainingMax : undefined,
     sets: (e.sets ?? []).map((s) => ({
       weight: s.weight != null ? String(s.weight) : "",
       reps: s.reps != null ? String(s.reps) : "",
