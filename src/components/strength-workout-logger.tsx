@@ -61,16 +61,16 @@ function ChecklistToggle({
   );
 }
 
-/** Small "(AMRAP)" tag tucked under the last working set, with a tap-to-reveal explanation. */
+/** Small "(AMRAP)" tag, stacked under the set number, with a tap-to-reveal popover. */
 function AmrapLabel({ label, hint }: { label: string; hint: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="pl-0">
+    <span className="relative inline-block">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         title={hint}
-        className="inline-flex items-center gap-1 text-[10px] leading-none text-slate-500"
+        className="inline-flex items-center gap-0.5 whitespace-nowrap text-[10px] leading-tight text-slate-500"
       >
         ({label})
         <span
@@ -80,8 +80,12 @@ function AmrapLabel({ label, hint }: { label: string; hint: string }) {
           i
         </span>
       </button>
-      {open && <p className="mt-1 max-w-[15rem] text-[10px] leading-snug text-slate-500">{hint}</p>}
-    </div>
+      {open && (
+        <span className="absolute left-0 top-full z-20 mt-1 block w-44 rounded-md border border-slate-200 bg-white p-2 text-[10px] font-normal leading-snug text-slate-500 shadow-lg">
+          {hint}
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -398,11 +402,16 @@ export function StrengthWorkoutLogger({
                     const w = Number(s.weight);
                     const pct = tm && tm > 0 && w > 0 ? Math.round((w / tm) * 100) : null;
                     rows.push(
-                      <div key={i} className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                        <span className="w-12 shrink-0 text-xs text-slate-500">
-                          {t("strength.set")} {n}
-                        </span>
+                      <div key={i} className="flex items-center gap-2">
+                        {/* "Set N" with "(AMRAP)" stacked right under it in the same cell. */}
+                        <div className="flex w-16 shrink-0 flex-col text-xs leading-tight text-slate-500">
+                          <span>
+                            {t("strength.set")} {n}
+                          </span>
+                          {s.amrap && (
+                            <AmrapLabel label={t("strength.amrapShort")} hint={t("strength.amrapHint")} />
+                          )}
+                        </div>
                         {showWeight && (
                           <Input
                             type="number"
@@ -438,11 +447,6 @@ export function StrengthWorkoutLogger({
                         >
                           ✕
                         </Button>
-                        </div>
-                        {/* Tuck "(AMRAP)" right under the set number, with a tap-to-explain ⓘ. */}
-                        {s.amrap && (
-                          <AmrapLabel label={t("strength.amrapShort")} hint={t("strength.amrapHint")} />
-                        )}
                       </div>,
                     );
                   });
