@@ -19,7 +19,7 @@ type Suggestion = {
 };
 export type LoggerDay = { id: string; name: string; minutes: number; suggestions: Suggestion[] };
 
-type SetVal = { weight: string; reps: string; kind: SetKind };
+type SetVal = { weight: string; reps: string; kind: SetKind; amrap?: boolean };
 type Line = {
   key: string;
   exerciseId: string;
@@ -61,6 +61,30 @@ function ChecklistToggle({
   );
 }
 
+/** "(AMRAP)" tag shown under the last working set, with a tap-to-reveal explanation. */
+function AmrapHint({ label, hint }: { label: string; hint: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="pl-14">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        title={hint}
+        className="inline-flex items-center gap-1 text-xs font-medium text-teal-700"
+      >
+        ({label})
+        <span
+          aria-hidden
+          className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-current text-[9px] font-bold leading-none"
+        >
+          i
+        </span>
+      </button>
+      {open && <p className="mt-1 max-w-[15rem] text-xs text-slate-500">{hint}</p>}
+    </div>
+  );
+}
+
 /** Display/order rank for set kinds; used to keep a line grouped warm-up → working → BBB. */
 const KIND_RANK: Record<SetKind, number> = { warmup: 0, main: 1, bbb: 2 };
 /** Stable sort by kind (Array.sort is stable in V8), preserving within-group order. */
@@ -74,6 +98,7 @@ function seedSets(sug: Suggestion): SetVal[] {
     weight: s.weight != null ? String(s.weight) : "",
     reps: "",
     kind: s.kind ?? "main",
+    amrap: s.amrap,
   }));
 }
 
@@ -147,6 +172,7 @@ export function StrengthWorkoutLogger({
           weight: s.weight ? Number(s.weight) : null,
           reps: s.reps ? Number(s.reps) : null,
           kind: s.kind,
+          amrap: s.amrap,
         })),
       })),
     });
@@ -395,7 +421,7 @@ export function StrengthWorkoutLogger({
                           inputMode="numeric"
                           min={0}
                           placeholder={
-                            target ? `${target.reps}${target.amrap ? "+" : ""}` : t("strength.reps")
+                            target ? `${target.reps}${s.amrap ? "+" : ""}` : t("strength.reps")
                           }
                           className="w-20"
                           value={s.reps}
@@ -413,6 +439,15 @@ export function StrengthWorkoutLogger({
                         </Button>
                       </div>,
                     );
+                    // "As many reps as possible" — clarify the last working set with a tappable tag.
+                    if (s.amrap)
+                      rows.push(
+                        <AmrapHint
+                          key={`amrap-${i}`}
+                          label={t("strength.amrapShort")}
+                          hint={t("strength.amrapHint")}
+                        />,
+                      );
                   });
                   return rows;
                 })()}
@@ -549,6 +584,7 @@ function restoreLines(details: Record<string, unknown>): Line[] {
       weight: s.weight != null ? String(s.weight) : "",
       reps: s.reps != null ? String(s.reps) : "",
       kind: (s.kind === "warmup" || s.kind === "bbb" ? s.kind : "main") as SetKind,
+      amrap: s.amrap === true,
     })),
   }));
 }
