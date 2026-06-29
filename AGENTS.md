@@ -39,6 +39,43 @@ docker run -d --name uwr-dev -p 3000:3000 -v "$PWD":/app -v uwr-npm-cache-deb:/r
 
 > Use **Debian (`node:22-slim`), not Alpine** — the libSQL native binary needs glibc prebuilts.
 
+### Running in the Claude Code cloud/web sandbox (agents)
+
+If you're an agent in the **cloud/web execution environment** (ephemeral container, fresh clone),
+the Docker workflow above does **not** apply — there's no Docker daemon. Instead **Node 22 is on the
+PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands directly. Key gotchas
+(all discovered the hard way — don't rediscover them):
+
+- **Outbound network goes through the agent proxy.** Two independent fixes are needed:
+  - **npm**: `registry.npmjs.org` is in the proxy's `noProxy` list (reachable directly), but npm's
+    configured `https-proxy` forces it through the proxy and the connection resets. Unset it per
+    command: `npm_config_proxy= npm_config_https_proxy= npm ci --no-audit --no-fund`.
+  - **Package postinstalls** (e.g. `@prisma/engines` downloading engine binaries) use Node's
+    built-in `fetch`, which **ignores `HTTPS_PROXY` unless `NODE_USE_ENV_PROXY=1`** and needs the
+    proxy CA. So prefix any network-touching node/npm/prisma command with:
+    `NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt`.
+  - Full first-time install that works: `NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt npm_config_proxy= npm_config_https_proxy= npm ci --no-audit --no-fund --maxsockets=3 --fetch-retries=5`
+- **`.env`** doesn't exist on a fresh clone. Create one (it's gitignored via `.env*`): `SESSION_SECRET`
+  (`openssl rand -base64 32`), `DATABASE_URL=file:./dev.db`, empty `REGISTRATION_CODE`. Unquoted, and
+  **never set `NODE_ENV`** (cookies work over http in dev).
+- **DB setup**: `npx prisma generate` → `npx prisma migrate deploy` → `npm run db:seed` (tsx; demo
+  users, password `password123`). Prefix with the proxy env vars above for `generate`/`seed`.
+- **Dev server**: `npx next dev -H 127.0.0.1 -p 3000` (Turbopack). `npm test` (vitest) and
+  `npm run build` (webpack) need no network once deps are installed.
+- **There is NO public URL the user can reach** — this container is isolated and ephemeral. To show
+  the user a change "live", either **open a PR** (they merge → their own deploy serves it) or run the
+  dev server here and **screenshot it** with the pre-installed Chromium.
+- **Browser/Playwright**: Chromium is pre-installed at
+  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` (`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`).
+  Use the global `playwright` module; **never** run `playwright install`. Launch with that explicit
+  `executablePath`.
+- **Auth for automated screenshots**: the signup/login **server-action forms submit empty FormData
+  under Playwright** in Next 16 dev (the typed fields never reach the action), so UI sign-up fails.
+  Bypass it by **injecting a session cookie**: create/find a user via a `tsx` script using the
+  generated Prisma client + `PrismaLibSql`, sign an **HS256 JWT** (`jose`) with `SESSION_SECRET`,
+  payload `{userId, role}`, and add it as the `session` cookie to the browser context (see
+  `src/lib/session.ts` for the exact shape). tsx scripts need an async IIFE (no top-level await).
+
 ## Architecture
 
 - **Next.js 16 App Router**, React 19, TypeScript, Tailwind v4 (hand-rolled UI primitives in

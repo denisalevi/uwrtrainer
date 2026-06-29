@@ -166,6 +166,11 @@ export async function StrengthProgramView({
                 >
                   <span className="block min-w-0 truncate text-slate-800">
                     {exLabel(e)} <span className="text-slate-400">({t(`tool.${e.tool}` as DictKey)})</span>
+                    {e.mode === "WEIGHTED" && state[e.movement]?.trainingMax != null && (
+                      <span className="ml-1 text-xs text-slate-400 tabular-nums">
+                        · {t("strength.tmShort")} {state[e.movement]!.trainingMax} kg
+                      </span>
+                    )}
                   </span>
                   <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-medium text-slate-900">
                     {e.sets.map((s, j) => (
@@ -238,6 +243,8 @@ export async function StrengthProgramView({
             initialLayout={layout}
             initialNotes={program.notes ?? ""}
             includePull={includePull}
+            tmPct={program.trainingMaxPct}
+            rounding={program.rounding}
           />
         </div>
         <form action={resetStrengthProgram} className="mt-3 border-t border-slate-100 pt-3">
@@ -257,7 +264,10 @@ export async function StrengthProgramView({
 export async function ExplainPanel() {
   const { t } = await getServerT();
   const items: DictKey[] = [
+    "strength.explain1rm",
+    "strength.explainTmAcronym",
     "strength.explainTrainingMax",
+    "strength.explainEstimate",
     "strength.explainAmrap",
     "strength.explainWave",
     "strength.explainAssistance",

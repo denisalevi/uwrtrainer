@@ -86,13 +86,22 @@ auto-saves. **Editing** a logged strength session reopens this same full-session
 
 ## Starting out — how the first numbers are set
 
-- **You know a recent set:** enter "*X kg for Y reps*" (or, bodyweight, your max clean reps).
-  We estimate your one-rep max with the **Brzycki** formula — the same one the source
-  spreadsheet uses — and take 90 % of it as your training max:
+The **training max (TM)** is the single number every working set is calculated from. To stop people
+typing an all-out max straight in (which breaks the wave by week 1), setup asks for a *set you can
+actually do* rather than the TM itself, and estimates the TM **submaximally** from it. The computed
+TM is shown live as you type, and appears next to each lift in the plan, the logger, and your logs.
+
+- **You know a recent set (the default):** enter the **most weight you can lift for a few clean
+  reps**. We estimate your one-rep max with the **Brzycki** formula — the same one the source
+  spreadsheet uses — and take the configurable training-max % (default 90 %) of it, rounded to a
+  loadable increment:
 
   ```
   one-rep max ≈ weight ÷ (1.0278 − 0.0278 × reps)
+  training max ≈ one-rep max × trainingMaxPct   (default 0.9)
   ```
+
+- **Advanced — you already know your TM:** expand *enter training max directly* and type it in.
 
 - **You don't know:** just start light (or one rung up from the easiest variation). It's
   *meant* to feel easy for the first cycle — better too light than too heavy.

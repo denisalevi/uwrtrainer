@@ -12,7 +12,7 @@ type Suggestion = { id: string; label: string; trainingMax?: number; sets: SetTa
 export type LoggerDay = { id: string; name: string; minutes: number; suggestions: Suggestion[] };
 
 type SetVal = { weight: string; reps: string };
-type Line = { key: string; exerciseId: string; name: string; sets: SetVal[]; done?: boolean };
+type Line = { key: string; exerciseId: string; name: string; sets: SetVal[]; done?: boolean; trainingMax?: number };
 
 let uid = 0;
 const nextKey = () => `l${Date.now()}_${uid++}`;
@@ -53,6 +53,7 @@ function seedLines(day: LoggerDay | undefined): Line[] {
     key: nextKey(),
     exerciseId: sug.id,
     name: sug.label,
+    trainingMax: sug.trainingMax,
     sets: sug.sets.map((s) => ({ weight: s.weight != null ? String(s.weight) : "", reps: "" })),
   }));
 }
@@ -108,6 +109,7 @@ export function StrengthWorkoutLogger({
       exercises: lines.map((l) => ({
         name: l.name,
         done: !!l.done,
+        trainingMax: l.trainingMax,
         sets: l.sets.map((s) => ({
           weight: s.weight ? Number(s.weight) : null,
           reps: s.reps ? Number(s.reps) : null,
@@ -152,6 +154,7 @@ export function StrengthWorkoutLogger({
           key: nextKey(),
           exerciseId: sug.id,
           name: sug.label,
+          trainingMax: sug.trainingMax,
           sets: sug.sets.map((s) => ({ weight: s.weight != null ? String(s.weight) : "", reps: "" })),
         }
       : { key: nextKey(), exerciseId: "custom", name: "", sets: [{ weight: "", reps: "" }] };
@@ -169,6 +172,7 @@ export function StrengthWorkoutLogger({
           ...l,
           exerciseId,
           name: sug.label,
+          trainingMax: sug.trainingMax,
           sets: sug.sets.map((s) => ({ weight: s.weight != null ? String(s.weight) : "", reps: "" })),
         };
       }),
@@ -439,11 +443,12 @@ function safeParse(s: string): Record<string, unknown> | null {
 
 function restoreLines(details: Record<string, unknown>): Line[] {
   const ex = Array.isArray(details.exercises) ? details.exercises : [];
-  return (ex as Array<{ name?: string; done?: boolean; sets?: Array<Record<string, unknown>> }>).map((e) => ({
+  return (ex as Array<{ name?: string; done?: boolean; trainingMax?: number; sets?: Array<Record<string, unknown>> }>).map((e) => ({
     key: nextKey(),
     exerciseId: "custom",
     name: String(e.name ?? ""),
     done: !!e.done,
+    trainingMax: typeof e.trainingMax === "number" ? e.trainingMax : undefined,
     sets: (e.sets ?? []).map((s) => ({
       weight: s.weight != null ? String(s.weight) : "",
       reps: s.reps != null ? String(s.reps) : "",
