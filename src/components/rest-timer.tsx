@@ -206,6 +206,16 @@ export function RestTimerBar({ controller }: { controller: RestTimerController }
             <Button type="button" size="sm" variant="ghost" onClick={controller.reset}>
               {t("strength.restReset")}
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              aria-label={t("strength.restDismiss")}
+              title={t("strength.restDismiss")}
+              onClick={controller.dismiss}
+            >
+              ✕
+            </Button>
           </>
         )}
       </div>
