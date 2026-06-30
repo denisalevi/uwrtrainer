@@ -11,6 +11,19 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-06-30
+
+### Added
+- **Warm-up sets in the strength logger.** Working sets are now preceded by pre-filled warm-up sets,
+  with a per-set delete and an "add warm-up" control. A uniform rule decides which warm-ups apply per
+  week (the deload week keeps none). Warm-up scheme is a trainer-configurable team setting.
+- **"Boring But Big" (BBB).** An optional pre-filled BBB accessory set in the logger
+  (trainer-configurable reps/percentage as a team setting).
+- **Clearer AMRAP set.** The top "as many reps as possible" set is now marked with a tappable
+  **(AMRAP)** info tag that explains it.
+- **Training-max onboarding.** A submaximal 1RM → training-max calculator during setup, with guidance
+  on estimating your max and a clearer 1RM/TM readout.
+
 ## [0.14.1] - 2026-06-28
 
 ### Fixed
