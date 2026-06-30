@@ -29,7 +29,7 @@ import {
 } from "@/lib/strength";
 import { Button, Card, CardBody, Input, Label, Select, Textarea, SectionTitle, cn } from "@/components/ui";
 
-type Maxima = Record<string, { trainingMax?: number; repMax?: number; levelIndex?: number; weightedExerciseId?: string; bodyweightExerciseId?: string; weightedCustom?: string; bodyweightCustom?: string }>;
+type Maxima = Record<string, { trainingMax?: number; repMax?: number; levelIndex?: number; estWeight?: number; estReps?: number; weightedExerciseId?: string; bodyweightExerciseId?: string; weightedCustom?: string; bodyweightCustom?: string }>;
 type Mx = { tm: string; reps: string; estWeight: string; estReps: string; wex: string; bex: string; wcustom: string; bcustom: string };
 
 let counter = 0;
@@ -77,11 +77,14 @@ export function ProgramForm({
     const out: Record<string, Mx> = {};
     for (const m of MOVEMENTS) {
       const x = initialMaxima[m] ?? {};
+      // The TM came from either a first-cycle estimate (we stored the weight × reps) or a direct
+      // entry. Show exactly the one that was used — never both — so reopening setup isn't confusing.
+      const hasEst = x.estWeight != null && x.estReps != null;
       out[m] = {
-        tm: x.trainingMax != null ? String(x.trainingMax) : "",
+        tm: !hasEst && x.trainingMax != null ? String(x.trainingMax) : "",
         reps: x.repMax != null ? String(x.repMax) : "",
-        estWeight: "",
-        estReps: "",
+        estWeight: hasEst ? String(x.estWeight) : "",
+        estReps: hasEst ? String(x.estReps) : "",
         wex: x.weightedExerciseId ?? defaultExerciseId(m, "WEIGHTED"),
         bex: x.bodyweightExerciseId ?? defaultExerciseId(m, "BODYWEIGHT"),
         wcustom: x.weightedCustom ?? "",
@@ -91,6 +94,16 @@ export function ProgramForm({
     return out;
   });
   const [editing, setEditing] = useState<string | null>(null); // "MOVE:MODE"
+  // Whether each lift's "enter training max directly" panel starts open — it does when the stored
+  // TM was typed in directly (no estimate), so the user sees their value without hunting for it.
+  const [tmOpen, setTmOpen] = useState<Record<string, boolean>>(() => {
+    const o: Record<string, boolean> = {};
+    for (const m of MOVEMENTS) {
+      const x = initialMaxima[m] ?? {};
+      o[m] = x.estWeight == null && x.estReps == null && x.trainingMax != null;
+    }
+    return o;
+  });
 
   const weightedDays = days.filter((d) => d.equipment === "WEIGHTS").length;
   const anyWeighted = weightedDays > 0;
@@ -121,6 +134,13 @@ export function ProgramForm({
     if (w > 0 && r > 0) return trainingMaxFromOneRepMax(estimateOneRepMax(w, r), tmPct, rounding);
     return Number(mx.tm) || 0;
   };
+
+  // A weighted lift is set EITHER from an estimate (weight × reps) OR a directly-typed TM. Filling
+  // both is ambiguous, so we flag those lifts and block saving until one is cleared.
+  const usesEstimate = (mx: Mx) => Number(mx.estWeight) > 0 && Number(mx.estReps) > 0;
+  const usesDirect = (mx: Mx) => Number(mx.tm) > 0;
+  const conflicted = (mx: Mx) => usesEstimate(mx) && usesDirect(mx);
+  const hasConflict = anyWeighted && movements.some((m) => conflicted(maxima[m]));
 
   const pickEntry = (m: MovementKey, mode: SlotMode, entry: CatalogEntry) => {
     setMax(m, mode === "WEIGHTED" ? { wex: entry.id } : { bex: entry.id });
@@ -288,7 +308,12 @@ export function ProgramForm({
 
       {/* Per-movement exercise choices + maxima */}
       <SectionTitle>{t("strength.lifts")}</SectionTitle>
-      {anyWeighted && <p className="-mt-1 text-xs text-slate-500">{t("strength.startHintWeighted")}</p>}
+      {anyWeighted && (
+        <div className="-mt-1 space-y-1">
+          <p className="text-xs text-slate-500">{t("strength.startHintWeighted")}</p>
+          <p className="text-xs text-slate-400">{t("strength.setupOnce")}</p>
+        </div>
+      )}
       {movements.map((m) => (
         <Card key={m}>
           <CardBody className="space-y-2">
@@ -334,10 +359,21 @@ export function ProgramForm({
                             </p>
                           </div>
                         )}
-                        <details className="text-xs">
-                          <summary className="cursor-pointer text-slate-400">{t("strength.enterTmDirectly")}</summary>
-                          <Input className="mt-1" type="number" min={0} inputMode="decimal" placeholder="kg" value={maxima[m].tm} onChange={(e) => setMax(m, { tm: e.target.value })} />
-                        </details>
+                        <div className="text-xs">
+                          <button
+                            type="button"
+                            className="text-slate-400 hover:text-slate-600"
+                            onClick={() => setTmOpen((s) => ({ ...s, [m]: !s[m] }))}
+                          >
+                            {tmOpen[m] ? "▾" : "▸"} {t("strength.enterTmDirectly")}
+                          </button>
+                          {tmOpen[m] && (
+                            <Input className="mt-1" type="number" min={0} inputMode="decimal" placeholder="kg" value={maxima[m].tm} onChange={(e) => setMax(m, { tm: e.target.value })} />
+                          )}
+                        </div>
+                        {conflicted(maxima[m]) && (
+                          <p className="text-xs font-medium text-rose-600">{t("strength.bothFilledError")}</p>
+                        )}
                       </div>
                     ) : (
                       <Input type="number" min={0} inputMode="numeric" placeholder={t("strength.repMax")} value={maxima[m].reps} onChange={(e) => setMax(m, { reps: e.target.value })} />
@@ -393,7 +429,10 @@ export function ProgramForm({
         />
       </div>
 
-      <Button type="submit" className="w-full">
+      {hasConflict && (
+        <p className="text-sm font-medium text-rose-600">{t("strength.bothFilledError")}</p>
+      )}
+      <Button type="submit" className="w-full" disabled={hasConflict}>
         {t(submitLabelKey)}
       </Button>
     </form>
