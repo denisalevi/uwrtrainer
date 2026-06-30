@@ -102,13 +102,21 @@ function readMaxima(formData: FormData, tmPct: number, rounding: number): Progra
   const state = defaultFullState();
   for (const m of MOVEMENTS) {
     const cur: MovementState = state[m] ?? {};
+    // Two ways to set the weighted training max: estimate it from a weight × clean-reps set (the
+    // recommended first-cycle path, whose inputs we persist so the form can show them again), or
+    // type a training max in directly. The form blocks supplying both; if both still arrive the
+    // estimate wins. A direct entry clears any previously-stored estimate inputs.
     const weight = Number(formData.get(`weight_${m}`) ?? 0);
     const reps = Number(formData.get(`reps_${m}`) ?? 0);
     if (weight > 0 && reps > 0) {
       cur.trainingMax = trainingMaxFromOneRepMax(estimateOneRepMax(weight, reps), tmPct, rounding);
+      cur.estWeight = weight;
+      cur.estReps = reps;
     } else {
       const tm = Number(formData.get(`tm_${m}`));
       if (Number.isFinite(tm) && tm >= 0) cur.trainingMax = tm;
+      cur.estWeight = undefined;
+      cur.estReps = undefined;
     }
     const repMax = Number(formData.get(`repmax_${m}`));
     if (Number.isFinite(repMax) && repMax > 0) cur.repMax = Math.min(repMax, 50);
