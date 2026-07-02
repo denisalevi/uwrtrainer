@@ -18,3 +18,31 @@ export async function setLocale(formData: FormData) {
   revalidatePath("/", "layout");
   redirect("/settings");
 }
+
+/** Clamp a seconds value from a form field to a sane range (default-aware). */
+function clampSeconds(raw: FormDataEntryValue | null, fallback: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(900, Math.max(0, Math.round(n)));
+}
+
+export async function setRestTimerSettings(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      restTimerEnabled: formData.get("restTimerEnabled") === "on",
+      restTimerBeep: formData.get("restTimerBeep") === "on",
+      restTimerVibrate: formData.get("restTimerVibrate") === "on",
+      restWarmupSeconds: clampSeconds(formData.get("restWarmupSeconds"), 75),
+      restMainSeconds: clampSeconds(formData.get("restMainSeconds"), 150),
+      restBbbSeconds: clampSeconds(formData.get("restBbbSeconds"), 90),
+    },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/strength/log");
+  redirect("/settings");
+}

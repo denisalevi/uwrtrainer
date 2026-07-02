@@ -132,6 +132,14 @@ export default async function StrengthLogPage({
         week={program?.week ?? 1}
         days={loggerDays}
         bbbReps={bbb.reps}
+        restTimer={{
+          enabled: user.restTimerEnabled,
+          beep: user.restTimerBeep,
+          vibrate: user.restTimerVibrate,
+          warmupSeconds: user.restWarmupSeconds,
+          mainSeconds: user.restMainSeconds,
+          bbbSeconds: user.restBbbSeconds,
+        }}
         resume={resume}
         today={date}
       />

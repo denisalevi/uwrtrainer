@@ -13,6 +13,12 @@ export type CurrentUser = {
   locale: Locale;
   availabilityNote: string | null;
   trainerNote: string | null;
+  restTimerEnabled: boolean;
+  restTimerBeep: boolean;
+  restTimerVibrate: boolean;
+  restWarmupSeconds: number;
+  restMainSeconds: number;
+  restBbbSeconds: number;
 };
 
 /**
@@ -34,6 +40,12 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       locale: true,
       availabilityNote: true,
       trainerNote: true,
+      restTimerEnabled: true,
+      restTimerBeep: true,
+      restTimerVibrate: true,
+      restWarmupSeconds: true,
+      restMainSeconds: true,
+      restBbbSeconds: true,
     },
   });
   if (!user) return null;
