@@ -11,7 +11,7 @@ import {
   parseWarmupScheme,
   parseBbbConfig,
 } from "@/lib/constants";
-import { setLocale } from "@/app/actions/settings";
+import { setLocale, setRestTimerSettings } from "@/app/actions/settings";
 import {
   updateLeaderboards,
   updateStrengthIncludePull,
@@ -64,6 +64,89 @@ export default async function SettingsPage() {
             </form>
           </CardBody>
         </Card>
+      </section>
+
+      {/* Rest timer (all users) */}
+      <section className="space-y-2">
+        <SectionTitle>{t("set.restTimer")}</SectionTitle>
+        <p className="text-xs text-slate-500">{t("set.restTimerIntro")}</p>
+        <form action={setRestTimerSettings}>
+          <Card>
+            <CardBody className="space-y-3">
+              <div className="space-y-2">
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    name="restTimerEnabled"
+                    defaultChecked={user.restTimerEnabled}
+                    className="h-5 w-5 rounded border-slate-300 text-teal-600 focus:ring-teal-400"
+                  />
+                  <span className="flex-1 text-sm font-medium text-slate-800">{t("set.restTimerEnable")}</span>
+                </label>
+                <p className="pl-8 text-xs text-slate-500">{t("set.restTimerEnableHint")}</p>
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    name="restTimerBeep"
+                    defaultChecked={user.restTimerBeep}
+                    className="h-5 w-5 rounded border-slate-300 text-teal-600 focus:ring-teal-400"
+                  />
+                  <span className="flex-1 text-sm font-medium text-slate-800">{t("set.restTimerBeep")}</span>
+                </label>
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    name="restTimerVibrate"
+                    defaultChecked={user.restTimerVibrate}
+                    className="h-5 w-5 rounded border-slate-300 text-teal-600 focus:ring-teal-400"
+                  />
+                  <span className="flex-1 text-sm font-medium text-slate-800">{t("set.restTimerVibrate")}</span>
+                </label>
+              </div>
+              <div className="space-y-2 border-t border-slate-100 pt-3">
+                <div>
+                  <Label htmlFor="restWarmupSeconds">{t("set.restWarmupSeconds")}</Label>
+                  <Input
+                    id="restWarmupSeconds"
+                    type="number"
+                    min={0}
+                    max={900}
+                    inputMode="numeric"
+                    name="restWarmupSeconds"
+                    defaultValue={String(user.restWarmupSeconds)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="restMainSeconds">{t("set.restMainSeconds")}</Label>
+                  <Input
+                    id="restMainSeconds"
+                    type="number"
+                    min={0}
+                    max={900}
+                    inputMode="numeric"
+                    name="restMainSeconds"
+                    defaultValue={String(user.restMainSeconds)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="restBbbSeconds">{t("set.restBbbSeconds")}</Label>
+                  <Input
+                    id="restBbbSeconds"
+                    type="number"
+                    min={0}
+                    max={900}
+                    inputMode="numeric"
+                    name="restBbbSeconds"
+                    defaultValue={String(user.restBbbSeconds)}
+                  />
+                </div>
+              </div>
+            </CardBody>
+          </Card>
+          <Button type="submit" className="mt-3 w-full">
+            {t("common.save")}
+          </Button>
+        </form>
       </section>
 
       {/* Leaderboard settings (trainers) */}
