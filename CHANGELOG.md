@@ -11,6 +11,21 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-07-06
+
+### Added
+- **Seasonal practices (date ranges).** Each team practice can now carry an optional **From / Until**
+  date window (`/team/practices`), plus a manual **Deactivate / Activate** toggle that pauses it even
+  inside the window. Out-of-season practices are hidden from the logging & attendance pickers,
+  generate **no auto-miss**, and **don't count against weekly adherence** — so summer/winter
+  schedules stop penalising players for practices that aren't running. (#28)
+
+### Changed
+- **Session lists on home and a teammate's profile redesigned.** Sessions are grouped into **weeks
+  (Mon–Sun)** under a labelled separator, split by **day** with clear day headings, and each week's
+  **auto-missed** rows are collected at the **end** of that week. Every entry is now a bounded card
+  that stays **collapsed by default** (previously auto-missed rows expanded on load).
+
 ## [0.17.2] - 2026-07-05
 
 ### Changed

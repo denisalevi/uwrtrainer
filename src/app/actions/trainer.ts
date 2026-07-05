@@ -23,12 +23,39 @@ async function requireTrainerAction() {
   return user;
 }
 
+// A yyyy-mm-dd form value, or null when blank/malformed.
+const DateStr = z
+  .string()
+  .optional()
+  .transform((s) => (s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null));
+
 const SlotSchema = z.object({
   label: z.string().min(1).max(80).trim(),
   dayOfWeek: z.coerce.number().int().min(0).max(6),
   time: z.string().max(10).optional(),
   tier: z.enum(PRACTICE_TIERS),
+  validFrom: DateStr,
+  validTo: DateStr,
 });
+
+/** Parse a yyyy-mm-dd string into a local-midnight Date (matches how availability is compared). */
+function toLocalDate(s: string | null): Date | null {
+  if (!s) return null;
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** Shared create/update payload from the validated slot form. */
+function slotData(parsed: z.infer<typeof SlotSchema>) {
+  return {
+    label: parsed.label,
+    dayOfWeek: parsed.dayOfWeek,
+    tier: parsed.tier,
+    time: parsed.time || null,
+    validFrom: toLocalDate(parsed.validFrom),
+    validTo: toLocalDate(parsed.validTo),
+  };
+}
 
 export async function addSlot(formData: FormData) {
   const user = await requireTrainerAction();
@@ -36,7 +63,7 @@ export async function addSlot(formData: FormData) {
   if (!parsed.success) throw new Error("Invalid practice");
   if (!user.activeTeamId) throw new Error("No active team");
   await prisma.practiceSlot.create({
-    data: { ...parsed.data, time: parsed.data.time || null, teamId: user.activeTeamId },
+    data: { ...slotData(parsed.data), teamId: user.activeTeamId },
   });
   revalidatePath("/team/practices");
 }
@@ -49,7 +76,7 @@ export async function updateSlot(formData: FormData) {
   if (!parsed.success) throw new Error("Invalid practice");
   await prisma.practiceSlot.update({
     where: { id: slotId, teamId: user.activeTeamId ?? undefined },
-    data: { ...parsed.data, time: parsed.data.time || null },
+    data: slotData(parsed.data),
   });
   revalidatePath("/team/practices");
 }

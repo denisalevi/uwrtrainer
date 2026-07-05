@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
+import { isSlotAvailableOn } from "@/lib/practice-window";
 import { LogForm } from "@/components/log-form";
 import { CATEGORIES, type Category } from "@/lib/constants";
 
@@ -14,12 +15,6 @@ export default async function LogPage({
   const { t } = await getServerT();
   const { category, date } = await searchParams;
 
-  const slots = await prisma.practiceSlot.findMany({
-    where: { active: true, teamId: user.activeTeamId ?? "" },
-    orderBy: { dayOfWeek: "asc" },
-    select: { id: true, label: true, tier: true },
-  });
-
   // "Log the session" deep-links from a count-shortfall row carry the category + a date in that
   // week so the logger opens prefilled (status defaults to DONE so logging clears the shortfall).
   const defaultCategory =
@@ -27,6 +22,23 @@ export default async function LogPage({
       ? (category as Category)
       : undefined;
   const defaultDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined;
+
+  const allSlots = await prisma.practiceSlot.findMany({
+    where: { active: true, teamId: user.activeTeamId ?? "" },
+    orderBy: { dayOfWeek: "asc" },
+    select: { id: true, label: true, tier: true, validFrom: true, validTo: true },
+  });
+  // Only practices in season on the target date (the prefilled date, else today) are offered.
+  const refDate = defaultDate
+    ? new Date(
+        Number(defaultDate.slice(0, 4)),
+        Number(defaultDate.slice(5, 7)) - 1,
+        Number(defaultDate.slice(8, 10)),
+      )
+    : new Date();
+  const slots = allSlots
+    .filter((s) => isSlotAvailableOn({ active: true, validFrom: s.validFrom, validTo: s.validTo }, refDate))
+    .map(({ id, label, tier }) => ({ id, label, tier }));
 
   return (
     <div className="space-y-5">

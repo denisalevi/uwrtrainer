@@ -127,6 +127,7 @@ export const en = {
   "dash.nothingLogged": "Nothing logged this week yet.",
   "dash.recentLogs": "Recent sessions",
   "dash.allLogs": "All sessions",
+  "dash.autoFlagged": "Auto-flagged",
 
   "log.title": "Log a session",
   "log.chooseCategory": "What did you do?",
@@ -215,6 +216,13 @@ export const en = {
   "slots.time": "Time",
   "slots.tier": "Type",
   "slots.active": "Active",
+  "slots.from": "From",
+  "slots.until": "Until",
+  "slots.dateHint": "Leave both blank for a year-round practice; set a range for seasonal ones.",
+  "slots.allSeason": "All year",
+  "slots.paused": "Paused",
+  "slots.deactivate": "Deactivate",
+  "slots.activate": "Activate",
   "slots.none": "No practices yet.",
 
   "set.title": "Settings",
@@ -610,6 +618,7 @@ export const de: Record<DictKey, string> = {
   "dash.nothingLogged": "Diese Woche noch nichts eingetragen.",
   "dash.recentLogs": "Letzte Einheiten",
   "dash.allLogs": "Alle Einheiten",
+  "dash.autoFlagged": "Automatisch markiert",
 
   "log.title": "Einheit eintragen",
   "log.chooseCategory": "Was hast du gemacht?",
@@ -698,6 +707,13 @@ export const de: Record<DictKey, string> = {
   "slots.time": "Uhrzeit",
   "slots.tier": "Typ",
   "slots.active": "Aktiv",
+  "slots.from": "Ab",
+  "slots.until": "Bis",
+  "slots.dateHint": "Beide leer lassen für ganzjährige Trainings; Zeitraum für saisonale.",
+  "slots.allSeason": "Ganzjährig",
+  "slots.paused": "Pausiert",
+  "slots.deactivate": "Deaktivieren",
+  "slots.activate": "Aktivieren",
   "slots.none": "Noch keine Trainings.",
 
   "set.title": "Einstellungen",

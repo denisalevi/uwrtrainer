@@ -16,6 +16,7 @@ import {
 } from "@/lib/dates";
 import type { Category, LeaderboardMetric, PracticeTier } from "@/lib/constants";
 import { selectActivePlan } from "@/lib/plan-version";
+import { isSlotInSeasonForWeek } from "@/lib/practice-window";
 
 type LogRow = {
   status: string;
@@ -37,6 +38,11 @@ type PlanWithItems = {
     tier: PracticeTier | null;
     note: string | null;
     label: string | null; // practice slot label, if any
+    // Seasonal window of the committed practice slot (null slot => not a specific practice).
+    slotActive: boolean;
+    slotValidFrom: Date | null;
+    slotValidTo: Date | null;
+    slotDayOfWeek: number | null;
   }[];
 };
 
@@ -48,6 +54,7 @@ function activeItems(plans: PlanWithItems[], userId: string, ref: Date) {
 function buildScoreItems(
   items: PlanWithItems["items"],
   logs: LogRow[],
+  weekStart: Date,
 ): (ScoreItem & { note: string | null; label: string | null })[] {
   return items.map((it) => {
     let done: number;
@@ -64,10 +71,25 @@ function buildScoreItems(
         (l) => l.status === "DONE" && l.category === it.category && !l.practiceSlotId,
       ).length;
     }
+    // A committed practice that's out of season this week (deactivated or outside its date
+    // window) isn't expected: drop its target to 0 so it neither counts nor penalises adherence.
+    let target = it.target;
+    if (it.practiceSlotId && it.slotDayOfWeek != null) {
+      const inSeason = isSlotInSeasonForWeek(
+        {
+          active: it.slotActive,
+          validFrom: it.slotValidFrom,
+          validTo: it.slotValidTo,
+          dayOfWeek: it.slotDayOfWeek,
+        },
+        weekStart,
+      );
+      if (!inSeason) target = 0;
+    }
     return {
       category: it.category as Category,
       tier: it.tier,
-      target: it.target,
+      target,
       done,
       note: it.note,
       label: it.label,
@@ -92,6 +114,10 @@ async function loadPlans(userIds?: string[]): Promise<PlanWithItems[]> {
       tier: (it.practiceSlot?.tier as PracticeTier | undefined) ?? null,
       note: it.note,
       label: it.practiceSlot?.label ?? null,
+      slotActive: it.practiceSlot?.active ?? true,
+      slotValidFrom: it.practiceSlot?.validFrom ?? null,
+      slotValidTo: it.practiceSlot?.validTo ?? null,
+      slotDayOfWeek: it.practiceSlot?.dayOfWeek ?? null,
     })),
   }));
 }
@@ -134,7 +160,7 @@ export async function getCurrentWeekDetail(userId: string): Promise<WeekDetail> 
   const plans = await loadPlans([userId]);
   const logsByUser = await loadLogs([userId], weekStart, addWeeks(weekStart, 1));
   const ref = addDays(weekStart, 6);
-  const items = buildScoreItems(activeItems(plans, userId, ref), logsByUser.get(userId) ?? []);
+  const items = buildScoreItems(activeItems(plans, userId, ref), logsByUser.get(userId) ?? [], weekStart);
   return { weekStart, score: scoreWeek(items), items };
 }
 
@@ -150,7 +176,7 @@ export async function getStreak(userId: string, weeks = 26): Promise<number> {
 
   const pcts: number[] = [];
   for (const ws of weekStartsInRange(windowStart, thisWeekStart)) {
-    const items = buildScoreItems(activeItems(plans, userId, addDays(ws, 6)), logsInWeek(logs, ws));
+    const items = buildScoreItems(activeItems(plans, userId, addDays(ws, 6)), logsInWeek(logs, ws), ws);
     const s = scoreWeek(items);
     pcts.push(s.hasPlan ? s.adherencePct : 0);
   }
@@ -168,7 +194,7 @@ export async function getCurrentWeekMetrics(
   const plans = await loadPlans([userId]);
   const logsByUser = await loadLogs([userId], weekStart, addWeeks(weekStart, 1));
   const logs = logsByUser.get(userId) ?? [];
-  const items = buildScoreItems(activeItems(plans, userId, addDays(weekStart, 6)), logs);
+  const items = buildScoreItems(activeItems(plans, userId, addDays(weekStart, 6)), logs, weekStart);
   const score = scoreWeek(items);
   return {
     ADHERENCE_POINTS: score.points,
@@ -216,7 +242,7 @@ export async function getLeaderboard(
       const logs = logsByUser.get(u.id) ?? [];
       let total = 0;
       for (const ws of weeks) {
-        const items = buildScoreItems(activeItems(plans, u.id, addDays(ws, 6)), logsInWeek(logs, ws));
+        const items = buildScoreItems(activeItems(plans, u.id, addDays(ws, 6)), logsInWeek(logs, ws), ws);
         total += scoreWeek(items).points;
       }
       values.set(u.id, total);
@@ -250,7 +276,7 @@ export async function getTeamSummary(teamId: string | null): Promise<
   const ref = addDays(weekStart, 6);
 
   return users.map((u) => {
-    const items = buildScoreItems(activeItems(plans, u.id, ref), logsByUser.get(u.id) ?? []);
+    const items = buildScoreItems(activeItems(plans, u.id, ref), logsByUser.get(u.id) ?? [], weekStart);
     const s = scoreWeek(items);
     return {
       userId: u.id,

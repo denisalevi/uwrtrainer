@@ -80,7 +80,13 @@ model PracticeSlot {
   dayOfWeek Int // 0=Sun .. 6=Sat
   time      String? // "19:00"
   tier      String   @default("SECONDARY")
+  // Manual availability toggle: false = paused/hidden (not loggable, no auto-miss), independent
+  // of the seasonal window below. active AND in-window => the practice is bookable that day.
   active    Boolean  @default(true)
+  // Optional seasonal window (calendar dates, inclusive by day; null = open-ended). Outside it the
+  // practice isn't offered for logging and generates no auto-miss — for summer/winter schedules.
+  validFrom DateTime?
+  validTo   DateTime?
   createdAt DateTime @default(now())
 
   planItems   PlanItem[]

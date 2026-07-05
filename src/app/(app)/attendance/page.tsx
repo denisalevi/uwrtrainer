@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
+import { isSlotAvailableOn } from "@/lib/practice-window";
 import { AttendanceForm } from "@/components/attendance-form";
 
 export default async function AttendancePage({
@@ -13,11 +14,11 @@ export default async function AttendancePage({
   const { t } = await getServerT();
   const { slot, date, edit } = await searchParams;
 
-  const [slots, members] = await Promise.all([
+  const [allSlots, members] = await Promise.all([
     prisma.practiceSlot.findMany({
       where: { active: true, teamId: user.activeTeamId ?? "" },
       orderBy: { dayOfWeek: "asc" },
-      select: { id: true, label: true, tier: true, dayOfWeek: true },
+      select: { id: true, label: true, tier: true, dayOfWeek: true, validFrom: true, validTo: true },
     }),
     prisma.user.findMany({
       where: { memberships: { some: { teamId: user.activeTeamId ?? "" } } },
@@ -25,6 +26,16 @@ export default async function AttendancePage({
       select: { id: true, name: true },
     }),
   ]);
+
+  // Only practices in season on the target date are offered for attendance (active is already
+  // filtered in the query; the window narrows it further).
+  const refDate =
+    date && /^\d{4}-\d{2}-\d{2}$/.test(date)
+      ? new Date(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)))
+      : new Date();
+  const slots = allSlots
+    .filter((s) => isSlotAvailableOn({ active: true, validFrom: s.validFrom, validTo: s.validTo }, refDate))
+    .map(({ id, label, tier, dayOfWeek }) => ({ id, label, tier, dayOfWeek }));
 
   // Edit mode (feed "Edit attendance" link): prefill the checkboxes with who is already
   // recorded as DONE for that slot+date, and let the submit reconcile removals too.

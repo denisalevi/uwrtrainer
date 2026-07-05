@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { startOfWeek, addWeeks, addDays } from "@/lib/dates";
+import { isSlotAvailableOn } from "@/lib/practice-window";
 
 /**
  * Auto-MISSED reconciliation. Two SEPARATE buckets, both producing
@@ -49,6 +50,31 @@ function dayBounds(date: Date): { dayStart: Date; dayEnd: Date } {
  */
 export async function reconcileRugbyMissed(slotId: string, date: Date): Promise<string[]> {
   const { dayStart, dayEnd } = dayBounds(date);
+
+  // Seasonal guard: a practice that is deactivated or outside its date window on this day is not
+  // "expected" — it must produce no auto-MISSED. If any stale auto rows exist for it (e.g. the
+  // window was narrowed after they were created), clear them and stop. Missing slot => proceed
+  // (backwards-compatible: treat as always-available).
+  const slot = await prisma.practiceSlot.findUnique({
+    where: { id: slotId },
+    select: { active: true, validFrom: true, validTo: true },
+  });
+  if (slot && !isSlotAvailableOn(slot, date)) {
+    const staleAutos = await prisma.sessionLog.findMany({
+      where: {
+        category: "RUGBY",
+        practiceSlotId: slotId,
+        status: "MISSED",
+        auto: true,
+        date: { gte: dayStart, lt: dayEnd },
+      },
+      select: { id: true, userId: true },
+    });
+    if (staleAutos.length) {
+      await prisma.sessionLog.deleteMany({ where: { id: { in: staleAutos.map((a) => a.id) } } });
+    }
+    return staleAutos.map((a) => a.userId);
+  }
 
   // Users committed to this specific practice slot via an active plan marker.
   const planItems = await prisma.planItem.findMany({

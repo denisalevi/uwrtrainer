@@ -22,9 +22,10 @@ const db: {
   logs: Log[];
   plans: { userId: string; validFrom: Date; validTo: Date | null; items: any[] }[];
   planItems: { category: string; practiceSlotId: string | null; userId: string }[];
+  slots: Record<string, { active: boolean; validFrom: Date | null; validTo: Date | null }>;
   setting: Record<string, string>;
   seq: number;
-} = { logs: [], plans: [], planItems: [], setting: {}, seq: 0 };
+} = { logs: [], plans: [], planItems: [], slots: {}, setting: {}, seq: 0 };
 
 function within(d: Date, gte?: Date, lt?: Date) {
   if (gte && d < gte) return false;
@@ -39,6 +40,10 @@ vi.mock("@/lib/db", () => ({
         db.planItems
           .filter((p) => p.category === where.category && p.practiceSlotId === where.practiceSlotId)
           .map((p) => ({ plan: { userId: p.userId } })),
+    },
+    practiceSlot: {
+      // Unseeded slot => null (guard is a no-op, i.e. treated as always-available).
+      findUnique: async ({ where }: any) => db.slots[where.id] ?? null,
     },
     plan: {
       findMany: async ({ where, select }: any) => {
@@ -135,6 +140,7 @@ beforeEach(() => {
   db.logs = [];
   db.plans = [];
   db.planItems = [];
+  db.slots = {};
   db.setting = {};
   db.seq = 0;
 });
@@ -234,6 +240,25 @@ describe("reconcileRugbyMissed — ticked-practice dedup", () => {
 
     // u1 gets marked present later → their auto-missed is removed (idempotent, no duplicates).
     addLog({ userId: "u1", category: "RUGBY", status: "DONE", practiceSlotId: SLOT, date: DATE });
+    await reconcileRugbyMissed(SLOT, DATE);
+    expect(autoMissedFor("u1")).toHaveLength(0);
+  });
+
+  it("produces no auto-miss (and clears stale ones) when the slot is out of season", async () => {
+    commit("u1");
+    // A stale auto row from when the practice was in season.
+    addLog({ userId: "u1", category: "RUGBY", status: "MISSED", auto: true, practiceSlotId: SLOT, date: DATE });
+
+    // Deactivated → the stale row is cleared and none is recreated.
+    db.slots[SLOT] = { active: false, validFrom: null, validTo: null };
+    const touched = await reconcileRugbyMissed(SLOT, DATE);
+    expect(autoMissedFor("u1")).toHaveLength(0);
+    expect(touched).toContain("u1");
+
+    // Out of window (date before validFrom) → still nothing created.
+    const after = new Date(DATE);
+    after.setDate(after.getDate() + 1);
+    db.slots[SLOT] = { active: true, validFrom: after, validTo: null };
     await reconcileRugbyMissed(SLOT, DATE);
     expect(autoMissedFor("u1")).toHaveLength(0);
   });
