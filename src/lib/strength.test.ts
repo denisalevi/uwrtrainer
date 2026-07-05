@@ -10,6 +10,7 @@ import {
   bodyweightWorkout,
   levelLabel,
   decideAdjustment,
+  advanceMovementState,
   nextTrainingMax,
   nextBodyweight,
   modeForEquipment,
@@ -218,6 +219,44 @@ describe("nextBodyweight", () => {
     expect(
       nextBodyweight({ repMax: 20, levelIndex: 5 }, "INCREASE", { levelCount: 6, graduateAt: 15 }),
     ).toEqual({ repMax: 21, levelIndex: 5 });
+  });
+});
+
+describe("advanceMovementState (closing out a cycle for one lift)", () => {
+  const cur = {
+    trainingMax: 90,
+    repMax: 8,
+    levelIndex: 1,
+    estWeight: 85,
+    estReps: 5,
+    weightedExerciseId: "PUSH_DB",
+    bodyweightExerciseId: "PUSH_ARCHER",
+    weightedCustom: undefined,
+    bodyweightCustom: undefined,
+  };
+
+  it("preserves the chosen exercise variants — only the progression fields change", () => {
+    const next = advanceMovementState("PUSH", { ...cur, weightedExerciseId: "custom", weightedCustom: "Ring dips" }, 3, 1, { rounding: 2.5 });
+    expect(next.weightedExerciseId).toBe("custom");
+    expect(next.weightedCustom).toBe("Ring dips");
+    expect(next.bodyweightExerciseId).toBe("PUSH_ARCHER");
+    expect(next.trainingMax).toBe(92.5); // INCREASE by the upper-body increment
+    expect(next.repMax).toBe(9);
+  });
+
+  it("drops the first-cycle estimate inputs (they described the pre-adjustment max)", () => {
+    const next = advanceMovementState("PUSH", cur, 3, 1, { rounding: 2.5 });
+    expect(next.estWeight).toBeUndefined();
+    expect(next.estReps).toBeUndefined();
+    // …and they don't survive a JSON round-trip either.
+    expect(JSON.parse(JSON.stringify(next))).not.toHaveProperty("estWeight");
+  });
+
+  it("HOLD keeps every max as-is (first shortfall)", () => {
+    const next = advanceMovementState("PUSH", cur, 0, 1, { rounding: 2.5 });
+    expect(next.trainingMax).toBe(90);
+    expect(next.repMax).toBe(8);
+    expect(next.levelIndex).toBe(1);
   });
 });
 

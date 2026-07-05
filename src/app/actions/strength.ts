@@ -21,9 +21,7 @@ import {
   trainingMaxFromOneRepMax,
   defaultFullState,
   decideAdjustment,
-  nextTrainingMax,
-  nextBodyweight,
-  incrementFor,
+  advanceMovementState,
   waveWeek,
   catalogEntry,
   defaultExerciseId,
@@ -281,23 +279,13 @@ export async function finishStrengthCycle(formData: FormData) {
   for (const m of MOVEMENTS) {
     const raw = formData.get(`amrap_${m}`);
     const amrap = raw == null || String(raw).trim() === "" ? prescribed : Number(raw);
-    const adjustment = decideAdjustment(amrap, prescribed, program.consecutiveHolds);
-    if (adjustment !== "INCREASE") anyHold = true;
-
     const cur: MovementState = state[m] ?? {};
-    const bw = nextBodyweight(
-      { repMax: cur.repMax ?? 5, levelIndex: cur.levelIndex ?? 0 },
-      adjustment,
-      { mode: "LEVELS", levelCount: MOVEMENT_LEVELS[m].length, graduateAt: 15, resetReps: 5 },
-    );
-    state[m] = {
-      trainingMax: nextTrainingMax(cur.trainingMax ?? 0, adjustment, {
-        increment: incrementFor(m),
-        rounding: program.rounding,
-      }),
-      repMax: bw.repMax,
-      levelIndex: bw.levelIndex,
-    };
+    if (decideAdjustment(amrap, prescribed, program.consecutiveHolds) !== "INCREASE") anyHold = true;
+    // Advance only the progression fields — the chosen exercise variants etc. are preserved.
+    state[m] = advanceMovementState(m, cur, amrap, prescribed, {
+      rounding: program.rounding,
+      consecutiveHolds: program.consecutiveHolds,
+    });
   }
 
   await prisma.strengthProgram.update({

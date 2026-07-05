@@ -328,6 +328,42 @@ export function nextBodyweight(
   return { repMax: repMax + 1, levelIndex };
 }
 
+// ─────────────────────────────────────────────── Closing out a cycle (per lift) ──
+
+/**
+ * Close out a cycle for ONE movement: judge its week-3 AMRAP result against its prescription,
+ * advance both maxima (weighted training max + bodyweight rep/level), and return the movement's
+ * next-cycle state. Everything else the state carries (chosen exercise variants, custom names)
+ * is PRESERVED — only the progression fields change. The first-cycle estimate inputs
+ * (`estWeight`/`estReps`) are deliberately dropped: they describe the set the very first
+ * training max was derived from, which is stale once a cycle has adjusted it.
+ */
+export function advanceMovementState(
+  movement: MovementKey,
+  cur: MovementState,
+  amrapReps: number,
+  prescribedReps: number,
+  opts: { rounding?: number; consecutiveHolds?: number } = {},
+): MovementState {
+  const adjustment = decideAdjustment(amrapReps, prescribedReps, opts.consecutiveHolds ?? 0);
+  const bw = nextBodyweight(
+    { repMax: cur.repMax ?? 5, levelIndex: cur.levelIndex ?? 0 },
+    adjustment,
+    { mode: "LEVELS", levelCount: MOVEMENT_LEVELS[movement].length, graduateAt: 15, resetReps: 5 },
+  );
+  return {
+    ...cur,
+    trainingMax: nextTrainingMax(cur.trainingMax ?? 0, adjustment, {
+      increment: incrementFor(movement),
+      rounding: opts.rounding,
+    }),
+    repMax: bw.repMax,
+    levelIndex: bw.levelIndex,
+    estWeight: undefined, // first-cycle-only; retire after the first adjustment
+    estReps: undefined,
+  };
+}
+
 // ───────────────────────────────────────────── Equipment → mode, and templates ──
 
 /** Map what the athlete has to the progression mode. Nothing at all is fully supported. */
