@@ -9,12 +9,12 @@ export default async function LogPage({
 }: {
   searchParams: Promise<{ category?: string; date?: string }>;
 }) {
-  await requireUser();
+  const user = await requireUser();
   const { t } = await getServerT();
   const { category, date } = await searchParams;
 
   const slots = await prisma.practiceSlot.findMany({
-    where: { active: true },
+    where: { active: true, teamId: user.activeTeamId ?? "" },
     orderBy: { dayOfWeek: "asc" },
     select: { id: true, label: true, tier: true },
   });

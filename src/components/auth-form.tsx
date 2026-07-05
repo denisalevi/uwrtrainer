@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
-import { login, signup, type AuthState } from "@/app/actions/auth";
+import { login, signup, listClaimableMembers, type AuthState } from "@/app/actions/auth";
 import { useT } from "@/components/i18n-provider";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Button, Input, Label } from "@/components/ui";
@@ -17,6 +17,28 @@ export function AuthForm({
   const { t } = useT();
   const action = mode === "login" ? login : signup;
   const [state, formAction, pending] = useActionState<AuthState, FormData>(action, undefined);
+  const [code, setCode] = useState("");
+  const [claimables, setClaimables] = useState<{ id: string; name: string }[]>([]);
+
+  // Roster claim: fetch unclaimed members of the team the entered code belongs to
+  // (or of the default team when signup is open). Debounced on code typing.
+  useEffect(() => {
+    if (mode !== "signup") return;
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      listClaimableMembers(code || undefined)
+        .then((members) => {
+          if (!cancelled) setClaimables(members);
+        })
+        .catch(() => {
+          if (!cancelled) setClaimables([]);
+        });
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [mode, code]);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -45,8 +67,32 @@ export function AuthForm({
       {mode === "signup" && requireCode && (
         <div>
           <Label htmlFor="code">{t("auth.inviteCode")}</Label>
-          <Input id="code" name="code" autoComplete="off" placeholder={t("auth.inviteCodePlaceholder")} required />
+          <Input
+            id="code"
+            name="code"
+            autoComplete="off"
+            placeholder={t("auth.inviteCodePlaceholder")}
+            required
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
         </div>
+      )}
+
+      {mode === "signup" && claimables.length > 0 && (
+        <fieldset className="space-y-1 rounded-lg border border-slate-200 p-3">
+          <legend className="px-1 text-sm font-medium text-slate-700">{t("auth.claimPrompt")}</legend>
+          {claimables.map((m) => (
+            <label key={m.id} className="flex items-center gap-2 text-sm text-slate-800">
+              <input type="radio" name="claimMemberId" value={m.id} />
+              {m.name}
+            </label>
+          ))}
+          <label className="flex items-center gap-2 text-sm text-slate-800">
+            <input type="radio" name="claimMemberId" value="" defaultChecked />
+            {t("auth.claimNone")}
+          </label>
+        </fieldset>
       )}
 
       {state?.error && (

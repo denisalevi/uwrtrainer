@@ -15,11 +15,15 @@ export default async function AttendancePage({
 
   const [slots, members] = await Promise.all([
     prisma.practiceSlot.findMany({
-      where: { active: true },
+      where: { active: true, teamId: user.activeTeamId ?? "" },
       orderBy: { dayOfWeek: "asc" },
       select: { id: true, label: true, tier: true, dayOfWeek: true },
     }),
-    prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.user.findMany({
+      where: { memberships: { some: { teamId: user.activeTeamId ?? "" } } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
   ]);
 
   return (

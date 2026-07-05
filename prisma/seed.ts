@@ -35,19 +35,30 @@ async function seedDemo() {
   console.log("Seeding demo data…");
   const hash = await bcrypt.hash("password123", 10);
 
+  // Default team (normally created by the multi_team_roster migration; idempotent here).
+  await prisma.team.upsert({
+    where: { id: "team-default" },
+    update: {},
+    create: { id: "team-default", name: "My Team" },
+  });
+  const inTeam = {
+    activeTeamId: "team-default",
+    memberships: { create: { teamId: "team-default" } },
+  };
+
   const nando = await prisma.user.create({
-    data: { name: "Nando", email: "nando@example.com", passwordHash: hash, role: "ADMIN", locale: "en" },
+    data: { name: "Nando", email: "nando@example.com", passwordHash: hash, role: "ADMIN", locale: "en", ...inTeam },
   });
   const linus = await prisma.user.create({
     data: { name: "Linus", email: "linus@example.com", passwordHash: hash, role: "PLAYER", locale: "en",
-      availabilityNote: "Once a week each: run, gym, rugby." },
+      availabilityNote: "Once a week each: run, gym, rugby.", ...inTeam },
   });
   const denis = await prisma.user.create({
     data: { name: "Denis", email: "denis@example.com", passwordHash: hash, role: "PLAYER", locale: "de",
-      availabilityNote: "Motivated — 1-2 sessions/day." },
+      availabilityNote: "Motivated — 1-2 sessions/day.", ...inTeam },
   });
   const mia = await prisma.user.create({
-    data: { name: "Mia", email: "mia@example.com", passwordHash: hash, role: "PLAYER", locale: "en" },
+    data: { name: "Mia", email: "mia@example.com", passwordHash: hash, role: "PLAYER", locale: "en", ...inTeam },
   });
 
   // Team practice schedule.

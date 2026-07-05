@@ -31,33 +31,37 @@ const SlotSchema = z.object({
 });
 
 export async function addSlot(formData: FormData) {
-  await requireTrainerAction();
+  const user = await requireTrainerAction();
   const parsed = SlotSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Invalid practice");
+  if (!user.activeTeamId) throw new Error("No active team");
   await prisma.practiceSlot.create({
-    data: { ...parsed.data, time: parsed.data.time || null },
+    data: { ...parsed.data, time: parsed.data.time || null, teamId: user.activeTeamId },
   });
   revalidatePath("/team/practices");
 }
 
 export async function updateSlot(formData: FormData) {
-  await requireTrainerAction();
+  const user = await requireTrainerAction();
   const slotId = formData.get("slotId") as string;
   if (!slotId) throw new Error("Invalid practice");
   const parsed = SlotSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Invalid practice");
   await prisma.practiceSlot.update({
-    where: { id: slotId },
+    where: { id: slotId, teamId: user.activeTeamId ?? undefined },
     data: { ...parsed.data, time: parsed.data.time || null },
   });
   revalidatePath("/team/practices");
 }
 
 export async function setSlotActive(formData: FormData) {
-  await requireTrainerAction();
+  const user = await requireTrainerAction();
   const id = formData.get("slotId") as string;
   const active = formData.get("active") === "true";
-  await prisma.practiceSlot.update({ where: { id }, data: { active } });
+  await prisma.practiceSlot.update({
+    where: { id, teamId: user.activeTeamId ?? undefined },
+    data: { active },
+  });
   revalidatePath("/team/practices");
 }
 
@@ -151,4 +155,66 @@ export async function setRole(formData: FormData) {
   await prisma.user.update({ where: { id: parsed.data.userId }, data: { role: parsed.data.role } });
   revalidatePath(`/team/${parsed.data.userId}`);
   revalidatePath("/team");
+}
+
+const RosterMemberSchema = z.object({ name: z.string().min(2).max(80).trim() });
+
+/**
+ * Create an account-less roster member (no email/password) in the trainer's active team.
+ * They appear on rosters/attendance immediately and can be claimed at signup later.
+ */
+export async function addRosterMember(formData: FormData) {
+  const user = await requireTrainerAction();
+  if (!user.activeTeamId) throw new Error("No active team");
+  const parsed = RosterMemberSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Invalid name");
+  await prisma.user.create({
+    data: {
+      name: parsed.data.name,
+      role: "PLAYER",
+      memberships: { create: { teamId: user.activeTeamId } },
+      activeTeamId: user.activeTeamId,
+    },
+  });
+  revalidatePath("/team");
+  revalidatePath("/attendance");
+}
+
+const TeamSchema = z.object({
+  name: z.string().min(2).max(80).trim(),
+  registrationCode: z.string().max(80).trim().optional(),
+});
+
+/** Admin: create a new team (optionally with a registration code). */
+export async function createTeam(formData: FormData) {
+  const user = await requireTrainerAction();
+  if (user.role !== "ADMIN") throw new Error("Not authorized");
+  const parsed = TeamSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Invalid team");
+  const team = await prisma.team.create({
+    data: { name: parsed.data.name, registrationCode: parsed.data.registrationCode || null },
+  });
+  await prisma.teamMembership.create({ data: { userId: user.id, teamId: team.id } });
+  revalidatePath("/settings");
+  redirect("/settings");
+}
+
+/** Admin: add any user to any team. */
+export async function addUserToTeam(formData: FormData) {
+  const user = await requireTrainerAction();
+  if (user.role !== "ADMIN") throw new Error("Not authorized");
+  const userId = formData.get("userId") as string;
+  const teamId = formData.get("teamId") as string;
+  const [target, team] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId } }),
+    prisma.team.findUnique({ where: { id: teamId } }),
+  ]);
+  if (!target || !team) throw new Error("Invalid user or team");
+  await prisma.teamMembership.upsert({
+    where: { userId_teamId: { userId, teamId } },
+    update: {},
+    create: { userId, teamId },
+  });
+  revalidatePath("/team");
+  revalidatePath(`/team/${userId}`);
 }

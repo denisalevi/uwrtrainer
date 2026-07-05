@@ -11,8 +11,9 @@ import {
   parseWarmupScheme,
   parseBbbConfig,
 } from "@/lib/constants";
-import { setLocale, setRestTimerSettings } from "@/app/actions/settings";
+import { setLocale, setRestTimerSettings, joinTeamByCode } from "@/app/actions/settings";
 import {
+  createTeam,
   updateLeaderboards,
   updateStrengthIncludePull,
   updateStrengthWarmup,
@@ -37,6 +38,10 @@ export default async function SettingsPage() {
         prisma.setting.findUnique({ where: { key: SETTING_BBB } }),
       ])
     : [null, null, null];
+  const [allTeams, myTeamIds] = await Promise.all([
+    prisma.team.findMany({ select: { id: true, name: true }, orderBy: { createdAt: "asc" } }),
+    Promise.resolve(user.teamIds),
+  ]);
   const includePull = pullSetting ? pullSetting.value !== "false" : DEFAULT_INCLUDE_PULL;
   // Pad the parsed scheme to a fixed 3 rows for the form (blank rows are dropped on save).
   const warmup = parseWarmupScheme(warmupSetting?.value);
@@ -46,6 +51,51 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-900">{t("set.title")}</h1>
+
+      {/* Teams */}
+      <section className="space-y-2">
+        <SectionTitle>{t("teams.title")}</SectionTitle>
+        <Card>
+          <CardBody className="space-y-4">
+            <ul className="space-y-1">
+              {allTeams.map((team) => (
+                <li key={team.id} className="flex items-center justify-between text-sm">
+                  <span className="text-slate-800">{team.name}</span>
+                  {myTeamIds.includes(team.id) ? (
+                    <span className="text-xs font-medium text-teal-700">{t("teams.member")}</span>
+                  ) : (
+                    <span className="text-xs text-slate-400">{t("teams.notMember")}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <form action={joinTeamByCode} className="flex items-end gap-2">
+              <div className="flex-1">
+                <Label htmlFor="joinCode">{t("teams.joinCode")}</Label>
+                <Input id="joinCode" name="code" autoComplete="off" required />
+              </div>
+              <Button type="submit" variant="secondary">
+                {t("teams.joinButton")}
+              </Button>
+            </form>
+            {user.role === "ADMIN" && (
+              <form action={createTeam} className="space-y-2 border-t border-slate-100 pt-3">
+                <div>
+                  <Label htmlFor="teamName">{t("teams.name")}</Label>
+                  <Input id="teamName" name="name" required />
+                </div>
+                <div>
+                  <Label htmlFor="teamCode">{t("teams.codeOptional")}</Label>
+                  <Input id="teamCode" name="registrationCode" autoComplete="off" />
+                </div>
+                <Button type="submit" variant="secondary">
+                  {t("teams.create")}
+                </Button>
+              </form>
+            )}
+          </CardBody>
+        </Card>
+      </section>
 
       {/* Language */}
       <section className="space-y-2">
