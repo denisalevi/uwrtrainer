@@ -191,9 +191,14 @@ export type LeaderRow = { userId: string; name: string; value: number };
 export async function getLeaderboard(
   metric: LeaderboardMetric,
   period: Period,
+  teamId: string | null,
 ): Promise<LeaderRow[]> {
+  if (!teamId) return [];
   const { start, end } = periodRange(period);
-  const users = await prisma.user.findMany({ select: { id: true, name: true } });
+  const users = await prisma.user.findMany({
+    where: { memberships: { some: { teamId } } },
+    select: { id: true, name: true },
+  });
   const userIds = users.map((u) => u.id);
   if (userIds.length === 0) return [];
 
@@ -236,10 +241,14 @@ export async function getLeaderboard(
 }
 
 /** Compact per-player summary for the trainer team view (current week). */
-export async function getTeamSummary(): Promise<
-  { userId: string; name: string; role: string; adherencePct: number; points: number; hasPlan: boolean }[]
+export async function getTeamSummary(teamId: string | null): Promise<
+  { userId: string; name: string; role: string; adherencePct: number; points: number; hasPlan: boolean; claimed: boolean }[]
 > {
-  const users = await prisma.user.findMany({ select: { id: true, name: true, role: true } });
+  if (!teamId) return [];
+  const users = await prisma.user.findMany({
+    where: { memberships: { some: { teamId } } },
+    select: { id: true, name: true, role: true, passwordHash: true },
+  });
   const userIds = users.map((u) => u.id);
   if (userIds.length === 0) return [];
   const weekStart = startOfWeek(new Date());
@@ -257,6 +266,7 @@ export async function getTeamSummary(): Promise<
       adherencePct: s.adherencePct,
       points: s.points,
       hasPlan: s.hasPlan,
+      claimed: u.passwordHash !== null,
     };
   });
 }

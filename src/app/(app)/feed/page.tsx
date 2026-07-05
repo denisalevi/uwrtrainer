@@ -43,7 +43,10 @@ function noteFromDetails(details: string | null): string | null {
 }
 
 export default async function FeedPage() {
-  await requireUser();
+  const viewer = await requireUser();
+  const teamScope = viewer.activeTeamId
+    ? { memberships: { some: { teamId: viewer.activeTeamId } } }
+    : { id: "" }; // no team -> empty feed
   const { t } = await getServerT();
 
   // Last 7 days by the DONE/MISSED `date` field (not createdAt).
@@ -59,6 +62,7 @@ export default async function FeedPage() {
       where: {
         date: { gte: start, lt: end },
         NOT: { status: "MISSED", auto: true },
+        user: teamScope,
       },
       orderBy: { date: "desc" },
       include: {
@@ -75,6 +79,7 @@ export default async function FeedPage() {
         auto: true,
         category: "RUGBY",
         NOT: { practiceSlotId: null },
+        user: teamScope,
       },
       include: { user: { select: { name: true } } },
     }),

@@ -8,8 +8,12 @@ import { isTrainer, type Locale, DEFAULT_LOCALE, isLocale } from "@/lib/constant
 export type CurrentUser = {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
   role: string;
+  /** The team currently viewed (persisted choice if still a member, else first membership). */
+  activeTeamId: string | null;
+  /** All team ids the user belongs to. */
+  teamIds: string[];
   locale: Locale;
   availabilityNote: string | null;
   trainerNote: string | null;
@@ -37,6 +41,8 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       name: true,
       email: true,
       role: true,
+      activeTeamId: true,
+      memberships: { select: { teamId: true }, orderBy: { createdAt: "asc" } },
       locale: true,
       availabilityNote: true,
       trainerNote: true,
@@ -50,8 +56,15 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   });
   if (!user) return null;
 
+  const teamIds = user.memberships.map((m) => m.teamId);
+  const { memberships: _memberships, ...rest } = user;
   return {
-    ...user,
+    ...rest,
+    activeTeamId:
+      user.activeTeamId && teamIds.includes(user.activeTeamId)
+        ? user.activeTeamId
+        : (teamIds[0] ?? null),
+    teamIds,
     locale: isLocale(user.locale) ? user.locale : DEFAULT_LOCALE,
   };
 });

@@ -19,7 +19,7 @@ export default async function EditLogPage({ params }: { params: Promise<{ id: st
   if (log.category === "STRENGTH" && log.status === "DONE") redirect(`/strength/log?id=${log.id}`);
 
   const slots = await prisma.practiceSlot.findMany({
-    where: { active: true },
+    where: { active: true, teamId: user.activeTeamId ?? "" },
     orderBy: { dayOfWeek: "asc" },
     select: { id: true, label: true, tier: true },
   });

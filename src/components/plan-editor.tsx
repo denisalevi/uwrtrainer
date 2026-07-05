@@ -14,7 +14,10 @@ export async function PlanEditor({ userId }: { userId: string }) {
   const { t } = await getServerT();
 
   const [slots, user, activePlan] = await Promise.all([
-    prisma.practiceSlot.findMany({ where: { active: true }, orderBy: { dayOfWeek: "asc" } }),
+    prisma.practiceSlot.findMany({
+      where: { active: true, team: { memberships: { some: { userId } } } },
+      orderBy: { dayOfWeek: "asc" },
+    }),
     prisma.user.findUnique({
       where: { id: userId },
       select: { availabilityNote: true, trainerNote: true },

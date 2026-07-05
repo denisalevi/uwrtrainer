@@ -12,12 +12,15 @@ datasource db {
 }
 
 /// A team member. role: "PLAYER" | "TRAINER" | "ADMIN". locale: "en" | "de".
+/// email + passwordHash are nullable: a row with passwordHash = NULL is an account-less
+/// roster member (created by a trainer; can be "claimed" at signup, keeping history).
 model User {
   id               String   @id @default(cuid())
-  email            String   @unique
+  email            String?  @unique
   name             String
-  passwordHash     String
+  passwordHash     String?
   role             String   @default("PLAYER")
+  activeTeamId     String?
   locale           String   @default("en")
   availabilityNote String?
   trainerNote      String?
@@ -36,11 +39,39 @@ model User {
   createdPlans     Plan[]            @relation("PlanCreator")
   sessionLogs      SessionLog[]
   strengthPrograms StrengthProgram[]
+  memberships      TeamMembership[]
+}
+
+/// A team. registrationCode gates self-signup/join for this team. The migration creates a
+/// default team (id "team-default"); when its code is NULL the env REGISTRATION_CODE applies.
+model Team {
+  id               String   @id @default(cuid())
+  name             String
+  registrationCode String?
+  createdAt        DateTime @default(now())
+
+  memberships   TeamMembership[]
+  practiceSlots PracticeSlot[]
+}
+
+/// User <-> Team many-to-many. A user's active team is User.activeTeamId (fallback: first membership).
+model TeamMembership {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, teamId])
+  @@index([teamId])
 }
 
 /// Team-wide recurring practice. tier: "PRIMARY" (mandatory) | "SECONDARY" | "OPTIONAL".
 model PracticeSlot {
   id        String   @id @default(cuid())
+  teamId    String   @default("team-default")
+  team      Team     @relation(fields: [teamId], references: [id])
   label     String
   dayOfWeek Int // 0=Sun .. 6=Sat
   time      String? // "19:00"

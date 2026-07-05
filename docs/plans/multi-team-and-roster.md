@@ -100,18 +100,45 @@ any team and create teams.
 ## Phased checklist (update as you go)
 
 - [x] **Phase 0** — this plan committed.
-- [ ] **Phase 1** — schema + hand-edited migration + `prisma generate`; migration applies cleanly
-  to a DB with existing data (verified via seeded dev.db).
-- [ ] **Phase 2** — core plumbing: dal (activeTeamId/teamIds, nullable email), auth actions
-  (login guard, team-aware signup + claim action), settings actions (switchTeam, joinTeamByCode),
-  trainer actions (slot CRUD scoping, addRosterMember, createTeam, addUserToTeam). Build green.
-- [ ] **Phase 3** — team scoping of reads: stats.ts signatures, feed, leaderboards, team pages,
-  attendance, log/plan slot queries, training.ts. Build green.
-- [ ] **Phase 4** — UI: header team switcher, settings Teams card, roster-member add form,
-  signup claim UI, i18n keys (en+de). Build green.
-- [ ] **Phase 5** — polish: README/AGENTS notes, CHANGELOG entry, manual verification pass,
-  admin rename-team/set-code UI (nice-to-have).
+- [x] **Phase 1** — schema + hand-edited migration + `prisma generate`; migration applies cleanly
+  to a DB with existing data (verified via seeded dev.db: 4 users → 4 memberships, activeTeamId
+  backfilled).
+- [x] **Phase 2** — core plumbing: dal (activeTeamId/teamIds, nullable email), auth actions
+  (login guard, team-aware signup + claim action, `listClaimableMembers`), settings actions
+  (switchTeam, joinTeamByCode), trainer actions (slot CRUD scoping, addRosterMember, createTeam,
+  addUserToTeam). Build green.
+- [x] **Phase 3** — team scoping of reads: stats.ts signatures, feed, leaderboards, team pages
+  (incl. shared-team guard on /team/[userId]), attendance, log/plan slot queries, training.ts
+  (attendance restricted to the slot's team). Build green.
+- [x] **Phase 4** — UI: header team switcher, settings Teams card (join by code; admin create
+  team), roster-member add form + "no account" badge on /team, signup claim UI (debounced
+  `listClaimableMembers`), i18n keys (en+de). Build + vitest green.
+- [ ] **Phase 5** — polish (REMAINING): README/AGENTS/CHANGELOG notes, manual browser
+  verification pass, admin rename-team / set-team-code UI, admin "add user to team" UI (the
+  `addUserToTeam` action exists but has no form yet), surface join errors (joinTeamByCode
+  silently redirects on a bad code), update `prisma/seed` to create team memberships for demo
+  users (fresh-seeded users currently rely on the migration backfill only if seeded before
+  migrating — verify and fix ordering).
 
 ## Remaining work if interrupted
 
 Whatever phase boxes are unchecked above; each phase leaves the branch buildable.
+
+## Future work / integration with uwr-planner (reference project)
+
+The owner's reference implementation (git.pabr.de/uwr/uwr-planner, Node/Express/Mongoose) models
+the same ideas with different shapes; mapping for a future convergence:
+
+- Their **`Player`** (roster member without login, linked from `User.linkedPlayers[]`) ≈ our
+  **`User` row with NULL credentials**. We merge the two entities and "link" by setting
+  email/passwordHash on the same row (claim), so history needs no re-parenting. A future
+  many-to-one link (one account managing several roster members, e.g. a parent) would need a
+  separate link table — our claim flow is the 1:1 special case.
+- Their **`organizations[]`** array on the user ≈ our **`TeamMembership`** join table (ours also
+  gives us a place to later hang a per-team `role` — e.g. team-scoped TRAINER — instead of the
+  current global `User.role`).
+- Their **`managedOrganizations[]`** ≈ a future `TeamMembership.role = "MANAGER"`.
+- Their **`pendingOrganizations[]`** (join request + manager approval, with note) is an
+  alternative join flow to our join-by-code. Our `joinTeamByCode` is deliberately a thin action —
+  a request/approve mode can be added as a parallel action plus a `TeamMembership.status`
+  ("ACTIVE" | "PENDING") without schema upheaval.

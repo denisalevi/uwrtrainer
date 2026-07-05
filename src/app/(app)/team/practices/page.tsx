@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getServerT } from "@/lib/i18n/server";
+import { requireTrainer } from "@/lib/dal";
 import { prisma } from "@/lib/db";
 import { addSlot, setSlotActive, updateSlot } from "@/app/actions/trainer";
 import { PRACTICE_TIERS } from "@/lib/constants";
@@ -7,8 +8,12 @@ import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Card, CardBody, Button, Badge, Input, Label, Select, SectionTitle, cn } from "@/components/ui";
 
 export default async function PracticesPage() {
+  const user = await requireTrainer();
   const { t } = await getServerT();
-  const slots = await prisma.practiceSlot.findMany({ orderBy: [{ active: "desc" }, { dayOfWeek: "asc" }] });
+  const slots = await prisma.practiceSlot.findMany({
+    where: { teamId: user.activeTeamId ?? "" },
+    orderBy: [{ active: "desc" }, { dayOfWeek: "asc" }],
+  });
 
   return (
     <div className="space-y-5">
