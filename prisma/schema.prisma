@@ -32,6 +32,10 @@ model User {
   restWarmupSeconds Int     @default(75)
   restMainSeconds   Int     @default(150)
   restBbbSeconds    Int     @default(90)
+  // Per-user planned-weight rounding for the strength plan/logger.
+  // "EXACT" | "DOWN" (Wendler default) | "NEAREST" | "UP", to weightIncrement kg.
+  weightRounding    String  @default("DOWN")
+  weightIncrement   Float   @default(2.5)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

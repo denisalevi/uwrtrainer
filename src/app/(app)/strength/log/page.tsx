@@ -15,6 +15,7 @@ import {
 } from "@/lib/constants";
 import {
   buildSchedule,
+  isWeightRoundingMode,
   warmupSets,
   bbbSet,
   incrementFor,
@@ -24,6 +25,7 @@ import {
   type PlannedExercise,
 } from "@/lib/strength";
 import { StrengthWorkoutLogger, type LoggerDay } from "@/components/strength-workout-logger";
+import type { RoundingPref } from "@/lib/strength";
 
 /**
  * Parse a `?date=yyyy-mm-dd` param into local midnight. Returns null when malformed, not a real
@@ -66,6 +68,11 @@ export default async function StrengthLogPage({
     reps: s.reps,
   }));
   const bbb = parseBbbConfig(bbbSetting?.value);
+  // Per-user planned-weight rounding (default DOWN — Wendler's "round down to what you can load").
+  const rounding: RoundingPref = {
+    mode: isWeightRoundingMode(user.weightRounding) ? user.weightRounding : "DOWN",
+    increment: user.weightIncrement > 0 ? user.weightIncrement : 2.5,
+  };
 
   // Build the day options to preload from (empty if there's no active program — you can still
   // start a blank session and add exercises by hand).
@@ -76,7 +83,7 @@ export default async function StrengthLogPage({
     const layout: WeightedLayout = (WEIGHTED_LAYOUTS as readonly string[]).includes(program.weightedLayout)
       ? (program.weightedLayout as WeightedLayout)
       : "ROTATE";
-    const schedule = buildSchedule(days, state, { includePull, layout, week: program.week });
+    const schedule = buildSchedule(days, state, { includePull, layout, week: program.week, rounding });
     const exLabel = (e: PlannedExercise): string =>
       e.exerciseId === CUSTOM_EXERCISE_ID ? e.custom || t("strength.exerciseName") : t(e.labelKey as DictKey);
     loggerDays = schedule.map((day) => ({
@@ -92,7 +99,7 @@ export default async function StrengthLogPage({
         // than the raw program week). Build weeks (first set ≥65%) keep all warm-ups; the
         // deload (first set = 40%) keeps none.
         const firstMainPct = e.sets[0]?.pct ?? 0;
-        const warm = weighted ? warmupSets(tm, inc, warmupScheme.filter((s) => s.pct < firstMainPct)) : [];
+        const warm = weighted ? warmupSets(tm, inc, warmupScheme.filter((s) => s.pct < firstMainPct), rounding) : [];
         const sets = [...warm, ...e.sets].map((x) => ({
           reps: x.reps,
           weight: x.weight ?? null,
@@ -105,7 +112,7 @@ export default async function StrengthLogPage({
           label: exLabel(e),
           trainingMax: state[e.movement]?.trainingMax,
           sets,
-          bbbWeight: weighted ? bbbSet(tm, inc, bbb.pct / 100, bbb.reps).weight ?? null : null,
+          bbbWeight: weighted ? bbbSet(tm, inc, bbb.pct / 100, bbb.reps, rounding).weight ?? null : null,
         };
       }),
     }));
@@ -147,6 +154,9 @@ export default async function StrengthLogPage({
       <header>
         <h1 className="text-2xl font-bold text-slate-900">{t("strength.logWorkout")}</h1>
         <p className="mt-1 text-sm text-slate-500">{t("strength.logWorkoutHint")}</p>
+        {rounding.mode === "EXACT" && (
+          <p className="mt-1 text-xs text-slate-400">{t("strength.exactNote")}</p>
+        )}
       </header>
       <StrengthWorkoutLogger
         programId={program?.id ?? ""}
