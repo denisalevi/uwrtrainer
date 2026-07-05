@@ -11,6 +11,18 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-07-05
+
+### Added
+- Home now lists your **full session history**, not just the five most recent entries.
+- Strength workouts render with **colour-coded sets** — warm-up, working, and Boring But Big sets
+  are visually distinct, the **AMRAP** top set is emphasised, and a small legend plus the
+  **cycle/week** are shown. Applies on both the home history and a teammate's profile.
+
+### Changed
+- Tapping a session on home now **expands a read-only summary** (the same detail view used on a
+  teammate's profile) with an **Edit** button, instead of jumping straight into the edit form.
+
 ## [0.16.0] - 2026-07-05
 
 ### Added

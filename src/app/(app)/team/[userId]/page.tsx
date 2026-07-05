@@ -5,10 +5,8 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/dal";
 import { isTrainer, CATEGORIES } from "@/lib/constants";
 import { setRole } from "@/app/actions/trainer";
-import { StrengthWorkoutView } from "@/components/strength-workout-view";
-import { MissedActions } from "@/components/missed-actions";
+import { SessionLogList } from "@/components/session-log-list";
 import type { DictKey } from "@/lib/i18n/dictionaries";
-import { weeklySummaryLabel, missedResolveAction } from "@/lib/missed-label";
 import { Card, CardBody, Badge, Button, SectionTitle } from "@/components/ui";
 
 export default async function PlayerDetailPage({
@@ -84,89 +82,7 @@ export default async function PlayerDetailPage({
         {recent.length === 0 ? (
           <p className="text-sm text-slate-500">{t("dash.nothingLogged")}</p>
         ) : (
-          <Card>
-            <ul className="divide-y divide-slate-100">
-              {recent.map((log) => {
-                const isStrength = log.category === "STRENGTH" && log.status === "DONE";
-                const summaryLabel =
-                  log.auto && log.status === "MISSED" && !log.practiceSlotId
-                    ? weeklySummaryLabel(t, log.category, log.details)
-                    : null;
-                const title = summaryLabel ?? log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey);
-                return (
-                  <li key={log.id} className="text-sm">
-                    <details className="group">
-                      <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 active:bg-slate-50">
-                        <span className="min-w-0">
-                          <span className="block truncate font-medium text-slate-800">{title}</span>
-                          <span className="mt-0.5 block text-slate-400">
-                            {log.date.toLocaleDateString()}
-                            {log.durationMin ? ` · ${log.durationMin} ${t("common.minutes")}` : ""}
-                            {log.missReason ? ` · ${log.missReason}` : ""}
-                          </span>
-                        </span>
-                        <span className="flex items-center gap-2">
-                          {log.auto && <Badge tone="amber">{t("missed.autoBadge")}</Badge>}
-                          <Badge tone={log.status === "DONE" ? "green" : "red"}>
-                            {t(log.status === "DONE" ? "log.done" : "log.missed")}
-                          </Badge>
-                          <span className="text-slate-400 group-open:rotate-90">›</span>
-                        </span>
-                      </summary>
-                      <div className="px-4 pb-3">
-                        {isStrength ? (
-                          <StrengthWorkoutView details={log.details} />
-                        ) : (
-                          <dl className="space-y-1 text-slate-600">
-                            <div className="flex gap-2">
-                              <dt className="text-slate-400">{t("log.chooseCategory")}</dt>
-                              <dd>{title}</dd>
-                            </div>
-                            <div className="flex gap-2">
-                              <dt className="text-slate-400">{t("log.date")}</dt>
-                              <dd>{log.date.toLocaleDateString()}</dd>
-                            </div>
-                            <div className="flex gap-2">
-                              <dt className="text-slate-400">{t("log.status")}</dt>
-                              <dd>{t(log.status === "DONE" ? "log.done" : "log.missed")}</dd>
-                            </div>
-                            {log.durationMin != null && (
-                              <div className="flex gap-2">
-                                <dt className="text-slate-400">{t("log.duration")}</dt>
-                                <dd>
-                                  {log.durationMin} {t("common.minutes")}
-                                </dd>
-                              </div>
-                            )}
-                            {log.missReason && (
-                              <div className="flex gap-2">
-                                <dt className="text-slate-400">{t("log.missReason")}</dt>
-                                <dd>{log.missReason}</dd>
-                              </div>
-                            )}
-                          </dl>
-                        )}
-                        {log.auto && log.status === "MISSED" && (
-                          <>
-                            <p className="mt-2 text-xs text-amber-700">
-                              {t(summaryLabel ? "missed.weeklyHint" : "missed.autoHint")}
-                            </p>
-                            <MissedActions
-                              logId={log.id}
-                              resolveHref={missedResolveAction(log).href}
-                              resolveLabel={t(missedResolveAction(log).labelKey)}
-                              reason={log.missReason}
-                              canGiveReason={viewer.id === player.id}
-                            />
-                          </>
-                        )}
-                      </div>
-                    </details>
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
+          <SessionLogList logs={recent} canGiveReason={viewer.id === player.id} />
         )}
       </section>
 

@@ -126,6 +126,7 @@ export const en = {
   "dash.streakWeeks": "{n} weeks",
   "dash.nothingLogged": "Nothing logged this week yet.",
   "dash.recentLogs": "Recent sessions",
+  "dash.allLogs": "All sessions",
 
   "log.title": "Log a session",
   "log.chooseCategory": "What did you do?",
@@ -608,6 +609,7 @@ export const de: Record<DictKey, string> = {
   "dash.streakWeeks": "{n} Wochen",
   "dash.nothingLogged": "Diese Woche noch nichts eingetragen.",
   "dash.recentLogs": "Letzte Einheiten",
+  "dash.allLogs": "Alle Einheiten",
 
   "log.title": "Einheit eintragen",
   "log.chooseCategory": "Was hast du gemacht?",

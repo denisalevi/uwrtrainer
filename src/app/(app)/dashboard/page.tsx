@@ -6,8 +6,7 @@ import { prisma } from "@/lib/db";
 import { isTrainer, type LeaderboardMetric } from "@/lib/constants";
 import { Card, CardBody, Button, Badge, ProgressBar, SectionTitle } from "@/components/ui";
 import type { DictKey } from "@/lib/i18n/dictionaries";
-import { weeklySummaryLabel, missedResolveAction } from "@/lib/missed-label";
-import { MissedActions } from "@/components/missed-actions";
+import { SessionLogList } from "@/components/session-log-list";
 
 export default async function DashboardPage() {
   const user = await requireUser();
@@ -20,7 +19,6 @@ export default async function DashboardPage() {
     prisma.sessionLog.findMany({
       where: { userId: user.id },
       orderBy: { date: "desc" },
-      take: 5,
       include: { practiceSlot: { select: { label: true } } },
     }),
   ]);
@@ -102,78 +100,11 @@ export default async function DashboardPage() {
       </Link>
 
       <section className="space-y-2">
-        <SectionTitle>{t("dash.recentLogs")}</SectionTitle>
+        <SectionTitle>{t("dash.allLogs")}</SectionTitle>
         {recent.length === 0 ? (
           <p className="text-sm text-slate-500">{t("dash.nothingLogged")}</p>
         ) : (
-          <Card>
-            <ul className="divide-y divide-slate-100">
-              {recent.map((log) => {
-                const isAutoMissed = log.auto && log.status === "MISSED";
-                // Weekly auto-missed summary rows carry count phrasing ("missed N of M …").
-                const summaryLabel = isAutoMissed && !log.practiceSlotId
-                  ? weeklySummaryLabel(t, log.category, log.details)
-                  : null;
-                const label =
-                  summaryLabel ?? log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey);
-
-                // Auto-MISSED rows are NOT deletable; they show resolve actions (Add yourself /
-                // Log the session) + an owner Give-a-reason form, and surface any reason.
-                if (isAutoMissed) {
-                  const action = missedResolveAction(log);
-                  return (
-                    <li key={log.id} className="px-4 py-3 text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <span className="font-medium text-slate-800">{label}</span>
-                          <span className="ml-2 text-slate-400">{log.date.toLocaleDateString()}</span>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <Badge tone="amber">{t("missed.autoBadge")}</Badge>
-                          <Badge tone="red">{t("log.missed")}</Badge>
-                        </div>
-                      </div>
-                      {log.missReason && (
-                        <p className="mt-1 text-slate-500">
-                          <span className="text-slate-400">{t("missed.reasonLabel")}: </span>
-                          {log.missReason}
-                        </p>
-                      )}
-                      <MissedActions
-                        logId={log.id}
-                        resolveHref={action.href}
-                        resolveLabel={t(action.labelKey)}
-                        reason={log.missReason}
-                        canGiveReason
-                      />
-                    </li>
-                  );
-                }
-
-                // Manual / DONE entries open the editor.
-                const href =
-                  log.category === "STRENGTH" && log.status === "DONE"
-                    ? `/strength/log?id=${log.id}`
-                    : `/log/${log.id}`;
-                return (
-                  <li key={log.id} className="flex items-center px-4 py-3 text-sm">
-                    <Link href={href} className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <span className="font-medium text-slate-800">{label}</span>
-                        <span className="ml-2 text-slate-400">{log.date.toLocaleDateString()}</span>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <Badge tone={log.status === "DONE" ? "green" : "red"}>
-                          {t(log.status === "DONE" ? "log.done" : "log.missed")}
-                        </Badge>
-                        <span className="text-slate-300">›</span>
-                      </div>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
+          <SessionLogList logs={recent} canGiveReason editable />
         )}
       </section>
     </div>
