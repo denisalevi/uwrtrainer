@@ -123,8 +123,9 @@ export function LogForm({
                   <Select
                     id="practiceSlotId"
                     name="practiceSlotId"
-                    defaultValue={existing?.practiceSlotId ?? slots[0]?.id}
+                    defaultValue={existing ? existing.practiceSlotId ?? "" : slots[0]?.id}
                   >
+                    <option value="">{t("log.ownTraining")}</option>
                     {slots.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.label} · {t(`tier.${s.tier}` as DictKey)}

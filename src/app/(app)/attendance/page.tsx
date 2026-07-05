@@ -7,11 +7,11 @@ import { AttendanceForm } from "@/components/attendance-form";
 export default async function AttendancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ slot?: string; date?: string }>;
+  searchParams: Promise<{ slot?: string; date?: string; edit?: string }>;
 }) {
   const user = await requireUser();
   const { t } = await getServerT();
-  const { slot, date } = await searchParams;
+  const { slot, date, edit } = await searchParams;
 
   const [slots, members] = await Promise.all([
     prisma.practiceSlot.findMany({
@@ -25,6 +25,26 @@ export default async function AttendancePage({
       select: { id: true, name: true },
     }),
   ]);
+
+  // Edit mode (feed "Edit attendance" link): prefill the checkboxes with who is already
+  // recorded as DONE for that slot+date, and let the submit reconcile removals too.
+  const editMode = edit === "1" && !!slot && !!date && /^\d{4}-\d{2}-\d{2}$/.test(date);
+  let initialPresentIds: string[] | undefined;
+  if (editMode) {
+    const [y, m, d] = date!.split("-").map(Number);
+    const dayStart = new Date(y, m - 1, d);
+    const dayEnd = new Date(y, m - 1, d + 1);
+    const done = await prisma.sessionLog.findMany({
+      where: {
+        category: "RUGBY",
+        status: "DONE",
+        practiceSlotId: slot,
+        date: { gte: dayStart, lt: dayEnd },
+      },
+      select: { userId: true },
+    });
+    initialPresentIds = done.map((l) => l.userId);
+  }
 
   return (
     <div className="space-y-5">
@@ -41,6 +61,8 @@ export default async function AttendancePage({
         currentUserId={user.id}
         defaultSlotId={slot}
         defaultDate={date}
+        editMode={editMode}
+        initialPresentIds={initialPresentIds}
       />
     </div>
   );

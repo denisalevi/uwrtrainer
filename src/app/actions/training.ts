@@ -272,19 +272,48 @@ export async function logPracticeAttendance(formData: FormData) {
     }
   }
 
+  // Edit-mode submit (feed "Edit attendance"): the checkbox list is authoritative — roster
+  // members explicitly UNTICKED lose their attendance-created DONE row for this practice
+  // (slot-tied DONE rugby rows only; other logs are untouched). Normal submits stay additive.
+  const editMode = String(formData.get("editMode") ?? "") === "1";
+  const removedUserIds: string[] = [];
+  if (editMode) {
+    const roster = await prisma.user.findMany({
+      where: { memberships: { some: { teamId: slot.teamId } } },
+      select: { id: true },
+    });
+    const untickedIds = roster.map((u) => u.id).filter((id) => !checkedIds.has(id));
+    if (untickedIds.length > 0) {
+      const toRemove = await prisma.sessionLog.findMany({
+        where: {
+          userId: { in: untickedIds },
+          category: "RUGBY",
+          status: "DONE",
+          practiceSlotId,
+          date: { gte: date, lt: dayEnd },
+        },
+        select: { id: true, userId: true },
+      });
+      if (toRemove.length > 0) {
+        await prisma.sessionLog.deleteMany({ where: { id: { in: toRemove.map((r) => r.id) } } });
+        removedUserIds.push(...toRemove.map((r) => r.userId));
+      }
+    }
+  }
+
   // Reconcile auto-MISSED for this practice (present wins; committed-absent get auto-missed).
   await reconcileRugbyMissed(practiceSlotId, date);
 
   // Self-heal: if this practice falls in a past, already-reconciled week, recompute each touched
   // user's rugby count summary (newly-present users shrink it; newly-absent ticked users are
   // already counted via their bucket-1 row, so the remainder math stays consistent).
-  const touchedUserIds = new Set<string>([...checkedIds]);
+  const touchedUserIds = new Set<string>([...checkedIds, ...removedUserIds]);
   for (const userId of touchedUserIds) await selfHealCountWeek(userId, date);
 
   revalidatePath("/feed");
   revalidatePath("/dashboard");
   revalidatePath("/leaderboards");
-  for (const userId of checkedIds) revalidatePath(`/team/${userId}`);
+  for (const userId of touchedUserIds) revalidatePath(`/team/${userId}`);
 
   redirect("/feed");
 }
