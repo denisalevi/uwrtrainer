@@ -113,12 +113,11 @@ any team and create teams.
 - [x] **Phase 4** — UI: header team switcher, settings Teams card (join by code; admin create
   team), roster-member add form + "no account" badge on /team, signup claim UI (debounced
   `listClaimableMembers`), i18n keys (en+de). Build + vitest green.
-- [ ] **Phase 5** — polish (REMAINING): README/AGENTS/CHANGELOG notes, manual browser
-  verification pass, admin rename-team / set-team-code UI, admin "add user to team" UI (the
-  `addUserToTeam` action exists but has no form yet), surface join errors (joinTeamByCode
-  silently redirects on a bad code), update `prisma/seed` to create team memberships for demo
-  users (fresh-seeded users currently rely on the migration backfill only if seeded before
-  migrating — verify and fix ordering).
+- [ ] **Phase 5** — polish, PARTIALLY done: CHANGELOG entry ✓, `prisma/seed.ts` now creates the
+  default team + memberships for demo users ✓. REMAINING: README/AGENTS doc notes, manual
+  browser verification pass, admin rename-team / set-team-code UI, admin "add user to team" UI
+  (the `addUserToTeam` action exists but has no form yet), surface join errors (joinTeamByCode
+  silently redirects on a bad code).
 
 ## Remaining work if interrupted
 
