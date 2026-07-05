@@ -244,6 +244,8 @@ export const en = {
   "strength.startTitle": "Starting point",
   "strength.startHintWeighted":
     "For each lift, enter the most weight you can do for a few clean reps — about 3–5 is ideal, leaving roughly one rep in the tank. From that we estimate your one-rep max (1RM — the most you could lift once) and set your training max (TM) to about 90% of it: the submaximal number every working set is based on, so you start with room to grow. Not sure? Go lighter — the first cycle is meant to feel easy.",
+  "strength.setupOnce":
+    "You only set this once, at the start — from then on the program adjusts itself each cycle from your AMRAP reps.",
   "strength.startHintBody":
     "Optional: how many clean reps you can do now. Leave blank and we'll start gently — it's meant to feel easy at first.",
   "strength.weight": "Weight (kg)",
@@ -405,6 +407,7 @@ export const en = {
   "strength.est1rm": "Estimated 1RM",
   "strength.estTm": "Estimated TM",
   "strength.enterTmDirectly": "Enter training max directly (advanced)",
+  "strength.bothFilledError": "Pick one: estimate from a set, or enter a training max directly — not both. Clear one to save.",
   "strength.tmShort": "TM",
   "strength.minutesAssistHint":
     "60+ min sessions add extra 'Boring But Big' volume (5×10 at ~50%). Shorter sessions keep just the main sets.",
@@ -690,6 +693,8 @@ export const de: Record<DictKey, string> = {
   "strength.startTitle": "Startpunkt",
   "strength.startHintWeighted":
     "Gib pro Übung das höchste Gewicht ein, das du für ein paar saubere Wiederholungen schaffst — etwa 3–5 sind ideal, mit rund einer Wiederholung Reserve. Daraus schätzen wir dein Einer-Maximum (1RM — das Höchste, das du einmal heben könntest) und setzen dein Trainingsmaximum (TM) auf etwa 90 % davon: die submaximale Zahl, aus der jeder Arbeitssatz berechnet wird, damit du Luft nach oben hast. Unsicher? Lieber leichter — der erste Zyklus soll sich leicht anfühlen.",
+  "strength.setupOnce":
+    "Das stellst du nur einmal am Anfang ein — danach passt sich das Programm jeden Zyklus selbst an deine AMRAP-Wiederholungen an.",
   "strength.startHintBody":
     "Optional: wie viele saubere Wiederholungen schaffst du jetzt? Leer lassen — wir starten sanft, es soll sich am Anfang leicht anfühlen.",
   "strength.weight": "Gewicht (kg)",
@@ -852,6 +857,7 @@ export const de: Record<DictKey, string> = {
   "strength.est1rm": "Geschätztes 1RM",
   "strength.estTm": "Geschätztes TM",
   "strength.enterTmDirectly": "Trainingsmaximum direkt eingeben (erweitert)",
+  "strength.bothFilledError": "Entscheide dich für eins: aus einem Satz schätzen oder ein Trainingsmaximum direkt eingeben — nicht beides. Lösche eins zum Speichern.",
   "strength.tmShort": "TM",
   "strength.minutesAssistHint":
     "Einheiten ab 60 Min ergänzen Zusatzvolumen ('Boring But Big', 5×10 mit ~50 %). Kürzere Einheiten behalten nur die Hauptsätze.",
