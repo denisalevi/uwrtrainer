@@ -51,6 +51,10 @@ export async function logSession(formData: FormData) {
     data: { userId: user.id, ...fields },
   });
 
+  // A rugby log tied to a practice slot is an attendance event: reconcile that practice so the
+  // new DONE (or manual MISSED) row displaces its auto-missed twin instead of coexisting with it.
+  if (fields.practiceSlotId) await reconcileRugbyMissed(fields.practiceSlotId, fields.date);
+
   // Self-heal: a DONE log for a past, already-reconciled week shrinks that week's missed count.
   if (parsed.data.status === "DONE") await selfHealCountWeek(user.id, fields.date);
 
@@ -67,7 +71,7 @@ export async function updateSession(formData: FormData) {
 
   const existing = await prisma.sessionLog.findUnique({
     where: { id },
-    select: { userId: true, date: true, auto: true },
+    select: { userId: true, date: true, auto: true, practiceSlotId: true },
   });
   if (!existing) throw new Error("Session not found");
   if (existing.userId !== user.id && !isTrainer(user.role)) throw new Error("Not authorized");
@@ -81,6 +85,20 @@ export async function updateSession(formData: FormData) {
 
   const fields = sessionFields(parsed.data);
   await prisma.sessionLog.update({ where: { id }, data: fields });
+
+  // Rugby practice dedup: reconcile every practice this edit touched — the old slot+date (the
+  // row may have moved away from it) and the new one (a DONE/manual-MISSED row must displace
+  // its auto-missed twin).
+  if (existing.practiceSlotId) {
+    await reconcileRugbyMissed(existing.practiceSlotId, existing.date);
+  }
+  if (
+    fields.practiceSlotId &&
+    (fields.practiceSlotId !== existing.practiceSlotId ||
+      fields.date.getTime() !== existing.date.getTime())
+  ) {
+    await reconcileRugbyMissed(fields.practiceSlotId, fields.date);
+  }
 
   // Self-heal both the old and the new date's week (the edit may have moved the session, or
   // flipped DONE↔MISSED) so any reconciled past week's missed count self-corrects.
@@ -102,7 +120,7 @@ export async function deleteSession(formData: FormData) {
 
   const existing = await prisma.sessionLog.findUnique({
     where: { id },
-    select: { userId: true, date: true, status: true, auto: true },
+    select: { userId: true, date: true, status: true, auto: true, practiceSlotId: true },
   });
   if (!existing) throw new Error("Session not found");
   if (existing.userId !== user.id && !isTrainer(user.role)) throw new Error("Not authorized");
@@ -114,6 +132,12 @@ export async function deleteSession(formData: FormData) {
   }
 
   await prisma.sessionLog.delete({ where: { id } });
+
+  // Rugby practice dedup: deleting a DONE/manual-MISSED row for a practice means the user is no
+  // longer accounted for — reconcile so a committed absence gets its auto-missed row back.
+  if (existing.practiceSlotId) {
+    await reconcileRugbyMissed(existing.practiceSlotId, existing.date);
+  }
 
   // Self-heal: deleting a DONE log in a reconciled past week may re-open a shortfall.
   if (existing.status === "DONE") await selfHealCountWeek(existing.userId, existing.date);
