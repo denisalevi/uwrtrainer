@@ -18,13 +18,25 @@ export default async function EditLogPage({ params }: { params: Promise<{ id: st
   // A logged strength workout is edited in the full-session logger, not the generic form.
   if (log.category === "STRENGTH" && log.status === "DONE") redirect(`/strength/log?id=${log.id}`);
 
+  // Auto rows (auto-MISSED penalties) are system-owned and not editable — resolve them from the
+  // dashboard ("Add yourself" / "Log the session" / "Give a reason") instead.
+  if (log.auto) redirect("/dashboard");
+
   const slots = await prisma.practiceSlot.findMany({
     where: { active: true },
     orderBy: { dayOfWeek: "asc" },
     select: { id: true, label: true, tier: true },
   });
 
-  const details = (log.details ? JSON.parse(log.details) : {}) as Record<string, unknown>;
+  // Corrupt details JSON must not 500 the edit page — fall back to an empty payload.
+  let details: Record<string, unknown> = {};
+  if (log.details) {
+    try {
+      details = JSON.parse(log.details) as Record<string, unknown>;
+    } catch {
+      details = {};
+    }
+  }
   const existing: ExistingSession = {
     id: log.id,
     category: log.category as Category,

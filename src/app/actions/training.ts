@@ -67,10 +67,14 @@ export async function updateSession(formData: FormData) {
 
   const existing = await prisma.sessionLog.findUnique({
     where: { id },
-    select: { userId: true, date: true },
+    select: { userId: true, date: true, auto: true },
   });
   if (!existing) throw new Error("Session not found");
   if (existing.userId !== user.id && !isTrainer(user.role)) throw new Error("Not authorized");
+
+  // Auto rows (auto-MISSED penalties with their frozen {missed,target} snapshot) are system-owned:
+  // they are resolved via "Add yourself" / "Log the session" or recompute, never edited directly.
+  if (existing.auto) throw new Error("Auto entries cannot be edited");
 
   const parsed = LogSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Invalid session data");
