@@ -16,9 +16,11 @@ export default async function StrengthPage({
 
   const { week: weekParam } = await searchParams;
   const rawWeek = Array.isArray(weekParam) ? weekParam[0] : weekParam;
+  // Up to 8: a single rotating weighted day cycles over 8 program weeks (the program view
+  // ignores previews beyond its own cycle length).
   const parsedWeek = Math.trunc(Number(rawWeek));
   const previewWeek =
-    rawWeek != null && Number.isFinite(parsedWeek) && parsedWeek >= 1 && parsedWeek <= 4
+    rawWeek != null && Number.isFinite(parsedWeek) && parsedWeek >= 1 && parsedWeek <= 8
       ? parsedWeek
       : undefined;
 

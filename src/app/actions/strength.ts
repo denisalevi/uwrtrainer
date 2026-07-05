@@ -228,7 +228,9 @@ export async function resetStrengthProgram(formData: FormData) {
   redirect("/strength");
 }
 
-const WeekSchema = z.object({ programId: z.string(), week: z.coerce.number().int().min(1).max(4) });
+// Max 8: a single rotating weighted day cycles over 8 program weeks (others use 1..4; the
+// UI only offers valid weeks, and the engine tolerates any week via mod-4 anyway).
+const WeekSchema = z.object({ programId: z.string(), week: z.coerce.number().int().min(1).max(8) });
 
 export async function setStrengthWeek(formData: FormData) {
   const user = await getCurrentUser();
@@ -257,9 +259,12 @@ export async function setStrengthCycle(formData: FormData) {
 }
 
 /**
- * Close out a 4-week cycle: apply the adjustment rule (increase / hold / reduce) to every
- * movement's maxima (both the weighted training max and the bodyweight rep/level), advance
- * the cycle, reset to week 1. Blank inputs default to a successful test (increase).
+ * Close out a cycle: apply the adjustment rule (increase / hold / reduce) to every movement's
+ * maxima (both the weighted training max and the bodyweight rep/level), advance the cycle,
+ * reset to week 1. Blank inputs default to a successful test (increase). A cycle is 4 program
+ * weeks — or 8 for a single rotating weighted day, where each pair meets its week-3 test on
+ * its own schedule (pair A on program week 5, pair B on week 6); either way the reset to
+ * week 1 starts the next cycle at pair A's wave week 1.
  */
 export async function finishStrengthCycle(formData: FormData) {
   const user = await getCurrentUser();

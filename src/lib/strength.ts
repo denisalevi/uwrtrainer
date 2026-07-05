@@ -728,7 +728,8 @@ export function workoutForSlot(
 //
 //   • WEIGHTED days are recovery-limited, so the cores are SPLIT across them — each lift loaded
 //     once a week. The spreadsheet's pairing is lower+upper-push: {squat,bench} & {deadlift,
-//     press}. With only one weighted day you either ROTATE those pairs over two weeks or do
+//     press}. With only one weighted day you either ROTATE those pairs week-about (each pair
+//     then walks its OWN 4-week wave → an 8-week super-cycle, see rotationWaveWeek) or do
 //     ALL_IN_ONE (all four in one long session).
 //   • BODYWEIGHT days aren't recovery-limited and gain from frequency, so EVERY bodyweight day
 //     is full-body — all four patterns — and time controls the number of sets, not the lifts.
@@ -767,6 +768,33 @@ export function suggestedMinutes(weightedLifts: number): number {
   return 45; // one weighted lift, or a bodyweight day
 }
 
+/**
+ * ROTATE (a single weighted day): which pair trains on a given program week — pair A
+ * (squat+bench) on odd weeks, pair B (deadlift+press) on even weeks.
+ */
+export function rotationHalf(week: number): "A" | "B" {
+  return week % 2 === 1 ? "A" : "B";
+}
+
+/**
+ * ROTATE: the wave week the training pair is on for a given program week. Each pair walks its
+ * OWN 4-week wave — its Nth session is wave week ((N-1) mod 4)+1 — so the full rotation is an
+ * 8-week super-cycle and every lift sees all four wave weeks (incl. the week-3 test and the
+ * deload). Program weeks 1..8 map to (pair · wave): 1=A·1, 2=B·1, 3=A·2, 4=B·2, 5=A·3, 6=B·3,
+ * 7=A·4, 8=B·4. (Keying the wave straight off the program week would phase-lock the rotation:
+ * 2 divides 4, so pair A would only ever see waves 1/3 and pair B waves 2/4 — deadlift+press
+ * would never be tested and squat+bench never deload.)
+ */
+export function rotationWaveWeek(week: number): number {
+  return (Math.floor((((week - 1) % 8) + 8) % 8 / 2) % 4) + 1;
+}
+
+/** ROTATE spans 8 program weeks (both pairs × their own 4-week wave); everything else 4. */
+export function programCycleWeeks(days: DayPlan[], layout: WeightedLayout): 4 | 8 {
+  const weighted = days.filter((d) => d.equipment === "WEIGHTS").length;
+  return weighted === 1 && layout === "ROTATE" ? 8 : 4;
+}
+
 /** How the four cores are split across W weighted days (and which pair on a rotating single day). */
 export function weightedAssignment(
   weightedDays: number,
@@ -775,7 +803,7 @@ export function weightedAssignment(
 ): MovementKey[][] {
   if (weightedDays <= 1) {
     if (layout === "ALL_IN_ONE") return [[...CORE_MOVEMENTS]];
-    return [week % 2 === 1 ? [...PAIR_A] : [...PAIR_B]]; // ROTATE: odd weeks = A
+    return [rotationHalf(week) === "A" ? [...PAIR_A] : [...PAIR_B]]; // ROTATE: odd weeks = A
   }
   if (weightedDays === 2) return [[...PAIR_A], [...PAIR_B]];
   if (weightedDays === 3) return [[...PAIR_A], ["HINGE"], ["PRESS"]];
@@ -850,6 +878,10 @@ export function buildSchedule(
   const weightedDays = days.filter((d) => d.equipment === "WEIGHTS");
   const assignment = weightedAssignment(weightedDays.length, layout, week);
   const riderIdx = includePull ? pullRiderDay(assignment) : null;
+  // A single rotating weighted day runs an 8-week super-cycle: the training pair's sets come
+  // off ITS OWN wave week (rotationWaveWeek), not the raw program week — otherwise the
+  // rotation is phase-locked and half the lifts never see the test/deload weeks.
+  const rotating = weightedDays.length === 1 && layout === "ROTATE";
 
   let w = 0; // index among weighted days
   return days.map((day) => {
@@ -858,14 +890,14 @@ export function buildSchedule(
       const cores = assignment[myIdx] ?? [];
       const movements = [...cores];
       if (riderIdx === myIdx) movements.push("PULL");
-      const exercises = movements.map((m) => plannedExercise(m, "WEIGHTS", state, week));
-      const single = weightedDays.length <= 1;
+      const liftWeek = rotating ? rotationWaveWeek(week) : week;
+      const exercises = movements.map((m) => plannedExercise(m, "WEIGHTS", state, liftWeek));
       return {
         id: day.id,
         name: day.name,
         equipment: day.equipment,
         minutes: day.minutes,
-        ...(single && layout === "ROTATE" ? { rotation: (week % 2 === 1 ? "A" : "B") as "A" | "B" } : {}),
+        ...(rotating ? { rotation: rotationHalf(week) } : {}),
         exercises,
       };
     }

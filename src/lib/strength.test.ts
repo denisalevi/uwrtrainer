@@ -25,6 +25,9 @@ import {
   weightedAssignment,
   pullRiderDay,
   buildSchedule,
+  rotationWaveWeek,
+  programCycleWeeks,
+  WAVE,
   type ProgramState,
   type DayPlan,
 } from "./strength";
@@ -484,6 +487,79 @@ describe("buildSchedule", () => {
     });
     const squat = plan[0].exercises.find((e) => e.movement === "SQUAT")!;
     expect(squat.sets[squat.sets.length - 1].weight).toBe(100); // 85% of 120 = 102 → round to 5
+  });
+});
+
+describe("ROTATE runs an 8-week super-cycle (each pair walks its own 4-week wave)", () => {
+  const state: ProgramState = {
+    SQUAT: { trainingMax: 120 },
+    HINGE: { trainingMax: 140 },
+    PUSH: { trainingMax: 100 },
+    PRESS: { trainingMax: 60 },
+  };
+  const days: DayPlan[] = [{ id: "w", name: "w", equipment: "WEIGHTS", minutes: 60 }];
+  /** Identify which wave week a planned exercise's sets came from, by their % signature. */
+  const waveOf = (sets: { pct?: number }[]): number => {
+    const key = sets.map((s) => s.pct).join(",");
+    const found = ([1, 2, 3, 4] as const).find(
+      (w) => WAVE[w].sets.map((s) => s.pct).join(",") === key,
+    );
+    expect(found).toBeDefined();
+    return found!;
+  };
+
+  it("rotationWaveWeek: program weeks 1..8 map each pair to waves 1,2,3,4 in turn", () => {
+    expect([1, 2, 3, 4, 5, 6, 7, 8].map(rotationWaveWeek)).toEqual([1, 1, 2, 2, 3, 3, 4, 4]);
+    expect(rotationWaveWeek(9)).toBe(1); // wraps into the next super-cycle
+    expect(rotationWaveWeek(16)).toBe(4);
+  });
+
+  it("every lift sees all four wave weeks across weeks 1-8 (incl. the test and the deload)", () => {
+    const seen: Partial<Record<string, number[]>> = {};
+    for (let week = 1; week <= 8; week++) {
+      const plan = buildSchedule(days, state, { includePull: false, layout: "ROTATE", week });
+      for (const e of plan[0].exercises) {
+        (seen[e.movement] ??= []).push(waveOf(e.sets));
+      }
+    }
+    for (const m of ["SQUAT", "PUSH", "HINGE", "PRESS"]) {
+      // 4 sessions per super-cycle, walking the pair's own wave in order.
+      expect(seen[m]).toEqual([1, 2, 3, 4]);
+    }
+  });
+
+  it("pair B (deadlift+press) reaches its week-3 AMRAP test — on program week 6", () => {
+    const plan = buildSchedule(days, state, { includePull: false, layout: "ROTATE", week: 6 });
+    expect(plan[0].rotation).toBe("B");
+    expect(plan[0].exercises.map((e) => e.movement)).toEqual(["HINGE", "PRESS"]);
+    for (const e of plan[0].exercises) {
+      expect(waveOf(e.sets)).toBe(3);
+      expect(e.sets.at(-1)).toMatchObject({ reps: 1, amrap: true, pct: 0.95 });
+    }
+  });
+
+  it("pair A (squat+bench) reaches its deload — on program week 7", () => {
+    const plan = buildSchedule(days, state, { includePull: false, layout: "ROTATE", week: 7 });
+    expect(plan[0].rotation).toBe("A");
+    expect(plan[0].exercises.map((e) => e.movement)).toEqual(["SQUAT", "PUSH"]);
+    for (const e of plan[0].exercises) expect(waveOf(e.sets)).toBe(4);
+  });
+
+  it("a bodyweight day alongside the rotation keeps its plain 4-week wave off the program week", () => {
+    const mixed: DayPlan[] = [...days, { id: "b", name: "b", equipment: "BODYWEIGHT", minutes: 45 }];
+    const wk5 = buildSchedule(mixed, { ...state, SQUAT: { trainingMax: 120, repMax: 10 } }, {
+      includePull: false, layout: "ROTATE", week: 5,
+    });
+    // Program week 5 ≡ wave week 1 for the bodyweight day (mod 4), while the weighted pair tests.
+    expect(waveOf(wk5[1].exercises[0].sets)).toBe(1);
+    expect(waveOf(wk5[0].exercises[0].sets)).toBe(3);
+  });
+
+  it("programCycleWeeks: 8 only for a single rotating weighted day", () => {
+    expect(programCycleWeeks(days, "ROTATE")).toBe(8);
+    expect(programCycleWeeks(days, "ALL_IN_ONE")).toBe(4);
+    expect(programCycleWeeks([...days, { id: "w2", name: "w2", equipment: "WEIGHTS", minutes: 60 }], "ROTATE")).toBe(4);
+    expect(programCycleWeeks([{ id: "b", name: "b", equipment: "BODYWEIGHT", minutes: 45 }], "ROTATE")).toBe(4);
   });
 });
 
