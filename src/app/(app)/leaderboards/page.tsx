@@ -29,7 +29,7 @@ export default async function LeaderboardsPage({
   const boards = await Promise.all(
     boardConfigs.map(async (board) => ({
       board,
-      ranked: (await getLeaderboard(board.metric as LeaderboardMetric, period)).filter(
+      ranked: (await getLeaderboard(board.metric as LeaderboardMetric, period, user.activeTeamId)).filter(
         (r) => r.value > 0,
       ),
     })),

@@ -11,6 +11,14 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+### Added
+- Multiple teams: `Team` + `TeamMembership` models, per-team registration codes (env
+  `REGISTRATION_CODE` still acts as the default team's code), active-team switcher in the app
+  header, join-a-team-by-code in Settings, admin team creation. Feed, leaderboards, roster,
+  practice slots and attendance are scoped to the active team.
+- Account-less roster members: trainers can add members by name only; attendance can be ticked
+  for them, and they can claim their entry (keeping all history) when they sign up.
+
 ## [0.15.0] - 2026-06-30
 
 ### Added

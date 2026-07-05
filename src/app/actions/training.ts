@@ -200,9 +200,14 @@ export async function logPracticeAttendance(formData: FormData) {
 
   const slot = await prisma.practiceSlot.findUnique({
     where: { id: practiceSlotId },
-    select: { id: true, dayOfWeek: true },
+    select: { id: true, dayOfWeek: true, teamId: true },
   });
   if (!slot) throw new Error("Practice not found");
+  // Only members of the slot's team may record its attendance.
+  const callerMembership = await prisma.teamMembership.findUnique({
+    where: { userId_teamId: { userId: me.id, teamId: slot.teamId } },
+  });
+  if (!callerMembership) throw new Error("Not authorized");
 
   // Parse yyyy-mm-dd as LOCAL midnight (new Date("yyyy-mm-dd") would be UTC midnight, which can
   // shift the day — and the weekday — in non-UTC timezones). Whole-day granularity for dedup.
@@ -233,7 +238,10 @@ export async function logPracticeAttendance(formData: FormData) {
   if (checkedIds.size > 0) {
     // Validate against real users, and find who already has a DONE rugby log for slot+date.
     const validUsers = await prisma.user.findMany({
-      where: { id: { in: Array.from(checkedIds) } },
+      where: {
+        id: { in: Array.from(checkedIds) },
+        memberships: { some: { teamId: slot.teamId } },
+      },
       select: { id: true },
     });
     const validIds = validUsers.map((u) => u.id);
@@ -319,7 +327,10 @@ export async function savePlan(formData: FormData) {
       ? [{ category: "RUGBY", practiceSlotId: null, targetPerWeek: Math.min(rugbyN, 21) }]
       : [];
 
-  const slots = await prisma.practiceSlot.findMany({ where: { active: true }, select: { id: true } });
+  const slots = await prisma.practiceSlot.findMany({
+    where: { active: true, team: { memberships: { some: { userId: me.id } } } },
+    select: { id: true },
+  });
   const slotItems: Item[] = slots
     .filter((s) => formData.get(`slot_${s.id}`))
     .map((s) => ({ category: "RUGBY", practiceSlotId: s.id, targetPerWeek: 0 }));

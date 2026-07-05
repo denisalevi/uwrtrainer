@@ -24,7 +24,15 @@ export default async function PlayerDetailPage({
   const [player, recent, activePlan, slots] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, name: true, email: true, role: true, availabilityNote: true, trainerNote: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        availabilityNote: true,
+        trainerNote: true,
+        memberships: { select: { teamId: true } },
+      },
     }),
     prisma.sessionLog.findMany({
       where: { userId },
@@ -37,9 +45,16 @@ export default async function PlayerDetailPage({
       orderBy: { validFrom: "desc" },
       include: { items: { include: { practiceSlot: { select: { label: true } } } } },
     }),
-    prisma.practiceSlot.findMany({ where: { active: true }, orderBy: { dayOfWeek: "asc" } }),
+    prisma.practiceSlot.findMany({
+      where: { active: true, teamId: viewer.activeTeamId ?? "" },
+      orderBy: { dayOfWeek: "asc" },
+    }),
   ]);
   if (!player) notFound();
+  // Data isolation: only members sharing a team with the viewer are visible.
+  const sharesTeam =
+    player.id === viewer.id || player.memberships.some((m) => viewer.teamIds.includes(m.teamId));
+  if (!sharesTeam) notFound();
 
   return (
     <div className="space-y-5">
