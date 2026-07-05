@@ -21,6 +21,14 @@ model User {
   locale           String   @default("en")
   availabilityNote String?
   trainerNote      String?
+  // Per-user rest-timer prefs (strength logger). Durations are seconds; 0 is allowed via the UI
+  // but the master switch is restTimerEnabled.
+  restTimerEnabled  Boolean @default(true)
+  restTimerBeep     Boolean @default(true)
+  restTimerVibrate  Boolean @default(true)
+  restWarmupSeconds Int     @default(75)
+  restMainSeconds   Int     @default(150)
+  restBbbSeconds    Int     @default(90)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

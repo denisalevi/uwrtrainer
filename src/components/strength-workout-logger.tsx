@@ -6,6 +6,7 @@ import { useT } from "@/components/i18n-provider";
 import { saveStrengthWorkout } from "@/app/actions/strength";
 import { deleteSession } from "@/app/actions/training";
 import { Button, Card, CardBody, Input, Label, Select, cn } from "@/components/ui";
+import { useRestTimer, RestTimerBar, type RestTimerSettings } from "@/components/rest-timer";
 
 type SetKind = "warmup" | "main" | "bbb";
 type SetTarget = { reps: number; weight: number | null; amrap: boolean; kind?: SetKind; pct?: number | null };
@@ -124,6 +125,7 @@ export function StrengthWorkoutLogger({
   week,
   days,
   bbbReps,
+  restTimer,
   resume,
   today,
 }: {
@@ -132,11 +134,13 @@ export function StrengthWorkoutLogger({
   week: number;
   days: LoggerDay[];
   bbbReps: number;
+  restTimer: RestTimerSettings;
   resume: { id: string; details: string; durationMin: number | null } | null;
   today: string;
 }) {
   const { t } = useT();
   const router = useRouter();
+  const rest = useRestTimer(restTimer);
 
   const restored = resume ? safeParse(resume.details) : null;
   const initialDayId =
@@ -266,7 +270,9 @@ export function StrengthWorkoutLogger({
   }
 
   return (
-    <div className="space-y-4">
+    // Prime/unlock audio on the first tap so the end-of-rest beep is allowed by the
+    // browser's autoplay policy when it later fires from a timer tick.
+    <div className="space-y-4" onPointerDownCapture={rest.primeAudio}>
       {/* Day selector — pick a day from your plan to preload it, or start empty. */}
       {days.length >= 1 && (
         <div>
@@ -436,6 +442,15 @@ export function StrengthWorkoutLogger({
                           className="w-20"
                           value={s.reps}
                           onChange={(e) => setField(l.key, i, "reps", e.target.value)}
+                          // Leaving the reps field (or pressing Enter) auto-starts the rest timer
+                          // for this set's kind. Read the live value to avoid a stale closure.
+                          onBlur={(e) => {
+                            if (rest.enabled && e.target.value.trim() !== "") rest.startForKind(s.kind);
+                          }}
+                          onKeyDown={(e) => {
+                            // Blur is enough — the onBlur handler above starts the timer.
+                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                          }}
                         />
                         <Button
                           type="button"
@@ -561,6 +576,9 @@ export function StrengthWorkoutLogger({
           </Button>
         </form>
       )}
+
+      {/* Single shared rest timer, pinned above the nav. Hidden when disabled/idle. */}
+      <RestTimerBar controller={rest} />
     </div>
   );
 }
