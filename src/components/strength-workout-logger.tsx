@@ -448,14 +448,8 @@ export function StrengthWorkoutLogger({
                             if (rest.enabled && e.target.value.trim() !== "") rest.startForKind(s.kind);
                           }}
                           onKeyDown={(e) => {
-                            if (
-                              e.key === "Enter" &&
-                              rest.enabled &&
-                              (e.target as HTMLInputElement).value.trim() !== ""
-                            ) {
-                              (e.target as HTMLInputElement).blur();
-                              rest.startForKind(s.kind);
-                            }
+                            // Blur is enough — the onBlur handler above starts the timer.
+                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                           }}
                         />
                         <Button

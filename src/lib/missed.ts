@@ -41,6 +41,8 @@ function dayBounds(date: Date): { dayStart: Date; dayEnd: Date } {
  *    practiceSlotId=slotId, from their active plan) who is NOT present (has no DONE rugby
  *    log for slot+date) gets ONE auto-MISSED rugby log for slot+date (created if absent).
  *  - Any user who IS present has any auto-MISSED for slot+date removed (present wins).
+ *  - A MANUAL (non-auto) MISSED rugby log for slot+date counts as accounted-for: no auto row is
+ *    created for that user, and any existing auto row is removed (no double penalty).
  *
  * Idempotent: safe to call repeatedly; never creates duplicates, never leaves both DONE and
  * auto-MISSED for the same user+slot+date. Returns the set of touched user ids for revalidation.
@@ -72,6 +74,11 @@ export async function reconcileRugbyMissed(slotId: string, date: Date): Promise<
   const presentUserIds = new Set(
     existing.filter((l) => l.status === "DONE").map((l) => l.userId),
   );
+  // A MANUAL missed row (logged via /log with this slot+date) already accounts for the absence —
+  // it must suppress (and displace) the auto row, or the user carries a double penalty.
+  const manualMissedUserIds = new Set(
+    existing.filter((l) => l.status === "MISSED" && !l.auto).map((l) => l.userId),
+  );
   const autoMissedByUser = new Map<string, string[]>();
   for (const l of existing) {
     if (l.status === "MISSED" && l.auto) {
@@ -83,19 +90,19 @@ export async function reconcileRugbyMissed(slotId: string, date: Date): Promise<
 
   const touched = new Set<string>();
 
-  // 1. Present users: remove any auto-MISSED (present wins).
+  // 1. Accounted-for users (present, or with a manual MISSED row): remove any auto-MISSED.
   const toDelete: string[] = [];
   for (const [userId, ids] of autoMissedByUser) {
-    if (presentUserIds.has(userId)) {
+    if (presentUserIds.has(userId) || manualMissedUserIds.has(userId)) {
       toDelete.push(...ids);
       touched.add(userId);
     }
   }
 
-  // 2. Committed-but-absent users: ensure exactly one auto-MISSED exists.
+  // 2. Committed-but-unaccounted users: ensure exactly one auto-MISSED exists.
   const toCreate: string[] = [];
   for (const userId of committedUserIds) {
-    if (presentUserIds.has(userId)) continue;
+    if (presentUserIds.has(userId) || manualMissedUserIds.has(userId)) continue;
     const hasAuto = (autoMissedByUser.get(userId)?.length ?? 0) > 0;
     if (!hasAuto) {
       toCreate.push(userId);

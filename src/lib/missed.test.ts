@@ -63,6 +63,10 @@ vi.mock("@/lib/db", () => ({
         db.logs.push(row);
         return row;
       },
+      createMany: async ({ data }: any) => {
+        for (const d of data) db.logs.push({ id: `gen${db.seq++}`, details: null, ...d });
+        return { count: data.length };
+      },
       update: async ({ where, data }: any) => {
         const row = db.logs.find((l) => l.id === where.id)!;
         Object.assign(row, data);
@@ -86,9 +90,13 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-const { reconcileWeekForUser, isWeekReconciled, isoWeekKey, RECONCILE_GRACE_DAYS } = await import(
-  "./missed"
-);
+const {
+  reconcileWeekForUser,
+  reconcileRugbyMissed,
+  isWeekReconciled,
+  isoWeekKey,
+  RECONCILE_GRACE_DAYS,
+} = await import("./missed");
 
 // A known Monday week start.
 const WEEK = new Date(2026, 4, 4); // Mon 2026-05-04
@@ -200,6 +208,75 @@ describe("reconcileWeekForUser — rugby remainder (two buckets, no double-count
     addLog({ category: "RUGBY", status: "MISSED", auto: true, practiceSlotId: "slotB" });
     await reconcileWeekForUser(WEEK, "u1");
     expect(summaries()).toHaveLength(0);
+  });
+});
+
+describe("reconcileRugbyMissed — ticked-practice dedup", () => {
+  const SLOT = "slotA";
+  const DATE = dayInWeek(1);
+  const commit = (userId: string) =>
+    db.planItems.push({ category: "RUGBY", practiceSlotId: SLOT, userId });
+  const autoMissedFor = (userId: string) =>
+    db.logs.filter(
+      (l) => l.userId === userId && l.status === "MISSED" && l.auto && l.practiceSlotId === SLOT,
+    );
+
+  it("creates one auto-missed for a committed absent user; present wins and removes it", async () => {
+    commit("u1");
+    commit("u2");
+    addLog({ userId: "u2", category: "RUGBY", status: "DONE", practiceSlotId: SLOT, date: DATE });
+
+    await reconcileRugbyMissed(SLOT, DATE);
+    expect(autoMissedFor("u1")).toHaveLength(1);
+    expect(autoMissedFor("u2")).toHaveLength(0);
+
+    // u1 gets marked present later → their auto-missed is removed (idempotent, no duplicates).
+    addLog({ userId: "u1", category: "RUGBY", status: "DONE", practiceSlotId: SLOT, date: DATE });
+    await reconcileRugbyMissed(SLOT, DATE);
+    expect(autoMissedFor("u1")).toHaveLength(0);
+  });
+
+  it("treats a manual MISSED row as accounted for — no auto twin is created", async () => {
+    commit("u1");
+    addLog({
+      userId: "u1",
+      category: "RUGBY",
+      status: "MISSED",
+      auto: false,
+      practiceSlotId: SLOT,
+      date: DATE,
+    });
+    await reconcileRugbyMissed(SLOT, DATE);
+    expect(autoMissedFor("u1")).toHaveLength(0);
+    // The manual row itself is untouched.
+    expect(
+      db.logs.filter((l) => l.userId === "u1" && l.status === "MISSED" && !l.auto),
+    ).toHaveLength(1);
+  });
+
+  it("removes an existing auto row once a manual MISSED row accounts for the absence", async () => {
+    commit("u1");
+    addLog({
+      userId: "u1",
+      category: "RUGBY",
+      status: "MISSED",
+      auto: true,
+      practiceSlotId: SLOT,
+      date: DATE,
+    });
+    addLog({
+      userId: "u1",
+      category: "RUGBY",
+      status: "MISSED",
+      auto: false,
+      practiceSlotId: SLOT,
+      date: DATE,
+    });
+    await reconcileRugbyMissed(SLOT, DATE);
+    expect(autoMissedFor("u1")).toHaveLength(0);
+    expect(
+      db.logs.filter((l) => l.userId === "u1" && l.status === "MISSED" && !l.auto),
+    ).toHaveLength(1);
   });
 });
 
