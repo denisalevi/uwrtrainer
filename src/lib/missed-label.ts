@@ -65,7 +65,8 @@ export function missedResolveAction(log: {
     };
   }
   if (log.category === "STRENGTH") {
-    return { href: "/strength/log", labelKey: "missed.logSession" };
+    // Carry the missed row's date so the logged workout lands in (and heals) the missed week.
+    return { href: `/strength/log?date=${dayKey(log.date)}`, labelKey: "missed.logSession" };
   }
   return {
     href: `/log?category=${log.category}&date=${dayKey(log.date)}`,

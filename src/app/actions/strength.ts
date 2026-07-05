@@ -330,8 +330,33 @@ export async function saveStrengthWorkout(input: {
     throw new Error("Invalid workout");
   }
 
+  // The details payload must actually be a strength-workout document — this action must not be
+  // usable to overwrite a session with arbitrary JSON.
+  let parsedDetails: unknown;
+  try {
+    parsedDetails = JSON.parse(input.details);
+  } catch {
+    throw new Error("Invalid workout");
+  }
+  if (
+    !parsedDetails ||
+    typeof parsedDetails !== "object" ||
+    (parsedDetails as { kind?: unknown }).kind !== "strengthWorkout"
+  ) {
+    throw new Error("Invalid workout");
+  }
+
+  // Validate the date: must parse, and must not be in the future (whole-day granularity).
+  const date = new Date(input.date);
+  if (typeof input.date !== "string" || Number.isNaN(date.getTime())) {
+    throw new Error("Invalid date");
+  }
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+  if (date > todayEnd) throw new Error("Date cannot be in the future");
+
   const data = {
-    date: new Date(input.date),
+    date,
     durationMin: input.durationMin && input.durationMin > 0 ? Math.min(input.durationMin, 1000) : null,
     details: input.details,
   };
@@ -339,11 +364,20 @@ export async function saveStrengthWorkout(input: {
   if (input.logId) {
     const existing = await prisma.sessionLog.findUnique({
       where: { id: input.logId },
-      select: { userId: true },
+      select: { userId: true, date: true, category: true, status: true, auto: true },
     });
     if (!existing || existing.userId !== user.id) throw new Error("Not authorized");
+    // Only a real logged strength workout may be overwritten — never another category, a MISSED
+    // row, or a system-owned auto row.
+    if (existing.category !== "STRENGTH" || existing.status !== "DONE" || existing.auto) {
+      throw new Error("Not a strength workout");
+    }
     await prisma.sessionLog.update({ where: { id: input.logId }, data });
-    await selfHealCountWeek(user.id, data.date);
+    // Self-heal BOTH weeks: the edit may have moved the session out of an already-reconciled week.
+    await selfHealCountWeek(user.id, existing.date);
+    if (data.date.getTime() !== existing.date.getTime()) {
+      await selfHealCountWeek(user.id, data.date);
+    }
     revalidatePath("/dashboard");
     return { id: input.logId };
   }

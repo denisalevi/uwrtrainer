@@ -26,12 +26,27 @@ import {
 } from "@/lib/strength";
 import { StrengthWorkoutLogger, type LoggerDay } from "@/components/strength-workout-logger";
 
+/**
+ * Parse a `?date=yyyy-mm-dd` param into local midnight. Returns null when malformed, not a real
+ * date, or in the future — callers fall back to today.
+ */
+function parseDateParam(raw: string | undefined): Date | null {
+  if (!raw) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (Number.isNaN(d.getTime())) return null;
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  return d > todayStart ? null : d;
+}
+
 export default async function StrengthLogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string }>;
+  searchParams: Promise<{ id?: string; date?: string }>;
 }) {
-  const { id } = await searchParams;
+  const { id, date: dateParam } = await searchParams;
   const user = await requireUser();
   const { t } = await getServerT();
 
@@ -96,11 +111,18 @@ export default async function StrengthLogPage({
     }));
   }
 
-  // Resume: a specific session to edit (?id=), otherwise today's in-progress draft.
-  const start = new Date();
+  // Resume: a specific session to edit (?id=), otherwise the target day's in-progress draft.
+  // A validated ?date= (e.g. from a missed row's "Log the session") backdates the session so it
+  // lands in — and heals — the missed week; invalid/future dates fall back to today.
+  const requested = parseDateParam(dateParam);
+  const start = requested ?? new Date();
   start.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(start);
+  dayEnd.setDate(dayEnd.getDate() + 1);
   let resume: { id: string; details: string; durationMin: number | null } | null = null;
-  let date = start.toISOString().slice(0, 10);
+  let date = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(
+    start.getDate(),
+  ).padStart(2, "0")}`;
   if (id) {
     const log = await prisma.sessionLog.findUnique({ where: { id } });
     if (log && log.userId === user.id && log.details?.includes('"strengthWorkout"')) {
@@ -108,12 +130,12 @@ export default async function StrengthLogPage({
       date = log.date.toISOString().slice(0, 10);
     }
   } else {
-    const todays = await prisma.sessionLog.findFirst({
-      where: { userId: user.id, category: "STRENGTH", date: { gte: start } },
+    const draft = await prisma.sessionLog.findFirst({
+      where: { userId: user.id, category: "STRENGTH", date: { gte: start, lt: dayEnd } },
       orderBy: { createdAt: "desc" },
     });
-    if (todays && todays.details && todays.details.includes('"strengthWorkout"')) {
-      resume = { id: todays.id, details: todays.details, durationMin: todays.durationMin };
+    if (draft && draft.details && draft.details.includes('"strengthWorkout"')) {
+      resume = { id: draft.id, details: draft.details, durationMin: draft.durationMin };
     }
   }
 
