@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
 import { isTrainer, CATEGORIES, SESSION_STATUSES } from "@/lib/constants";
 import { reconcileRugbyMissed, selfHealCountWeek } from "@/lib/missed";
+import { planItemsEqual } from "@/lib/plan-version";
 
 const LogSchema = z.object({
   category: z.enum(CATEGORIES),
@@ -366,22 +367,29 @@ export async function savePlan(formData: FormData) {
     const active = await tx.plan.findFirst({
       where: { userId: targetUserId, validTo: null },
       orderBy: { validFrom: "desc" },
+      include: { items: true },
     });
 
+    // VERSIONING: never mutate a plan's items in place — historical week scores are computed
+    // from the plan version active at ref = weekStart + 6d (see stats.ts/missed.ts). Instead,
+    // close the current version (validTo = now) and open a new one (validFrom = now). Past
+    // weeks (ref < now) keep the closed version; the current week's ref (end of week) falls
+    // after `now`, so a mid-week change applies to the whole current week — by design, since
+    // ref is end-of-week. If nothing actually changed, skip: no noise version.
+    if (active && planItemsEqual(active.items, items)) return;
+
+    const now = new Date();
     if (active) {
-      await tx.planItem.deleteMany({ where: { planId: active.id } });
-      if (items.length) {
-        await tx.planItem.createMany({ data: items.map((i) => ({ ...i, planId: active.id })) });
-      }
-    } else {
-      await tx.plan.create({
-        data: {
-          userId: targetUserId,
-          createdById: me.id,
-          items: { create: items },
-        },
-      });
+      await tx.plan.update({ where: { id: active.id }, data: { validTo: now } });
     }
+    await tx.plan.create({
+      data: {
+        userId: targetUserId,
+        createdById: me.id,
+        validFrom: now,
+        items: { create: items },
+      },
+    });
   });
 
   revalidatePath("/plan");
