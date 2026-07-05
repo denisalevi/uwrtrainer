@@ -76,6 +76,16 @@ what each day becomes.
 **One weighted day.** Four lifts don't fit one session every week, so you choose:
 - **Alternate (2-week):** squat+bench one week, deadlift+press the next — each lift loaded
   biweekly, ~50-min sessions. (The plan shows which half this is: *week A / week B*.)
+  Because each pair only trains every second week, each pair steps through its **own 4-week
+  wave** at its own pace — your Nth squat+bench session is that pair's wave week N. A full
+  cycle therefore spans **8 program weeks**, and every lift still gets its week-3 test and its
+  deload (pair A tests on program week 5 and deloads on week 7; pair B on weeks 6 and 8):
+
+  | Program week | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+  |---|---|---|---|---|---|---|---|---|
+  | Pair | A | B | A | B | A | B | A | B |
+  | That pair's wave week | 1 | 1 | 2 | 2 | 3 | 3 | 4 | 4 |
+
 - **All-in-one:** all four loaded in one long (~2 h) session, every lift every week.
 
 **Logging a strength session** is always one full session, never a single lift. Open the workout
@@ -113,6 +123,8 @@ Falling short is built into the system, not a failure:
 - **Missed a session** → just log it. The plan and weights don't change.
 - **Came up short on the test set** → the app **holds** the same numbers for the next cycle.
 - **Short two cycles in a row** → it **eases back about 10 %** and rebuilds (Wendler's reset).
+  Short cycles are counted **per lift** — a stalling press never forces a reduce on a squat
+  that only just had its first bad day.
 - **Short on time** → drop the extra "Boring But Big" volume and do just the main sets, or
   take a deload week.
 

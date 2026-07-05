@@ -49,14 +49,19 @@ export function roundToIncrement(value: number, increment: number): number {
 /**
  * The "training max" is what every working set is calculated from — deliberately set
  * below your true max (default 90%) so training never grinds to a true limit and you
- * have room to grow. Rounded to a loadable increment.
+ * have room to grow. Rounded DOWN to a loadable increment (Wendler): rounding to nearest
+ * can round UP and erase the submaximal margin at light loads (e.g. 10 kg × 1 would give
+ * a 10 kg TM — the weight actually lifted).
  */
 export function trainingMaxFromOneRepMax(
   oneRepMax: number,
   pct = 0.9,
   increment = 2.5,
 ): number {
-  return roundToIncrement(oneRepMax * pct, increment);
+  const tm = oneRepMax * pct;
+  if (increment <= 0) return tm;
+  // Tiny epsilon so float noise (e.g. 90.00000000000001 / 2.5) can't floor a clean multiple down.
+  return Math.floor(tm / increment + 1e-9) * increment;
 }
 
 // ──────────────────────────────────────────────────────────────────── The wave ──
@@ -328,6 +333,61 @@ export function nextBodyweight(
   return { repMax: repMax + 1, levelIndex };
 }
 
+// ─────────────────────────────────────────────── Closing out a cycle (per lift) ──
+
+/**
+ * The rep target the week-3 AMRAP test is judged against, for the mode the lift is actually
+ * performed in. A WEIGHTED lift's week-3 top set prescribes the wave's fixed rep count (1 at
+ * 95 % of the training max); a BODYWEIGHT lift's top set prescribes ~95 % of its CURRENT rep
+ * max — so beating it must be judged against that, not against the weighted "1".
+ */
+export function prescribedTestReps(mode: SlotMode, cur: MovementState): number {
+  const week3 = waveWeek(3);
+  const top = week3.sets[week3.sets.length - 1];
+  if (mode === "WEIGHTED") return top.reps;
+  // Same maths bodyweightWorkout uses for the week-3 top set.
+  return bodyweightWorkout(cur.repMax ?? 5, 3, { movementLabel: "" }).sets.at(-1)!.reps;
+}
+
+/**
+ * Close out a cycle for ONE movement: judge its week-3 AMRAP result against its prescription,
+ * advance both maxima (weighted training max + bodyweight rep/level), and return the movement's
+ * next-cycle state. Everything else the state carries (chosen exercise variants, custom names)
+ * is PRESERVED — only the progression fields change. The first-cycle estimate inputs
+ * (`estWeight`/`estReps`) are deliberately dropped: they describe the set the very first
+ * training max was derived from, which is stale once a cycle has adjusted it.
+ *
+ * Short cycles are tracked PER LIFT in `holds`: the first shortfall HOLDs and bumps the
+ * lift's own counter; a second shortfall in a row REDUCEs (~10 %) and resets it, as does
+ * any successful test. Other lifts are unaffected.
+ */
+export function advanceMovementState(
+  movement: MovementKey,
+  cur: MovementState,
+  amrapReps: number,
+  prescribedReps: number,
+  opts: { rounding?: number } = {},
+): MovementState {
+  const adjustment = decideAdjustment(amrapReps, prescribedReps, cur.holds ?? 0);
+  const bw = nextBodyweight(
+    { repMax: cur.repMax ?? 5, levelIndex: cur.levelIndex ?? 0 },
+    adjustment,
+    { mode: "LEVELS", levelCount: MOVEMENT_LEVELS[movement].length, graduateAt: 15, resetReps: 5 },
+  );
+  return {
+    ...cur,
+    trainingMax: nextTrainingMax(cur.trainingMax ?? 0, adjustment, {
+      increment: incrementFor(movement),
+      rounding: opts.rounding,
+    }),
+    repMax: bw.repMax,
+    levelIndex: bw.levelIndex,
+    holds: adjustment === "HOLD" ? (cur.holds ?? 0) + 1 : 0,
+    estWeight: undefined, // first-cycle-only; retire after the first adjustment
+    estReps: undefined,
+  };
+}
+
 // ───────────────────────────────────────────── Equipment → mode, and templates ──
 
 /** Map what the athlete has to the progression mode. Nothing at all is fully supported. */
@@ -415,6 +475,10 @@ export type MovementState = {
   trainingMax?: number;
   repMax?: number;
   levelIndex?: number;
+  /** How many cycles in a row THIS lift ended short (HOLD). Two in a row triggers the ~10 %
+   * REDUCE — per lift, so one stalling lift never drags the others down. Absent = 0 (also
+   * covers rows written before this field existed; the old program-level counter is ignored). */
+  holds?: number;
   /** First-cycle setup: the weight × clean reps the user entered to estimate the training max.
    * Stored so the onboarding form can show them again (and so we know the TM came from an estimate
    * rather than a direct entry). Absent when the user typed a training max in directly. */
@@ -669,7 +733,8 @@ export function workoutForSlot(
 //
 //   • WEIGHTED days are recovery-limited, so the cores are SPLIT across them — each lift loaded
 //     once a week. The spreadsheet's pairing is lower+upper-push: {squat,bench} & {deadlift,
-//     press}. With only one weighted day you either ROTATE those pairs over two weeks or do
+//     press}. With only one weighted day you either ROTATE those pairs week-about (each pair
+//     then walks its OWN 4-week wave → an 8-week super-cycle, see rotationWaveWeek) or do
 //     ALL_IN_ONE (all four in one long session).
 //   • BODYWEIGHT days aren't recovery-limited and gain from frequency, so EVERY bodyweight day
 //     is full-body — all four patterns — and time controls the number of sets, not the lifts.
@@ -708,6 +773,33 @@ export function suggestedMinutes(weightedLifts: number): number {
   return 45; // one weighted lift, or a bodyweight day
 }
 
+/**
+ * ROTATE (a single weighted day): which pair trains on a given program week — pair A
+ * (squat+bench) on odd weeks, pair B (deadlift+press) on even weeks.
+ */
+export function rotationHalf(week: number): "A" | "B" {
+  return week % 2 === 1 ? "A" : "B";
+}
+
+/**
+ * ROTATE: the wave week the training pair is on for a given program week. Each pair walks its
+ * OWN 4-week wave — its Nth session is wave week ((N-1) mod 4)+1 — so the full rotation is an
+ * 8-week super-cycle and every lift sees all four wave weeks (incl. the week-3 test and the
+ * deload). Program weeks 1..8 map to (pair · wave): 1=A·1, 2=B·1, 3=A·2, 4=B·2, 5=A·3, 6=B·3,
+ * 7=A·4, 8=B·4. (Keying the wave straight off the program week would phase-lock the rotation:
+ * 2 divides 4, so pair A would only ever see waves 1/3 and pair B waves 2/4 — deadlift+press
+ * would never be tested and squat+bench never deload.)
+ */
+export function rotationWaveWeek(week: number): number {
+  return (Math.floor((((week - 1) % 8) + 8) % 8 / 2) % 4) + 1;
+}
+
+/** ROTATE spans 8 program weeks (both pairs × their own 4-week wave); everything else 4. */
+export function programCycleWeeks(days: DayPlan[], layout: WeightedLayout): 4 | 8 {
+  const weighted = days.filter((d) => d.equipment === "WEIGHTS").length;
+  return weighted === 1 && layout === "ROTATE" ? 8 : 4;
+}
+
 /** How the four cores are split across W weighted days (and which pair on a rotating single day). */
 export function weightedAssignment(
   weightedDays: number,
@@ -716,7 +808,7 @@ export function weightedAssignment(
 ): MovementKey[][] {
   if (weightedDays <= 1) {
     if (layout === "ALL_IN_ONE") return [[...CORE_MOVEMENTS]];
-    return [week % 2 === 1 ? [...PAIR_A] : [...PAIR_B]]; // ROTATE: odd weeks = A
+    return [rotationHalf(week) === "A" ? [...PAIR_A] : [...PAIR_B]]; // ROTATE: odd weeks = A
   }
   if (weightedDays === 2) return [[...PAIR_A], [...PAIR_B]];
   if (weightedDays === 3) return [[...PAIR_A], ["HINGE"], ["PRESS"]];
@@ -791,6 +883,10 @@ export function buildSchedule(
   const weightedDays = days.filter((d) => d.equipment === "WEIGHTS");
   const assignment = weightedAssignment(weightedDays.length, layout, week);
   const riderIdx = includePull ? pullRiderDay(assignment) : null;
+  // A single rotating weighted day runs an 8-week super-cycle: the training pair's sets come
+  // off ITS OWN wave week (rotationWaveWeek), not the raw program week — otherwise the
+  // rotation is phase-locked and half the lifts never see the test/deload weeks.
+  const rotating = weightedDays.length === 1 && layout === "ROTATE";
 
   let w = 0; // index among weighted days
   return days.map((day) => {
@@ -799,14 +895,14 @@ export function buildSchedule(
       const cores = assignment[myIdx] ?? [];
       const movements = [...cores];
       if (riderIdx === myIdx) movements.push("PULL");
-      const exercises = movements.map((m) => plannedExercise(m, "WEIGHTS", state, week));
-      const single = weightedDays.length <= 1;
+      const liftWeek = rotating ? rotationWaveWeek(week) : week;
+      const exercises = movements.map((m) => plannedExercise(m, "WEIGHTS", state, liftWeek));
       return {
         id: day.id,
         name: day.name,
         equipment: day.equipment,
         minutes: day.minutes,
-        ...(single && layout === "ROTATE" ? { rotation: (week % 2 === 1 ? "A" : "B") as "A" | "B" } : {}),
+        ...(rotating ? { rotation: rotationHalf(week) } : {}),
         exercises,
       };
     }
