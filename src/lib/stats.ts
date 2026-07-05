@@ -15,6 +15,7 @@ import {
   type Period,
 } from "@/lib/dates";
 import type { Category, LeaderboardMetric, PracticeTier } from "@/lib/constants";
+import { selectActivePlan } from "@/lib/plan-version";
 
 type LogRow = {
   status: string;
@@ -41,15 +42,7 @@ type PlanWithItems = {
 
 /** The plan items active for `userId` at `ref`, with practice tier resolved. */
 function activeItems(plans: PlanWithItems[], userId: string, ref: Date) {
-  const candidates = plans
-    .filter(
-      (p) =>
-        p.userId === userId &&
-        p.validFrom <= ref &&
-        (p.validTo === null || p.validTo >= ref),
-    )
-    .sort((a, b) => b.validFrom.getTime() - a.validFrom.getTime());
-  return candidates[0]?.items ?? [];
+  return selectActivePlan(plans, userId, ref)?.items ?? [];
 }
 
 function buildScoreItems(
