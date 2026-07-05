@@ -11,6 +11,8 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-07-05
+
 ### Added
 - Multiple teams: `Team` + `TeamMembership` models, per-team registration codes (env
   `REGISTRATION_CODE` still acts as the default team's code), active-team switcher in the app
@@ -18,6 +20,28 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
   practice slots and attendance are scoped to the active team.
 - Account-less roster members: trainers can add members by name only; attendance can be ticked
   for them, and they can claim their entry (keeping all history) when they sign up.
+- **Rest timer between sets** in the strength logger — starts automatically, is wall-clock based
+  (survives navigation), and can be dismissed.
+- **Session timer** in the strength logger, with duration prefill and auto-marking the session
+  done once every set is filled in.
+- **Configurable weight rounding** for the strength engine (team setting; defaults to rounding
+  the training max *down* to the increment).
+
+### Fixed
+- Plan edits now **version** plans instead of rewriting history, so past weeks keep the plan they
+  were scored against.
+- Scheduler robustness: the weekly reconcile **backfills weeks missed during downtime**, and a DB
+  uniqueness backstop closes a duplicate-attendance race.
+- UX batch: clearer attendance entry points, missed-reason feedback, feed labels, and editable
+  practice events.
+- Strength engine fixes: ROTATE layout un-phase-locked (each pair walks its own 4-week wave), short
+  cycles counted per lift rather than per program, bodyweight AMRAP judged against its own
+  prescription, `finishStrengthCycle` no longer wipes chosen exercises, onboarding set inputs
+  persisted with a clearer training-max-vs-estimate readout, and the missed week's date carried
+  into `/strength/log`.
+- Validation hardening: `saveStrengthWorkout` validates target/date/payload, attendance validates
+  the practice date, `/log` deduplicates rugby practice logs, and edits to auto-generated "missed"
+  rows are blocked.
 
 ## [0.15.0] - 2026-06-30
 
