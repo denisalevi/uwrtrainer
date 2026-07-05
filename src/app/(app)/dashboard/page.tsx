@@ -101,12 +101,6 @@ export default async function DashboardPage() {
         <Button className="w-full">➕ {t("dash.logSession")}</Button>
       </Link>
 
-      <Link href="/attendance" className="block">
-        <Button variant="secondary" className="w-full">
-          🏉 {t("attendance.recordButton")}
-        </Button>
-      </Link>
-
       <section className="space-y-2">
         <SectionTitle>{t("dash.recentLogs")}</SectionTitle>
         {recent.length === 0 ? (

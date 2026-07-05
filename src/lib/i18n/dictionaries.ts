@@ -86,7 +86,10 @@ export const en = {
   "feed.wentToPractice": "{n} went to {label}",
   "feed.attendees": "Attendees",
   "feed.missedPractice": "{n} missed {label}",
-  "feed.didNotCome": "Committed but didn't come",
+  "feed.didNotCome": "Didn't come (of those signed up)",
+  "feed.editAttendance": "Edit attendance",
+  "log.teamPractice": "Record a team practice (who came)",
+  "log.ownTraining": "No practice — on my own",
 
   // ── Auto-missed badge (Part C) ──
   "missed.autoBadge": "auto",
@@ -552,7 +555,10 @@ export const de: Record<DictKey, string> = {
   "feed.wentToPractice": "{n} waren bei {label}",
   "feed.attendees": "Teilnehmer",
   "feed.missedPractice": "{n} haben {label} verpasst",
-  "feed.didNotCome": "Zugesagt, aber nicht gekommen",
+  "feed.didNotCome": "Nicht da (von den Zugesagten)",
+  "feed.editAttendance": "Anwesenheit bearbeiten",
+  "log.teamPractice": "Team-Training erfassen (wer war da)",
+  "log.ownTraining": "Kein Training — auf eigene Faust",
 
   // ── Auto-Verpasst-Badge (Teil C) ──
   "missed.autoBadge": "auto",

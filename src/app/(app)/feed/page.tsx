@@ -4,8 +4,9 @@ import { getServerT, type ServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
 import { addDays } from "@/lib/dates";
 import type { DictKey } from "@/lib/i18n/dictionaries";
-import { Badge, Button, Card, SectionTitle } from "@/components/ui";
+import { Badge, Card, SectionTitle } from "@/components/ui";
 import { StrengthWorkoutView } from "@/components/strength-workout-view";
+import { MissedActions } from "@/components/missed-actions";
 
 type FeedLog = {
   id: string;
@@ -22,7 +23,13 @@ type FeedLog = {
   details: string | null;
 };
 
-type Absentee = { userId: string; userName: string; hasReason: boolean };
+type Absentee = {
+  userId: string;
+  userName: string;
+  hasReason: boolean;
+  logId: string;
+  reason: string | null;
+};
 
 /** yyyy-mm-dd in local time, used as the day-group key. */
 function dayKey(d: Date): string {
@@ -105,7 +112,13 @@ export default async function FeedPage() {
   for (const m of missedRows) {
     const key = `${m.practiceSlotId}|${dayKey(m.date)}`;
     const arr = missedBySlotDay.get(key) ?? [];
-    arr.push({ userId: m.userId, userName: m.user.name, hasReason: !!m.missReason });
+    arr.push({
+      userId: m.userId,
+      userName: m.user.name,
+      hasReason: !!m.missReason,
+      logId: m.id,
+      reason: m.missReason,
+    });
     missedBySlotDay.set(key, arr);
   }
 
@@ -121,14 +134,9 @@ export default async function FeedPage() {
 
   return (
     <div className="space-y-5">
-      <header className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-slate-900">{t("feed.title")}</h1>
-          <p className="text-sm text-slate-500">{t("feed.subtitle")}</p>
-        </div>
-        <Link href="/attendance">
-          <Button size="sm">🏉 {t("attendance.recordButton")}</Button>
-        </Link>
+      <header className="space-y-1">
+        <h1 className="text-2xl font-bold text-slate-900">{t("feed.title")}</h1>
+        <p className="text-sm text-slate-500">{t("feed.subtitle")}</p>
       </header>
 
       {dayKeys.length === 0 ? (
@@ -141,6 +149,7 @@ export default async function FeedPage() {
             label={dayLabel(t, k, today)}
             logs={byDay.get(k)!}
             missedBySlotDay={missedBySlotDay}
+            viewerId={viewer.id}
           />
         ))
       )}
@@ -164,11 +173,13 @@ async function DaySection({
   label,
   logs,
   missedBySlotDay,
+  viewerId,
 }: {
   t: ServerT;
   label: string;
   logs: FeedLog[];
   missedBySlotDay: Map<string, Absentee[]>;
+  viewerId: string;
 }) {
   // Aggregate rugby attendance by practice slot (DONE only → "{n} went to {label}").
   const rugbyDone = logs.filter(
@@ -192,8 +203,9 @@ async function DaySection({
       <Card>
         <ul className="divide-y divide-slate-100">
           {Array.from(rugbyBySlot.entries()).map(([slotId, attendees]) => {
-            const absentees =
-              missedBySlotDay.get(`${slotId}|${dayKey(attendees[0].date)}`) ?? [];
+            const day = dayKey(attendees[0].date);
+            const absentees = missedBySlotDay.get(`${slotId}|${day}`) ?? [];
+            const mine = absentees.find((a) => a.userId === viewerId);
             return (
               <li key={`rugby-${slotId}`} className="text-sm">
                 <details className="group">
@@ -236,8 +248,23 @@ async function DaySection({
                             </span>
                           ))}
                         </p>
+                        {mine && (
+                          <MissedActions
+                            logId={mine.logId}
+                            resolveHref={`/attendance?slot=${slotId}&date=${day}`}
+                            resolveLabel={t("missed.addYourself")}
+                            reason={mine.reason}
+                            canGiveReason
+                          />
+                        )}
                       </div>
                     )}
+                    <Link
+                      href={`/attendance?slot=${slotId}&date=${day}&edit=1`}
+                      className="inline-block text-sm font-medium text-teal-700 underline"
+                    >
+                      ✏️ {t("feed.editAttendance")}
+                    </Link>
                   </div>
                 </details>
               </li>
