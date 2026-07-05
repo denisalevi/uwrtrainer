@@ -415,6 +415,11 @@ export type MovementState = {
   trainingMax?: number;
   repMax?: number;
   levelIndex?: number;
+  /** First-cycle setup: the weight × clean reps the user entered to estimate the training max.
+   * Stored so the onboarding form can show them again (and so we know the TM came from an estimate
+   * rather than a direct entry). Absent when the user typed a training max in directly. */
+  estWeight?: number;
+  estReps?: number;
   /** Chosen weighted variant id (catalog id or "custom"). Defaults to the barbell lift. */
   weightedExerciseId?: string;
   /** Chosen bodyweight variant id (catalog id or "custom"). Defaults to a ladder rung. */
