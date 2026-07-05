@@ -49,14 +49,19 @@ export function roundToIncrement(value: number, increment: number): number {
 /**
  * The "training max" is what every working set is calculated from — deliberately set
  * below your true max (default 90%) so training never grinds to a true limit and you
- * have room to grow. Rounded to a loadable increment.
+ * have room to grow. Rounded DOWN to a loadable increment (Wendler): rounding to nearest
+ * can round UP and erase the submaximal margin at light loads (e.g. 10 kg × 1 would give
+ * a 10 kg TM — the weight actually lifted).
  */
 export function trainingMaxFromOneRepMax(
   oneRepMax: number,
   pct = 0.9,
   increment = 2.5,
 ): number {
-  return roundToIncrement(oneRepMax * pct, increment);
+  const tm = oneRepMax * pct;
+  if (increment <= 0) return tm;
+  // Tiny epsilon so float noise (e.g. 90.00000000000001 / 2.5) can't floor a clean multiple down.
+  return Math.floor(tm / increment + 1e-9) * increment;
 }
 
 // ──────────────────────────────────────────────────────────────────── The wave ──

@@ -55,9 +55,10 @@ describe("rounding & training max", () => {
     expect(roundToIncrement(64.0, 2.5)).toBe(65);
     expect(roundToIncrement(61.2, 2.5)).toBe(60);
   });
-  it("training max is a rounded 90% of the 1RM by default", () => {
+  it("training max is 90% of the 1RM by default, rounded DOWN to the increment (Wendler)", () => {
     expect(trainingMaxFromOneRepMax(100)).toBe(90);
-    expect(trainingMaxFromOneRepMax(102, 0.9, 2.5)).toBe(92.5); // 91.8 → 92.5
+    expect(trainingMaxFromOneRepMax(102, 0.9, 2.5)).toBe(90); // 91.8 floors to 90, never 92.5
+    expect(trainingMaxFromOneRepMax(105, 0.9, 2.5)).toBe(92.5); // 94.5 → 92.5
   });
 });
 
@@ -83,6 +84,23 @@ describe("onboarding calculator never overshoots", () => {
 
   it("at a single clean rep the TM is ~90% of the lifted weight (still submaximal)", () => {
     expect(tm(100, 1)).toBe(90);
+  });
+
+  it("light dumbbell weights: flooring keeps the TM below the tested single (nearest rounded UP)", () => {
+    // The old nearest-rounding bug: 10 kg × 1 → 1RM 10 → 90% = 9 → NEAREST 2.5 gives 10 kg,
+    // i.e. a TM at the weight actually lifted. Rounding down keeps the margin.
+    for (const w of [5, 7.5, 10, 12.5, 15]) {
+      expect(tm(w, 1)).toBeLessThan(w);
+    }
+    expect(tm(10, 1)).toBe(7.5);
+  });
+
+  it("flooring never lifts the TM above the estimated 1RM at light loads either", () => {
+    for (const w of [4, 6, 9, 11]) {
+      for (const r of [1, 3, 5, 8]) {
+        expect(tm(w, r)).toBeLessThanOrEqual(estimateOneRepMax(w, r));
+      }
+    }
   });
 });
 
