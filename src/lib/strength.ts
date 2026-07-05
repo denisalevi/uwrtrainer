@@ -351,15 +351,19 @@ export function prescribedTestReps(mode: SlotMode, cur: MovementState): number {
  * is PRESERVED — only the progression fields change. The first-cycle estimate inputs
  * (`estWeight`/`estReps`) are deliberately dropped: they describe the set the very first
  * training max was derived from, which is stale once a cycle has adjusted it.
+ *
+ * Short cycles are tracked PER LIFT in `holds`: the first shortfall HOLDs and bumps the
+ * lift's own counter; a second shortfall in a row REDUCEs (~10 %) and resets it, as does
+ * any successful test. Other lifts are unaffected.
  */
 export function advanceMovementState(
   movement: MovementKey,
   cur: MovementState,
   amrapReps: number,
   prescribedReps: number,
-  opts: { rounding?: number; consecutiveHolds?: number } = {},
+  opts: { rounding?: number } = {},
 ): MovementState {
-  const adjustment = decideAdjustment(amrapReps, prescribedReps, opts.consecutiveHolds ?? 0);
+  const adjustment = decideAdjustment(amrapReps, prescribedReps, cur.holds ?? 0);
   const bw = nextBodyweight(
     { repMax: cur.repMax ?? 5, levelIndex: cur.levelIndex ?? 0 },
     adjustment,
@@ -373,6 +377,7 @@ export function advanceMovementState(
     }),
     repMax: bw.repMax,
     levelIndex: bw.levelIndex,
+    holds: adjustment === "HOLD" ? (cur.holds ?? 0) + 1 : 0,
     estWeight: undefined, // first-cycle-only; retire after the first adjustment
     estReps: undefined,
   };
@@ -465,6 +470,10 @@ export type MovementState = {
   trainingMax?: number;
   repMax?: number;
   levelIndex?: number;
+  /** How many cycles in a row THIS lift ended short (HOLD). Two in a row triggers the ~10 %
+   * REDUCE — per lift, so one stalling lift never drags the others down. Absent = 0 (also
+   * covers rows written before this field existed; the old program-level counter is ignored). */
+  holds?: number;
   /** First-cycle setup: the weight × clean reps the user entered to estimate the training max.
    * Stored so the onboarding form can show them again (and so we know the TM came from an estimate
    * rather than a direct entry). Absent when the user typed a training max in directly. */

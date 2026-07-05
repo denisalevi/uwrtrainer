@@ -281,6 +281,25 @@ describe("advanceMovementState (closing out a cycle for one lift)", () => {
     expect(next.repMax).toBe(8);
     expect(next.levelIndex).toBe(1);
   });
+
+  it("tracks short cycles per lift: hold → reduce → fresh start, all in the lift's own state", () => {
+    const short1 = advanceMovementState("SQUAT", { trainingMax: 100 }, 0, 1, { rounding: 2.5 });
+    expect(short1.trainingMax).toBe(100); // first shortfall = HOLD
+    expect(short1.holds).toBe(1);
+    const short2 = advanceMovementState("SQUAT", short1, 0, 1, { rounding: 2.5 });
+    expect(short2.trainingMax).toBe(90); // second in a row = REDUCE ~10%
+    expect(short2.holds).toBe(0); // …and the slate is wiped
+    const ok = advanceMovementState("SQUAT", short2, 3, 1, { rounding: 2.5 });
+    expect(ok.trainingMax).toBe(95); // lower-body increment
+    expect(ok.holds).toBe(0);
+  });
+
+  it("one lift's holds never affect another lift (rows without the field start at 0)", () => {
+    // PUSH is mid-hold; SQUAT (legacy row, no holds field) falls short for the FIRST time.
+    const squat = advanceMovementState("SQUAT", { trainingMax: 100 }, 0, 1, { rounding: 2.5 });
+    expect(squat.trainingMax).toBe(100); // HOLD, not a 10% reduce
+    expect(squat.holds).toBe(1);
+  });
 });
 
 describe("modeForEquipment", () => {

@@ -113,6 +113,8 @@ Falling short is built into the system, not a failure:
 - **Missed a session** → just log it. The plan and weights don't change.
 - **Came up short on the test set** → the app **holds** the same numbers for the next cycle.
 - **Short two cycles in a row** → it **eases back about 10 %** and rebuilds (Wendler's reset).
+  Short cycles are counted **per lift** — a stalling press never forces a reduce on a squat
+  that only just had its first bad day.
 - **Short on time** → drop the extra "Boring But Big" volume and do just the main sets, or
   take a deload week.
 
