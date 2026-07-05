@@ -58,6 +58,10 @@ export function useRestTimer(settings: RestTimerSettings): RestTimerController {
   const cfg = useRef(settings);
   cfg.current = settings;
   const audioRef = useRef<AudioContext | null>(null);
+  // Wall-clock deadline (epoch ms). The displayed remaining time is always recomputed from this,
+  // so the countdown stays correct even when the phone locks or the tab is backgrounded and the
+  // browser throttles/suspends timers — the normal state between sets at the gym.
+  const deadlineRef = useRef<number | null>(null);
 
   const primeAudio = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -92,11 +96,25 @@ export function useRestTimer(settings: RestTimerSettings): RestTimerController {
     }
   }, []);
 
-  // Tick once per second while running.
+  // Recompute the remaining time from the deadline while running. The interval only refreshes
+  // the display; correctness comes from the wall clock, and a visibility/focus change re-syncs
+  // immediately after the browser throttled us in the background.
   useEffect(() => {
     if (!running) return;
-    const id = setInterval(() => setRemaining((r) => Math.max(0, r - 1)), 1000);
-    return () => clearInterval(id);
+    const tick = () => {
+      const dl = deadlineRef.current;
+      if (dl == null) return;
+      setRemaining(Math.max(0, Math.ceil((dl - Date.now()) / 1000)));
+    };
+    tick();
+    const id = setInterval(tick, 500);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
+    };
   }, [running]);
 
   // Fire the alert exactly when the countdown reaches zero.
@@ -119,6 +137,7 @@ export function useRestTimer(settings: RestTimerSettings): RestTimerController {
       const secs = secondsForKind(kind, cfg.current);
       if (secs <= 0) return;
       primeAudio();
+      deadlineRef.current = Date.now() + secs * 1000;
       setTotal(secs);
       setRemaining(secs);
       setFinished(false);
@@ -127,20 +146,30 @@ export function useRestTimer(settings: RestTimerSettings): RestTimerController {
     [primeAudio],
   );
 
-  const pause = useCallback(() => setRunning(false), []);
+  const pause = useCallback(() => {
+    const dl = deadlineRef.current;
+    if (dl != null) setRemaining(Math.max(0, Math.ceil((dl - Date.now()) / 1000)));
+    deadlineRef.current = null;
+    setRunning(false);
+  }, []);
   const resume = useCallback(() => {
     primeAudio();
     setRemaining((r) => {
-      if (r > 0) setRunning(true);
+      if (r > 0) {
+        deadlineRef.current = Date.now() + r * 1000;
+        setRunning(true);
+      }
       return r;
     });
   }, [primeAudio]);
   const reset = useCallback(() => {
+    deadlineRef.current = null;
     setRunning(false);
     setFinished(false);
     setRemaining(total);
   }, [total]);
   const dismiss = useCallback(() => {
+    deadlineRef.current = null;
     setRunning(false);
     setFinished(false);
     setRemaining(0);

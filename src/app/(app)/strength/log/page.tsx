@@ -18,7 +18,6 @@ import {
   warmupSets,
   bbbSet,
   incrementFor,
-  waveWeek,
   CUSTOM_EXERCISE_ID,
   type ProgramState,
   type DayPlan,
@@ -26,12 +25,27 @@ import {
 } from "@/lib/strength";
 import { StrengthWorkoutLogger, type LoggerDay } from "@/components/strength-workout-logger";
 
+/**
+ * Parse a `?date=yyyy-mm-dd` param into local midnight. Returns null when malformed, not a real
+ * date, or in the future — callers fall back to today.
+ */
+function parseDateParam(raw: string | undefined): Date | null {
+  if (!raw) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (Number.isNaN(d.getTime())) return null;
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  return d > todayStart ? null : d;
+}
+
 export default async function StrengthLogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string }>;
+  searchParams: Promise<{ id?: string; date?: string }>;
 }) {
-  const { id } = await searchParams;
+  const { id, date: dateParam } = await searchParams;
   const user = await requireUser();
   const { t } = await getServerT();
 
@@ -63,10 +77,6 @@ export default async function StrengthLogPage({
       ? (program.weightedLayout as WeightedLayout)
       : "ROTATE";
     const schedule = buildSchedule(days, state, { includePull, layout, week: program.week });
-    // Uniform rule: a warm-up step only counts if it's lighter than the week's first working set.
-    // Build weeks (first set ≥65%) keep all warm-ups; the deload (first set = 40%) keeps none.
-    const firstMainPct = waveWeek(program.week).sets[0]?.pct ?? 0;
-    const weekWarmups = warmupScheme.filter((s) => s.pct < firstMainPct);
     const exLabel = (e: PlannedExercise): string =>
       e.exerciseId === CUSTOM_EXERCISE_ID ? e.custom || t("strength.exerciseName") : t(e.labelKey as DictKey);
     loggerDays = schedule.map((day) => ({
@@ -77,7 +87,12 @@ export default async function StrengthLogPage({
         const tm = state[e.movement]?.trainingMax ?? 0;
         const weighted = e.mode === "WEIGHTED" && tm > 0;
         const inc = incrementFor(e.movement);
-        const warm = weighted ? warmupSets(tm, inc, weekWarmups) : [];
+        // Uniform rule: a warm-up step only counts if it's lighter than the exercise's first
+        // working set (per exercise — a rotating weighted day may be on a different wave week
+        // than the raw program week). Build weeks (first set ≥65%) keep all warm-ups; the
+        // deload (first set = 40%) keeps none.
+        const firstMainPct = e.sets[0]?.pct ?? 0;
+        const warm = weighted ? warmupSets(tm, inc, warmupScheme.filter((s) => s.pct < firstMainPct)) : [];
         const sets = [...warm, ...e.sets].map((x) => ({
           reps: x.reps,
           weight: x.weight ?? null,
@@ -96,11 +111,18 @@ export default async function StrengthLogPage({
     }));
   }
 
-  // Resume: a specific session to edit (?id=), otherwise today's in-progress draft.
-  const start = new Date();
+  // Resume: a specific session to edit (?id=), otherwise the target day's in-progress draft.
+  // A validated ?date= (e.g. from a missed row's "Log the session") backdates the session so it
+  // lands in — and heals — the missed week; invalid/future dates fall back to today.
+  const requested = parseDateParam(dateParam);
+  const start = requested ?? new Date();
   start.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(start);
+  dayEnd.setDate(dayEnd.getDate() + 1);
   let resume: { id: string; details: string; durationMin: number | null } | null = null;
-  let date = start.toISOString().slice(0, 10);
+  let date = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(
+    start.getDate(),
+  ).padStart(2, "0")}`;
   if (id) {
     const log = await prisma.sessionLog.findUnique({ where: { id } });
     if (log && log.userId === user.id && log.details?.includes('"strengthWorkout"')) {
@@ -108,12 +130,12 @@ export default async function StrengthLogPage({
       date = log.date.toISOString().slice(0, 10);
     }
   } else {
-    const todays = await prisma.sessionLog.findFirst({
-      where: { userId: user.id, category: "STRENGTH", date: { gte: start } },
+    const draft = await prisma.sessionLog.findFirst({
+      where: { userId: user.id, category: "STRENGTH", date: { gte: start, lt: dayEnd } },
       orderBy: { createdAt: "desc" },
     });
-    if (todays && todays.details && todays.details.includes('"strengthWorkout"')) {
-      resume = { id: todays.id, details: todays.details, durationMin: todays.durationMin };
+    if (draft && draft.details && draft.details.includes('"strengthWorkout"')) {
+      resume = { id: draft.id, details: draft.details, durationMin: draft.durationMin };
     }
   }
 

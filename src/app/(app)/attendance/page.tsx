@@ -17,7 +17,7 @@ export default async function AttendancePage({
     prisma.practiceSlot.findMany({
       where: { active: true, teamId: user.activeTeamId ?? "" },
       orderBy: { dayOfWeek: "asc" },
-      select: { id: true, label: true, tier: true },
+      select: { id: true, label: true, tier: true, dayOfWeek: true },
     }),
     prisma.user.findMany({
       where: { memberships: { some: { teamId: user.activeTeamId ?? "" } } },

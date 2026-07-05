@@ -75,6 +75,7 @@ export const en = {
   "attendance.you": "(you)",
   "attendance.save": "Record attendance",
   "attendance.recordButton": "Record attendance",
+  "attendance.wrongWeekday": "This practice is on {day} — pick a matching date.",
 
   // ── Activity feed (Part B) ──
   "feed.title": "Activity feed",
@@ -540,6 +541,7 @@ export const de: Record<DictKey, string> = {
   "attendance.you": "(du)",
   "attendance.save": "Anwesenheit speichern",
   "attendance.recordButton": "Anwesenheit erfassen",
+  "attendance.wrongWeekday": "Dieses Training ist am {day} — wähle ein passendes Datum.",
 
   // ── Aktivitäts-Feed (Teil B) ──
   "feed.title": "Aktivitäts-Feed",

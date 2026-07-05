@@ -10,6 +10,8 @@ import {
   bodyweightWorkout,
   levelLabel,
   decideAdjustment,
+  advanceMovementState,
+  prescribedTestReps,
   nextTrainingMax,
   nextBodyweight,
   modeForEquipment,
@@ -23,6 +25,9 @@ import {
   weightedAssignment,
   pullRiderDay,
   buildSchedule,
+  rotationWaveWeek,
+  programCycleWeeks,
+  WAVE,
   type ProgramState,
   type DayPlan,
 } from "./strength";
@@ -50,9 +55,10 @@ describe("rounding & training max", () => {
     expect(roundToIncrement(64.0, 2.5)).toBe(65);
     expect(roundToIncrement(61.2, 2.5)).toBe(60);
   });
-  it("training max is a rounded 90% of the 1RM by default", () => {
+  it("training max is 90% of the 1RM by default, rounded DOWN to the increment (Wendler)", () => {
     expect(trainingMaxFromOneRepMax(100)).toBe(90);
-    expect(trainingMaxFromOneRepMax(102, 0.9, 2.5)).toBe(92.5); // 91.8 → 92.5
+    expect(trainingMaxFromOneRepMax(102, 0.9, 2.5)).toBe(90); // 91.8 floors to 90, never 92.5
+    expect(trainingMaxFromOneRepMax(105, 0.9, 2.5)).toBe(92.5); // 94.5 → 92.5
   });
 });
 
@@ -78,6 +84,23 @@ describe("onboarding calculator never overshoots", () => {
 
   it("at a single clean rep the TM is ~90% of the lifted weight (still submaximal)", () => {
     expect(tm(100, 1)).toBe(90);
+  });
+
+  it("light dumbbell weights: flooring keeps the TM below the tested single (nearest rounded UP)", () => {
+    // The old nearest-rounding bug: 10 kg × 1 → 1RM 10 → 90% = 9 → NEAREST 2.5 gives 10 kg,
+    // i.e. a TM at the weight actually lifted. Rounding down keeps the margin.
+    for (const w of [5, 7.5, 10, 12.5, 15]) {
+      expect(tm(w, 1)).toBeLessThan(w);
+    }
+    expect(tm(10, 1)).toBe(7.5);
+  });
+
+  it("flooring never lifts the TM above the estimated 1RM at light loads either", () => {
+    for (const w of [4, 6, 9, 11]) {
+      for (const r of [1, 3, 5, 8]) {
+        expect(tm(w, r)).toBeLessThanOrEqual(estimateOneRepMax(w, r));
+      }
+    }
   });
 });
 
@@ -218,6 +241,85 @@ describe("nextBodyweight", () => {
     expect(
       nextBodyweight({ repMax: 20, levelIndex: 5 }, "INCREASE", { levelCount: 6, graduateAt: 15 }),
     ).toEqual({ repMax: 21, levelIndex: 5 });
+  });
+});
+
+describe("prescribedTestReps (what the week-3 AMRAP is judged against)", () => {
+  it("a weighted lift tests against the wave's fixed top-set rep count (1)", () => {
+    expect(prescribedTestReps("WEIGHTED", { trainingMax: 100, repMax: 20 })).toBe(1);
+  });
+  it("a bodyweight lift tests against ~95% of its CURRENT rep max", () => {
+    // Same numbers bodyweightWorkout prescribes for the week-3 top set.
+    expect(prescribedTestReps("BODYWEIGHT", { repMax: 10 })).toBe(10); // round(0.95×10)
+    expect(prescribedTestReps("BODYWEIGHT", { repMax: 8 })).toBe(8); // round(7.6)
+    expect(prescribedTestReps("BODYWEIGHT", { repMax: 5 })).toBe(5); // round(4.75)
+  });
+  it("bodyweight defaults to the 5-rep base and never prescribes below 1", () => {
+    expect(prescribedTestReps("BODYWEIGHT", {})).toBe(5);
+    expect(prescribedTestReps("BODYWEIGHT", { repMax: 1 })).toBe(1);
+  });
+  it("so merely matching the weighted prescription no longer auto-increases a bodyweight lift", () => {
+    // The old bug: prescribed was always 1, so ANY bodyweight AMRAP ≥ 1 rep increased.
+    const prescribed = prescribedTestReps("BODYWEIGHT", { repMax: 12 });
+    expect(decideAdjustment(5, prescribed)).toBe("HOLD"); // 5 reps < round(0.95×12)=11
+    expect(decideAdjustment(11, prescribed)).toBe("INCREASE");
+  });
+});
+
+describe("advanceMovementState (closing out a cycle for one lift)", () => {
+  const cur = {
+    trainingMax: 90,
+    repMax: 8,
+    levelIndex: 1,
+    estWeight: 85,
+    estReps: 5,
+    weightedExerciseId: "PUSH_DB",
+    bodyweightExerciseId: "PUSH_ARCHER",
+    weightedCustom: undefined,
+    bodyweightCustom: undefined,
+  };
+
+  it("preserves the chosen exercise variants — only the progression fields change", () => {
+    const next = advanceMovementState("PUSH", { ...cur, weightedExerciseId: "custom", weightedCustom: "Ring dips" }, 3, 1, { rounding: 2.5 });
+    expect(next.weightedExerciseId).toBe("custom");
+    expect(next.weightedCustom).toBe("Ring dips");
+    expect(next.bodyweightExerciseId).toBe("PUSH_ARCHER");
+    expect(next.trainingMax).toBe(92.5); // INCREASE by the upper-body increment
+    expect(next.repMax).toBe(9);
+  });
+
+  it("drops the first-cycle estimate inputs (they described the pre-adjustment max)", () => {
+    const next = advanceMovementState("PUSH", cur, 3, 1, { rounding: 2.5 });
+    expect(next.estWeight).toBeUndefined();
+    expect(next.estReps).toBeUndefined();
+    // …and they don't survive a JSON round-trip either.
+    expect(JSON.parse(JSON.stringify(next))).not.toHaveProperty("estWeight");
+  });
+
+  it("HOLD keeps every max as-is (first shortfall)", () => {
+    const next = advanceMovementState("PUSH", cur, 0, 1, { rounding: 2.5 });
+    expect(next.trainingMax).toBe(90);
+    expect(next.repMax).toBe(8);
+    expect(next.levelIndex).toBe(1);
+  });
+
+  it("tracks short cycles per lift: hold → reduce → fresh start, all in the lift's own state", () => {
+    const short1 = advanceMovementState("SQUAT", { trainingMax: 100 }, 0, 1, { rounding: 2.5 });
+    expect(short1.trainingMax).toBe(100); // first shortfall = HOLD
+    expect(short1.holds).toBe(1);
+    const short2 = advanceMovementState("SQUAT", short1, 0, 1, { rounding: 2.5 });
+    expect(short2.trainingMax).toBe(90); // second in a row = REDUCE ~10%
+    expect(short2.holds).toBe(0); // …and the slate is wiped
+    const ok = advanceMovementState("SQUAT", short2, 3, 1, { rounding: 2.5 });
+    expect(ok.trainingMax).toBe(95); // lower-body increment
+    expect(ok.holds).toBe(0);
+  });
+
+  it("one lift's holds never affect another lift (rows without the field start at 0)", () => {
+    // PUSH is mid-hold; SQUAT (legacy row, no holds field) falls short for the FIRST time.
+    const squat = advanceMovementState("SQUAT", { trainingMax: 100 }, 0, 1, { rounding: 2.5 });
+    expect(squat.trainingMax).toBe(100); // HOLD, not a 10% reduce
+    expect(squat.holds).toBe(1);
   });
 });
 
@@ -403,6 +505,79 @@ describe("buildSchedule", () => {
     });
     const squat = plan[0].exercises.find((e) => e.movement === "SQUAT")!;
     expect(squat.sets[squat.sets.length - 1].weight).toBe(100); // 85% of 120 = 102 → round to 5
+  });
+});
+
+describe("ROTATE runs an 8-week super-cycle (each pair walks its own 4-week wave)", () => {
+  const state: ProgramState = {
+    SQUAT: { trainingMax: 120 },
+    HINGE: { trainingMax: 140 },
+    PUSH: { trainingMax: 100 },
+    PRESS: { trainingMax: 60 },
+  };
+  const days: DayPlan[] = [{ id: "w", name: "w", equipment: "WEIGHTS", minutes: 60 }];
+  /** Identify which wave week a planned exercise's sets came from, by their % signature. */
+  const waveOf = (sets: { pct?: number }[]): number => {
+    const key = sets.map((s) => s.pct).join(",");
+    const found = ([1, 2, 3, 4] as const).find(
+      (w) => WAVE[w].sets.map((s) => s.pct).join(",") === key,
+    );
+    expect(found).toBeDefined();
+    return found!;
+  };
+
+  it("rotationWaveWeek: program weeks 1..8 map each pair to waves 1,2,3,4 in turn", () => {
+    expect([1, 2, 3, 4, 5, 6, 7, 8].map(rotationWaveWeek)).toEqual([1, 1, 2, 2, 3, 3, 4, 4]);
+    expect(rotationWaveWeek(9)).toBe(1); // wraps into the next super-cycle
+    expect(rotationWaveWeek(16)).toBe(4);
+  });
+
+  it("every lift sees all four wave weeks across weeks 1-8 (incl. the test and the deload)", () => {
+    const seen: Partial<Record<string, number[]>> = {};
+    for (let week = 1; week <= 8; week++) {
+      const plan = buildSchedule(days, state, { includePull: false, layout: "ROTATE", week });
+      for (const e of plan[0].exercises) {
+        (seen[e.movement] ??= []).push(waveOf(e.sets));
+      }
+    }
+    for (const m of ["SQUAT", "PUSH", "HINGE", "PRESS"]) {
+      // 4 sessions per super-cycle, walking the pair's own wave in order.
+      expect(seen[m]).toEqual([1, 2, 3, 4]);
+    }
+  });
+
+  it("pair B (deadlift+press) reaches its week-3 AMRAP test — on program week 6", () => {
+    const plan = buildSchedule(days, state, { includePull: false, layout: "ROTATE", week: 6 });
+    expect(plan[0].rotation).toBe("B");
+    expect(plan[0].exercises.map((e) => e.movement)).toEqual(["HINGE", "PRESS"]);
+    for (const e of plan[0].exercises) {
+      expect(waveOf(e.sets)).toBe(3);
+      expect(e.sets.at(-1)).toMatchObject({ reps: 1, amrap: true, pct: 0.95 });
+    }
+  });
+
+  it("pair A (squat+bench) reaches its deload — on program week 7", () => {
+    const plan = buildSchedule(days, state, { includePull: false, layout: "ROTATE", week: 7 });
+    expect(plan[0].rotation).toBe("A");
+    expect(plan[0].exercises.map((e) => e.movement)).toEqual(["SQUAT", "PUSH"]);
+    for (const e of plan[0].exercises) expect(waveOf(e.sets)).toBe(4);
+  });
+
+  it("a bodyweight day alongside the rotation keeps its plain 4-week wave off the program week", () => {
+    const mixed: DayPlan[] = [...days, { id: "b", name: "b", equipment: "BODYWEIGHT", minutes: 45 }];
+    const wk5 = buildSchedule(mixed, { ...state, SQUAT: { trainingMax: 120, repMax: 10 } }, {
+      includePull: false, layout: "ROTATE", week: 5,
+    });
+    // Program week 5 ≡ wave week 1 for the bodyweight day (mod 4), while the weighted pair tests.
+    expect(waveOf(wk5[1].exercises[0].sets)).toBe(1);
+    expect(waveOf(wk5[0].exercises[0].sets)).toBe(3);
+  });
+
+  it("programCycleWeeks: 8 only for a single rotating weighted day", () => {
+    expect(programCycleWeeks(days, "ROTATE")).toBe(8);
+    expect(programCycleWeeks(days, "ALL_IN_ONE")).toBe(4);
+    expect(programCycleWeeks([...days, { id: "w2", name: "w2", equipment: "WEIGHTS", minutes: 60 }], "ROTATE")).toBe(4);
+    expect(programCycleWeeks([{ id: "b", name: "b", equipment: "BODYWEIGHT", minutes: 45 }], "ROTATE")).toBe(4);
   });
 });
 

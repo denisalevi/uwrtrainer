@@ -150,11 +150,12 @@ model Leaderboard {
 
 /// A player's Wendler-style strength program (see src/lib/strength.ts).
 /// equipment: top-level choice "WEIGHTS" | "BODYWEIGHT" (preselects defaults).
-/// `movements` holds the per-movement state ({ trainingMax?, repMax?, levelIndex? }) as a
-/// JSON string, shared across all slots/days. `days` is JSON
+/// `movements` holds the per-movement state ({ trainingMax?, repMax?, levelIndex?, holds? })
+/// as a JSON string, shared across all slots/days. `days` is JSON
 /// [{ id, name, minutes, slots: [{ movement, exerciseId, mode, tool, custom? }] }].
-/// cycle/week track progress (week 1..4; week 4 is the deload). consecutiveHolds drives
-/// the adjustment rule. (mode is legacy: written as "CUSTOM".)
+/// cycle/week track progress (week 1..4; week 4 is the deload). Short cycles are counted
+/// PER MOVEMENT in the movements JSON (`holds`); the consecutiveHolds column is legacy —
+/// no longer read, kept at 0. (mode is legacy too: written as "CUSTOM".)
 model StrengthProgram {
   id               String   @id @default(cuid())
   userId           String
