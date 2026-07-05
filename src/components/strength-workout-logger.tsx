@@ -143,6 +143,14 @@ export function StrengthWorkoutLogger({
   const rest = useRestTimer(restTimer);
 
   const restored = resume ? safeParse(resume.details) : null;
+  // Wall-clock session start (ms epoch), persisted inside the details JSON so it survives
+  // reload/resume. Ref = source of truth for saves (debounced closures), state = for display.
+  const startedAtRef = useRef<number | null>(
+    typeof restored?.startedAt === "number" ? (restored.startedAt as number) : null,
+  );
+  const [startedAt, setStartedAt] = useState<number | null>(startedAtRef.current);
+  /** Lines whose done-tick the user touched manually — auto-done must never override them. */
+  const doneTouched = useRef<Set<string>>(new Set());
   const initialDayId =
     (restored?.dayId as string) && days.some((d) => d.id === restored?.dayId)
       ? (restored!.dayId as string)
@@ -170,6 +178,7 @@ export function StrengthWorkoutLogger({
       week,
       dayId,
       dayName: day?.name,
+      startedAt: startedAtRef.current ?? undefined,
       warmup,
       stretch,
       exercises: lines.map((l) => ({
@@ -186,13 +195,22 @@ export function StrengthWorkoutLogger({
     });
   }
 
-  async function save() {
+  /** Start the session clock on the first real interaction (day pick / first set edit). */
+  function markStarted() {
+    if (startedAtRef.current == null) {
+      startedAtRef.current = Date.now();
+      setStartedAt(startedAtRef.current);
+    }
+  }
+
+  async function save(durOverride?: string) {
+    const dur = durOverride ?? durationMin;
     setStatus("saving");
     try {
       const res = await saveStrengthWorkout({
         logId,
         date: today,
-        durationMin: durationMin ? Number(durationMin) : undefined,
+        durationMin: dur ? Number(dur) : undefined,
         details: buildDetails(),
       });
       setLogId(res.id);
@@ -236,12 +254,29 @@ export function StrengthWorkoutLogger({
     );
   }
 
-  const setField = (key: string, i: number, field: keyof SetVal, val: string) =>
+  const setField = (key: string, i: number, field: keyof SetVal, val: string) => {
+    markStarted();
     mutate((ls) =>
-      ls.map((l) =>
-        l.key === key ? { ...l, sets: l.sets.map((s, j) => (j === i ? { ...s, [field]: val } : s)) } : l,
-      ),
+      ls.map((l) => {
+        if (l.key !== key) return l;
+        const sets = l.sets.map((s, j) => (j === i ? { ...s, [field]: val } : s));
+        // Auto-mark the exercise done when its LAST empty reps field gets a value. Only ever
+        // auto-set — never auto-clear (a deleted rep may be intentional), and never override
+        // a manual untick (doneTouched).
+        let done = l.done;
+        if (
+          field === "reps" &&
+          val.trim() !== "" &&
+          !done &&
+          !doneTouched.current.has(key) &&
+          sets.length > 0 &&
+          sets.every((s) => s.reps.trim() !== "")
+        )
+          done = true;
+        return { ...l, sets, done };
+      }),
     );
+  };
   /** Append a set of a given kind, then keep the line grouped warm-up → working → BBB. */
   const addSetOfKind = (key: string, kind: SetKind, prefill: Partial<SetVal> = {}) =>
     mutate((ls) =>
@@ -262,8 +297,10 @@ export function StrengthWorkoutLogger({
     mutate((ls) => ls.map((l) => (l.key === key ? { ...l, sets: l.sets.filter((_, j) => j !== i) } : l)));
   };
   const removeLine = (key: string) => mutate((ls) => ls.filter((l) => l.key !== key));
-  const toggleDone = (key: string) =>
+  const toggleDone = (key: string) => {
+    doneTouched.current.add(key);
     mutate((ls) => ls.map((l) => (l.key === key ? { ...l, done: !l.done } : l)));
+  };
 
   function suggestionFor(l: Line): Suggestion | undefined {
     return day?.suggestions.find((s) => s.id === l.exerciseId);
@@ -288,6 +325,7 @@ export function StrengthWorkoutLogger({
                 key={d.id}
                 type="button"
                 onClick={() => {
+                  markStarted();
                   setDayId(d.id);
                   setLines(seedLines(d));
                   scheduleSave();
@@ -305,6 +343,7 @@ export function StrengthWorkoutLogger({
             <button
               type="button"
               onClick={() => {
+                markStarted();
                 setDayId("");
                 setLines([]);
                 scheduleSave();
@@ -523,11 +562,23 @@ export function StrengthWorkoutLogger({
         }}
       />
 
-      {/* Duration */}
+      {/* Duration (+ live session clock, wall-clock based — phones lock between sets) */}
       <div>
-        <Label htmlFor="durationMin">
-          {t("log.duration")} ({t("common.minutes")})
-        </Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="durationMin">
+            {t("log.duration")} ({t("common.minutes")})
+          </Label>
+          {startedAt != null && (
+            <SessionTimer
+              startedAt={startedAt}
+              canFill={durationMin.trim() === ""}
+              onFill={(min) => {
+                setDurationMin(String(min));
+                scheduleSave();
+              }}
+            />
+          )}
+        </div>
         <Input
           id="durationMin"
           type="number"
@@ -554,7 +605,13 @@ export function StrengthWorkoutLogger({
           type="button"
           onClick={async () => {
             if (timer.current) clearTimeout(timer.current);
-            await save();
+            // Prefill an EMPTY duration from the session clock; never overwrite a manual value.
+            let dur = durationMin;
+            if (dur.trim() === "" && startedAtRef.current != null) {
+              dur = String(elapsedMinutes(startedAtRef.current));
+              setDurationMin(dur);
+            }
+            await save(dur);
             router.push("/dashboard");
           }}
         >
@@ -580,6 +637,57 @@ export function StrengthWorkoutLogger({
       {/* Single shared rest timer, pinned above the nav. Hidden when disabled/idle. */}
       <RestTimerBar controller={rest} />
     </div>
+  );
+}
+
+/** Whole elapsed minutes since `startedAt` (wall clock), at least 1. */
+function elapsedMinutes(startedAt: number): number {
+  return Math.max(1, Math.round((Date.now() - startedAt) / 60000));
+}
+
+/**
+ * Subtle elapsed readout + optional "use timer: NN min" tap-to-fill. Recomputes from
+ * Date.now() - startedAt on each tick AND on visibilitychange — an interval counter would
+ * fall behind while the phone is locked between sets.
+ */
+function SessionTimer({
+  startedAt,
+  canFill,
+  onFill,
+}: {
+  startedAt: number;
+  canFill: boolean;
+  onFill: (min: number) => void;
+}) {
+  const { t } = useT();
+  const [now, setNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const iv = setInterval(tick, 1000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, []);
+  const total = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const m = Math.floor(total / 60);
+  const clock = `${m}:${String(total % 60).padStart(2, "0")}`;
+  return (
+    <span className="flex items-center gap-2 text-xs tabular-nums text-slate-400">
+      <span>
+        ⏱ {t("strength.elapsed")} {clock}
+      </span>
+      {canFill && (
+        <button
+          type="button"
+          className="font-medium text-teal-700 underline decoration-dotted"
+          onClick={() => onFill(elapsedMinutes(startedAt))}
+        >
+          {t("strength.useTimer", { n: elapsedMinutes(startedAt) })}
+        </button>
+      )}
+    </span>
   );
 }
 

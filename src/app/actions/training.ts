@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
 import { isTrainer, CATEGORIES, SESSION_STATUSES } from "@/lib/constants";
 import { reconcileRugbyMissed, selfHealCountWeek } from "@/lib/missed";
+import { planItemsEqual } from "@/lib/plan-version";
 
 const LogSchema = z.object({
   category: z.enum(CATEGORIES),
@@ -286,19 +287,48 @@ export async function logPracticeAttendance(formData: FormData) {
     }
   }
 
+  // Edit-mode submit (feed "Edit attendance"): the checkbox list is authoritative — roster
+  // members explicitly UNTICKED lose their attendance-created DONE row for this practice
+  // (slot-tied DONE rugby rows only; other logs are untouched). Normal submits stay additive.
+  const editMode = String(formData.get("editMode") ?? "") === "1";
+  const removedUserIds: string[] = [];
+  if (editMode) {
+    const roster = await prisma.user.findMany({
+      where: { memberships: { some: { teamId: slot.teamId } } },
+      select: { id: true },
+    });
+    const untickedIds = roster.map((u) => u.id).filter((id) => !checkedIds.has(id));
+    if (untickedIds.length > 0) {
+      const toRemove = await prisma.sessionLog.findMany({
+        where: {
+          userId: { in: untickedIds },
+          category: "RUGBY",
+          status: "DONE",
+          practiceSlotId,
+          date: { gte: date, lt: dayEnd },
+        },
+        select: { id: true, userId: true },
+      });
+      if (toRemove.length > 0) {
+        await prisma.sessionLog.deleteMany({ where: { id: { in: toRemove.map((r) => r.id) } } });
+        removedUserIds.push(...toRemove.map((r) => r.userId));
+      }
+    }
+  }
+
   // Reconcile auto-MISSED for this practice (present wins; committed-absent get auto-missed).
   await reconcileRugbyMissed(practiceSlotId, date);
 
   // Self-heal: if this practice falls in a past, already-reconciled week, recompute each touched
   // user's rugby count summary (newly-present users shrink it; newly-absent ticked users are
   // already counted via their bucket-1 row, so the remainder math stays consistent).
-  const touchedUserIds = new Set<string>([...checkedIds]);
+  const touchedUserIds = new Set<string>([...checkedIds, ...removedUserIds]);
   for (const userId of touchedUserIds) await selfHealCountWeek(userId, date);
 
   revalidatePath("/feed");
   revalidatePath("/dashboard");
   revalidatePath("/leaderboards");
-  for (const userId of checkedIds) revalidatePath(`/team/${userId}`);
+  for (const userId of touchedUserIds) revalidatePath(`/team/${userId}`);
 
   redirect("/feed");
 }
@@ -380,22 +410,29 @@ export async function savePlan(formData: FormData) {
     const active = await tx.plan.findFirst({
       where: { userId: targetUserId, validTo: null },
       orderBy: { validFrom: "desc" },
+      include: { items: true },
     });
 
+    // VERSIONING: never mutate a plan's items in place — historical week scores are computed
+    // from the plan version active at ref = weekStart + 6d (see stats.ts/missed.ts). Instead,
+    // close the current version (validTo = now) and open a new one (validFrom = now). Past
+    // weeks (ref < now) keep the closed version; the current week's ref (end of week) falls
+    // after `now`, so a mid-week change applies to the whole current week — by design, since
+    // ref is end-of-week. If nothing actually changed, skip: no noise version.
+    if (active && planItemsEqual(active.items, items)) return;
+
+    const now = new Date();
     if (active) {
-      await tx.planItem.deleteMany({ where: { planId: active.id } });
-      if (items.length) {
-        await tx.planItem.createMany({ data: items.map((i) => ({ ...i, planId: active.id })) });
-      }
-    } else {
-      await tx.plan.create({
-        data: {
-          userId: targetUserId,
-          createdById: me.id,
-          items: { create: items },
-        },
-      });
+      await tx.plan.update({ where: { id: active.id }, data: { validTo: now } });
     }
+    await tx.plan.create({
+      data: {
+        userId: targetUserId,
+        createdById: me.id,
+        validFrom: now,
+        items: { create: items },
+      },
+    });
   });
 
   revalidatePath("/plan");

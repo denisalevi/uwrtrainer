@@ -21,6 +21,7 @@ import {
   type PlannedExercise,
   type WorkoutSet,
 } from "@/lib/strength";
+import type { RoundingPref } from "@/lib/strength";
 import { ProgramForm } from "@/components/program-form";
 
 type Program = {
@@ -47,10 +48,12 @@ export async function StrengthProgramView({
   program,
   includePull,
   previewWeek,
+  rounding,
 }: {
   program: Program;
   includePull: boolean;
   previewWeek?: number;
+  rounding?: RoundingPref;
 }) {
   const { t } = await getServerT();
   const state: ProgramState = JSON.parse(program.movements);
@@ -68,7 +71,7 @@ export async function StrengthProgramView({
   const activeWeek = program.week;
   const viewWeek = previewWeek != null && previewWeek <= cycleWeeks ? previewWeek : activeWeek;
   const wave = waveWeek(cycleWeeks === 8 ? rotationWaveWeek(activeWeek) : activeWeek);
-  const schedule = buildSchedule(days, state, { includePull, layout, week: viewWeek });
+  const schedule = buildSchedule(days, state, { includePull, layout, week: viewWeek, rounding });
   const exLabel = (e: PlannedExercise): string =>
     e.exerciseId === CUSTOM_EXERCISE_ID ? e.custom || t("strength.exerciseName") : t(e.labelKey as DictKey);
 

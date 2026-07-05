@@ -5,6 +5,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
 import { isLocale, DEFAULT_LOCALE, DEFAULT_TEAM_ID } from "@/lib/constants";
+import {
+  isWeightRoundingMode,
+  DEFAULT_WEIGHT_ROUNDING,
+  DEFAULT_WEIGHT_INCREMENT,
+} from "@/lib/strength";
 
 export async function setLocale(formData: FormData) {
   const user = await getCurrentUser();
@@ -43,6 +48,28 @@ export async function setRestTimerSettings(formData: FormData) {
   });
 
   revalidatePath("/settings");
+  revalidatePath("/strength/log");
+  redirect("/settings");
+}
+
+/** Per-user planned-weight rounding for the strength module (mode + increment). */
+export async function setWeightRounding(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  const rawMode = formData.get("weightRounding");
+  const mode = isWeightRoundingMode(rawMode) ? rawMode : DEFAULT_WEIGHT_ROUNDING;
+  const rawInc = Number(formData.get("weightIncrement"));
+  const increment =
+    Number.isFinite(rawInc) && rawInc > 0 ? Math.min(25, rawInc) : DEFAULT_WEIGHT_INCREMENT;
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { weightRounding: mode, weightIncrement: increment },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/strength");
   revalidatePath("/strength/log");
   redirect("/settings");
 }

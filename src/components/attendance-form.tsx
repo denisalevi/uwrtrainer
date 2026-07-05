@@ -48,12 +48,18 @@ export function AttendanceForm({
   currentUserId,
   defaultSlotId,
   defaultDate,
+  editMode,
+  initialPresentIds,
 }: {
   slots: Slot[];
   members: Member[];
   currentUserId: string;
   defaultSlotId?: string;
   defaultDate?: string;
+  /** Edit mode: submit reconciles removals too (unticked members lose their DONE row). */
+  editMode?: boolean;
+  /** Pre-check these members (edit mode: who is currently recorded as present). */
+  initialPresentIds?: string[];
 }) {
   const { t } = useT();
   const initialSlot = slots.find((s) => s.id === defaultSlotId) ?? slots[0];
@@ -61,9 +67,11 @@ export function AttendanceForm({
   const [date, setDate] = useState(
     defaultDate ?? (initialSlot ? mostRecentWeekday(initialSlot.dayOfWeek) : ""),
   );
-  const [checked, setChecked] = useState<Record<string, boolean>>({
-    [currentUserId]: true,
-  });
+  const [checked, setChecked] = useState<Record<string, boolean>>(() =>
+    initialPresentIds
+      ? Object.fromEntries(initialPresentIds.map((id) => [id, true]))
+      : { [currentUserId]: true },
+  );
 
   const toggle = (id: string) =>
     setChecked((c) => ({ ...c, [id]: !c[id] }));
@@ -84,6 +92,7 @@ export function AttendanceForm({
 
   return (
     <form action={logPracticeAttendance} className="space-y-5">
+      {editMode && <input type="hidden" name="editMode" value="1" />}
       <Card>
         <CardBody className="space-y-4">
           <div>

@@ -11,7 +11,7 @@ import {
   parseWarmupScheme,
   parseBbbConfig,
 } from "@/lib/constants";
-import { setLocale, setRestTimerSettings, joinTeamByCode } from "@/app/actions/settings";
+import { setLocale, setRestTimerSettings, setWeightRounding, joinTeamByCode } from "@/app/actions/settings";
 import {
   createTeam,
   updateLeaderboards,
@@ -190,6 +190,43 @@ export default async function SettingsPage() {
                     defaultValue={String(user.restBbbSeconds)}
                   />
                 </div>
+              </div>
+            </CardBody>
+          </Card>
+          <Button type="submit" className="mt-3 w-full">
+            {t("common.save")}
+          </Button>
+        </form>
+      </section>
+
+      {/* Weight rounding (all users) */}
+      <section className="space-y-2">
+        <SectionTitle>{t("set.weightRounding")}</SectionTitle>
+        <p className="text-xs text-slate-500">{t("set.weightRoundingIntro")}</p>
+        <form action={setWeightRounding}>
+          <Card>
+            <CardBody className="space-y-3">
+              <div>
+                <Label htmlFor="weightRounding">{t("set.weightRoundingMode")}</Label>
+                <Select id="weightRounding" name="weightRounding" defaultValue={user.weightRounding}>
+                  <option value="DOWN">{t("set.roundingDown")}</option>
+                  <option value="NEAREST">{t("set.roundingNearest")}</option>
+                  <option value="UP">{t("set.roundingUp")}</option>
+                  <option value="EXACT">{t("set.roundingExact")}</option>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="weightIncrement">{t("set.weightIncrement")}</Label>
+                <Input
+                  id="weightIncrement"
+                  type="number"
+                  min={0.25}
+                  max={25}
+                  step={0.25}
+                  inputMode="decimal"
+                  name="weightIncrement"
+                  defaultValue={String(user.weightIncrement)}
+                />
               </div>
             </CardBody>
           </Card>

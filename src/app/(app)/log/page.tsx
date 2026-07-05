@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
@@ -30,6 +31,13 @@ export default async function LogPage({
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-bold text-slate-900">{t("log.title")}</h1>
+      <Link
+        href="/attendance"
+        className="flex items-center justify-between rounded-xl border border-teal-600 bg-teal-50 px-3 py-3 text-sm font-medium text-teal-800"
+      >
+        <span>🏉 {t("log.teamPractice")}</span>
+        <span>›</span>
+      </Link>
       <LogForm slots={slots} defaultCategory={defaultCategory} defaultDate={defaultDate} />
     </div>
   );
