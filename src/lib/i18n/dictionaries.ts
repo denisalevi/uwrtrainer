@@ -110,7 +110,7 @@ export const en = {
   "cat.MOBILITY": "Mobility",
   "cat.OTHER": "Other",
 
-  "tier.PRIMARY": "Mandatory",
+  "tier.PRIMARY": "1st-team league",
   "tier.SECONDARY": "Aim to attend",
   "tier.OPTIONAL": "Optional extra",
 
@@ -169,7 +169,7 @@ export const en = {
   "plan.perWeek": "× / week",
   "plan.addItem": "Add commitment",
   "plan.noItems": "No commitments yet.",
-  "plan.mandatoryNote": "The mandatory practice is included for everyone.",
+  "plan.mandatoryNote": "The 1st-team league practice is included for everyone.",
   "plan.targetPerWeek": "Times per week",
   "plan.noteOptional": "Note (optional)",
   "plan.teamVisibleHint": "Your plan and this availability note are visible to the whole team.",
@@ -180,7 +180,7 @@ export const en = {
   "lb.title": "Leaderboards",
   "lb.metric.ADHERENCE_POINTS": "Plan adherence points",
   "lb.metric.RUGBY_PRACTICES": "Rugby practices attended",
-  "lb.metric.PRIMARY_PRACTICES": "Mandatory practices attended",
+  "lb.metric.PRIMARY_PRACTICES": "1st-team league practices attended",
   "lb.metric.STREAK": "Best streak",
   "lb.rank": "#",
   "lb.player": "Player",
@@ -593,7 +593,7 @@ export const de: Record<DictKey, string> = {
   "cat.MOBILITY": "Mobilität",
   "cat.OTHER": "Sonstiges",
 
-  "tier.PRIMARY": "Pflicht",
+  "tier.PRIMARY": "1. Liga",
   "tier.SECONDARY": "Möglichst dabei",
   "tier.OPTIONAL": "Optional",
 
@@ -652,7 +652,7 @@ export const de: Record<DictKey, string> = {
   "plan.perWeek": "× / Woche",
   "plan.addItem": "Ziel hinzufügen",
   "plan.noItems": "Noch keine Ziele.",
-  "plan.mandatoryNote": "Das Pflichttraining ist für alle enthalten.",
+  "plan.mandatoryNote": "Das 1.-Liga-Training ist für alle enthalten.",
   "plan.targetPerWeek": "Mal pro Woche",
   "plan.noteOptional": "Notiz (optional)",
   "plan.teamVisibleHint": "Dein Plan und diese Verfügbarkeitsnotiz sind für das ganze Team sichtbar.",
@@ -663,7 +663,7 @@ export const de: Record<DictKey, string> = {
   "lb.title": "Ranglisten",
   "lb.metric.ADHERENCE_POINTS": "Plan-Treue-Punkte",
   "lb.metric.RUGBY_PRACTICES": "Rugby-Trainings besucht",
-  "lb.metric.PRIMARY_PRACTICES": "Pflichttrainings besucht",
+  "lb.metric.PRIMARY_PRACTICES": "1.-Liga-Trainings besucht",
   "lb.metric.STREAK": "Beste Serie",
   "lb.rank": "#",
   "lb.player": "Spieler:in",

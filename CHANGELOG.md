@@ -11,6 +11,13 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-07-05
+
+### Changed
+- Renamed the **"Mandatory"** practice tier to **"1st-team league"** (German **"1. Liga"**)
+  everywhere it appears — the tier badge, the plan note, and the "…practices attended"
+  leaderboard — so it reads as the first team's league practice.
+
 ## [0.17.0] - 2026-07-05
 
 ### Added
