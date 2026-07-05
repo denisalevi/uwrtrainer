@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   estimateOneRepMax,
   roundToIncrement,
+  roundWeight,
   trainingMaxFromOneRepMax,
   waveWeek,
   weightedWorkout,
@@ -54,6 +55,22 @@ describe("rounding & training max", () => {
   it("rounds to the loadable increment", () => {
     expect(roundToIncrement(64.0, 2.5)).toBe(65);
     expect(roundToIncrement(61.2, 2.5)).toBe(60);
+  });
+
+  it("roundWeight honours the per-user mode and increment", () => {
+    expect(roundWeight(61.2, { mode: "DOWN", increment: 2.5 })).toBe(60);
+    expect(roundWeight(61.2, { mode: "UP", increment: 2.5 })).toBe(62.5);
+    expect(roundWeight(61.2, { mode: "NEAREST", increment: 2.5 })).toBe(60);
+    expect(roundWeight(61.3, { mode: "NEAREST", increment: 2.5 })).toBe(62.5);
+    expect(roundWeight(61.2, { mode: "DOWN", increment: 5 })).toBe(60);
+    // EXACT keeps the exact percentage (trimmed to 0.01 kg against float noise).
+    expect(roundWeight(61.23456, { mode: "EXACT", increment: 2.5 })).toBe(61.23);
+    // Float noise must not floor/ceil a clean multiple the wrong way.
+    expect(roundWeight(0.1 + 0.2, { mode: "DOWN", increment: 0.3 })).toBeCloseTo(0.3, 9);
+    expect(roundWeight(62.5, { mode: "DOWN", increment: 2.5 })).toBe(62.5);
+    expect(roundWeight(62.5, { mode: "UP", increment: 2.5 })).toBe(62.5);
+    // No pref → passthrough (legacy callers).
+    expect(roundWeight(61.2)).toBe(61.2);
   });
   it("training max is 90% of the 1RM by default, rounded DOWN to the increment (Wendler)", () => {
     expect(trainingMaxFromOneRepMax(100)).toBe(90);

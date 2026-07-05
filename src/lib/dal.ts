@@ -23,6 +23,8 @@ export type CurrentUser = {
   restWarmupSeconds: number;
   restMainSeconds: number;
   restBbbSeconds: number;
+  weightRounding: string;
+  weightIncrement: number;
 };
 
 /**
@@ -52,6 +54,8 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       restWarmupSeconds: true,
       restMainSeconds: true,
       restBbbSeconds: true,
+      weightRounding: true,
+      weightIncrement: true,
     },
   });
   if (!user) return null;

@@ -4,6 +4,7 @@ import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
 import { SETTING_INCLUDE_PULL, DEFAULT_INCLUDE_PULL } from "@/lib/constants";
 import { StrengthWizard } from "@/components/strength-wizard";
+import { isWeightRoundingMode, type RoundingPref } from "@/lib/strength";
 import { StrengthProgramView } from "@/components/strength-program";
 
 export default async function StrengthPage({
@@ -32,6 +33,10 @@ export default async function StrengthPage({
     prisma.setting.findUnique({ where: { key: SETTING_INCLUDE_PULL } }),
   ]);
   const includePull = pullSetting ? pullSetting.value !== "false" : DEFAULT_INCLUDE_PULL;
+  const rounding: RoundingPref = {
+    mode: isWeightRoundingMode(user.weightRounding) ? user.weightRounding : "DOWN",
+    increment: user.weightIncrement > 0 ? user.weightIncrement : 2.5,
+  };
 
   return (
     <div className="space-y-4">
@@ -46,9 +51,12 @@ export default async function StrengthPage({
       <header>
         <h1 className="text-2xl font-bold text-slate-900">{t("strength.title")}</h1>
         <p className="mt-1 text-sm text-slate-500">{t("strength.intro")}</p>
+        {rounding.mode === "EXACT" && (
+          <p className="mt-1 text-xs text-slate-400">{t("strength.exactNote")}</p>
+        )}
       </header>
       {program && program.days && program.days !== "[]" ? (
-        <StrengthProgramView program={program} includePull={includePull} previewWeek={previewWeek} />
+        <StrengthProgramView program={program} includePull={includePull} previewWeek={previewWeek} rounding={rounding} />
       ) : (
         <StrengthWizard includePull={includePull} />
       )}

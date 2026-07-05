@@ -46,6 +46,34 @@ export function roundToIncrement(value: number, increment: number): number {
   return Math.round(value / increment) * increment;
 }
 
+// ────────────────────────────────────────────── Per-user display rounding ──
+
+/** How planned working weights are rounded for display/logging (per-user preference). */
+export const WEIGHT_ROUNDING_MODES = ["EXACT", "DOWN", "NEAREST", "UP"] as const;
+export type WeightRoundingMode = (typeof WEIGHT_ROUNDING_MODES)[number];
+export type RoundingPref = { mode: WeightRoundingMode; increment: number };
+export const DEFAULT_WEIGHT_ROUNDING: WeightRoundingMode = "DOWN";
+export const DEFAULT_WEIGHT_INCREMENT = 2.5;
+
+export function isWeightRoundingMode(v: unknown): v is WeightRoundingMode {
+  return (WEIGHT_ROUNDING_MODES as readonly unknown[]).includes(v);
+}
+
+/**
+ * Round a planned weight per the user's preference. EXACT keeps the exact percentage
+ * (to 0.01 kg against float noise) — the athlete rounds down at the rack (Wendler).
+ * DOWN never loads more than prescribed (the default); tiny epsilons keep float noise
+ * from flooring/ceiling a clean multiple the wrong way.
+ */
+export function roundWeight(value: number, pref?: RoundingPref): number {
+  if (!pref) return value;
+  if (pref.mode === "EXACT" || pref.increment <= 0) return Math.round(value * 100) / 100;
+  const q = value / pref.increment;
+  const steps =
+    pref.mode === "DOWN" ? Math.floor(q + 1e-9) : pref.mode === "UP" ? Math.ceil(q - 1e-9) : Math.round(q);
+  return steps * pref.increment;
+}
+
 /**
  * The "training max" is what every working set is calculated from — deliberately set
  * below your true max (default 90%) so training never grinds to a true limit and you
@@ -170,10 +198,11 @@ export function warmupSets(
   trainingMax: number,
   increment: number,
   scheme: { pct: number; reps: number }[],
+  rounding?: RoundingPref,
 ): WorkoutSet[] {
   if (trainingMax <= 0) return [];
   return scheme.map((s) => ({
-    weight: roundToIncrement(trainingMax * s.pct, increment),
+    weight: rounding ? roundWeight(trainingMax * s.pct, rounding) : roundToIncrement(trainingMax * s.pct, increment),
     reps: s.reps,
     amrap: false,
     pct: s.pct,
@@ -190,9 +219,10 @@ export function bbbSet(
   increment: number,
   pct: number = ASSISTANCE_PCT,
   reps = 10,
+  rounding?: RoundingPref,
 ): WorkoutSet {
   return {
-    weight: roundToIncrement(trainingMax * pct, increment),
+    weight: rounding ? roundWeight(trainingMax * pct, rounding) : roundToIncrement(trainingMax * pct, increment),
     reps,
     amrap: false,
     pct,
@@ -204,14 +234,15 @@ export function bbbSet(
 export function weightedWorkout(
   trainingMax: number,
   week: number,
-  opts: { increment?: number; movementLabel: string; withAssistance?: boolean } = {
+  opts: { increment?: number; movementLabel: string; withAssistance?: boolean; rounding?: RoundingPref } = {
     movementLabel: "",
   },
 ): MovementWorkout {
   const inc = opts.increment ?? 2.5;
+  const roundW = (v: number) => (opts.rounding ? roundWeight(v, opts.rounding) : roundToIncrement(v, inc));
   const w = waveWeek(week);
   const sets = w.sets.map((s) => ({
-    weight: roundToIncrement(trainingMax * s.pct, inc),
+    weight: roundW(trainingMax * s.pct),
     reps: s.reps,
     amrap: !!s.amrap,
     pct: s.pct,
@@ -224,7 +255,7 @@ export function weightedWorkout(
     deload: w.deload,
     sets,
     assistance: opts.withAssistance
-      ? { sets: 5, reps: 10, weight: roundToIncrement(trainingMax * ASSISTANCE_PCT, inc) }
+      ? { sets: 5, reps: 10, weight: roundW(trainingMax * ASSISTANCE_PCT) }
       : undefined,
   };
 }
@@ -710,14 +741,14 @@ export function workoutForSlot(
   slot: Slot,
   state: ProgramState,
   week: number,
-  opts: { rounding?: number } = {},
+  opts: { rounding?: RoundingPref } = {},
 ): SlotWorkout {
-  void opts;
   const s = state[slot.movement] ?? {};
   if (slot.mode === "WEIGHTED") {
     const w = weightedWorkout(s.trainingMax ?? 0, week, {
       increment: incrementFor(slot.movement),
       movementLabel: "",
+      rounding: opts.rounding,
     });
     return { labelKey: slotLabelKey(slot), mode: "WEIGHTED", sets: w.sets };
   }
@@ -863,9 +894,10 @@ function plannedExercise(
   dayEquipment: ProgramEquipment,
   state: ProgramState,
   week: number,
+  rounding?: RoundingPref,
 ): PlannedExercise {
   const ex = resolveExercise(movement, dayEquipment, state);
-  const sets = workoutForSlot({ movement, mode: ex.mode, exerciseId: ex.exerciseId, tool: ex.tool }, state, week).sets;
+  const sets = workoutForSlot({ movement, mode: ex.mode, exerciseId: ex.exerciseId, tool: ex.tool }, state, week, { rounding }).sets;
   return { movement, mode: ex.mode, exerciseId: ex.exerciseId, custom: ex.custom, labelKey: ex.labelKey, tool: ex.tool, sets };
 }
 
@@ -877,9 +909,9 @@ function plannedExercise(
 export function buildSchedule(
   days: DayPlan[],
   state: ProgramState,
-  opts: { includePull: boolean; layout: WeightedLayout; week: number },
+  opts: { includePull: boolean; layout: WeightedLayout; week: number; rounding?: RoundingPref },
 ): PlannedDay[] {
-  const { includePull, layout, week } = opts;
+  const { includePull, layout, week, rounding } = opts;
   const weightedDays = days.filter((d) => d.equipment === "WEIGHTS");
   const assignment = weightedAssignment(weightedDays.length, layout, week);
   const riderIdx = includePull ? pullRiderDay(assignment) : null;
@@ -896,7 +928,7 @@ export function buildSchedule(
       const movements = [...cores];
       if (riderIdx === myIdx) movements.push("PULL");
       const liftWeek = rotating ? rotationWaveWeek(week) : week;
-      const exercises = movements.map((m) => plannedExercise(m, "WEIGHTS", state, liftWeek));
+      const exercises = movements.map((m) => plannedExercise(m, "WEIGHTS", state, liftWeek, rounding));
       return {
         id: day.id,
         name: day.name,
@@ -908,7 +940,7 @@ export function buildSchedule(
     }
     // Bodyweight day: full-body, all patterns (+ pull).
     const movements = includePull ? [...CORE_MOVEMENTS, "PULL" as MovementKey] : [...CORE_MOVEMENTS];
-    const exercises = movements.map((m) => plannedExercise(m, "BODYWEIGHT", state, week));
+    const exercises = movements.map((m) => plannedExercise(m, "BODYWEIGHT", state, week, rounding));
     return { id: day.id, name: day.name, equipment: day.equipment, minutes: day.minutes, exercises };
   });
 }
