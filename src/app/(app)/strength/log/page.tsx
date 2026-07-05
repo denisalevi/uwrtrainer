@@ -18,7 +18,6 @@ import {
   warmupSets,
   bbbSet,
   incrementFor,
-  waveWeek,
   CUSTOM_EXERCISE_ID,
   type ProgramState,
   type DayPlan,
@@ -78,10 +77,6 @@ export default async function StrengthLogPage({
       ? (program.weightedLayout as WeightedLayout)
       : "ROTATE";
     const schedule = buildSchedule(days, state, { includePull, layout, week: program.week });
-    // Uniform rule: a warm-up step only counts if it's lighter than the week's first working set.
-    // Build weeks (first set ≥65%) keep all warm-ups; the deload (first set = 40%) keeps none.
-    const firstMainPct = waveWeek(program.week).sets[0]?.pct ?? 0;
-    const weekWarmups = warmupScheme.filter((s) => s.pct < firstMainPct);
     const exLabel = (e: PlannedExercise): string =>
       e.exerciseId === CUSTOM_EXERCISE_ID ? e.custom || t("strength.exerciseName") : t(e.labelKey as DictKey);
     loggerDays = schedule.map((day) => ({
@@ -92,7 +87,12 @@ export default async function StrengthLogPage({
         const tm = state[e.movement]?.trainingMax ?? 0;
         const weighted = e.mode === "WEIGHTED" && tm > 0;
         const inc = incrementFor(e.movement);
-        const warm = weighted ? warmupSets(tm, inc, weekWarmups) : [];
+        // Uniform rule: a warm-up step only counts if it's lighter than the exercise's first
+        // working set (per exercise — a rotating weighted day may be on a different wave week
+        // than the raw program week). Build weeks (first set ≥65%) keep all warm-ups; the
+        // deload (first set = 40%) keeps none.
+        const firstMainPct = e.sets[0]?.pct ?? 0;
+        const warm = weighted ? warmupSets(tm, inc, warmupScheme.filter((s) => s.pct < firstMainPct)) : [];
         const sets = [...warm, ...e.sets].map((x) => ({
           reps: x.reps,
           weight: x.weight ?? null,

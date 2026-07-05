@@ -20,11 +20,9 @@ import {
   estimateOneRepMax,
   trainingMaxFromOneRepMax,
   defaultFullState,
-  decideAdjustment,
-  nextTrainingMax,
-  nextBodyweight,
-  incrementFor,
-  waveWeek,
+  advanceMovementState,
+  prescribedTestReps,
+  resolveExercise,
   catalogEntry,
   defaultExerciseId,
   CUSTOM_EXERCISE_ID,
@@ -230,7 +228,9 @@ export async function resetStrengthProgram(formData: FormData) {
   redirect("/strength");
 }
 
-const WeekSchema = z.object({ programId: z.string(), week: z.coerce.number().int().min(1).max(4) });
+// Max 8: a single rotating weighted day cycles over 8 program weeks (others use 1..4; the
+// UI only offers valid weeks, and the engine tolerates any week via mod-4 anyway).
+const WeekSchema = z.object({ programId: z.string(), week: z.coerce.number().int().min(1).max(8) });
 
 export async function setStrengthWeek(formData: FormData) {
   const user = await getCurrentUser();
@@ -259,9 +259,12 @@ export async function setStrengthCycle(formData: FormData) {
 }
 
 /**
- * Close out a 4-week cycle: apply the adjustment rule (increase / hold / reduce) to every
- * movement's maxima (both the weighted training max and the bodyweight rep/level), advance
- * the cycle, reset to week 1. Blank inputs default to a successful test (increase).
+ * Close out a cycle: apply the adjustment rule (increase / hold / reduce) to every movement's
+ * maxima (both the weighted training max and the bodyweight rep/level), advance the cycle,
+ * reset to week 1. Blank inputs default to a successful test (increase). A cycle is 4 program
+ * weeks — or 8 for a single rotating weighted day, where each pair meets its week-3 test on
+ * its own schedule (pair A on program week 5, pair B on week 6); either way the reset to
+ * week 1 starts the next cycle at pair A's wave week 1.
  */
 export async function finishStrengthCycle(formData: FormData) {
   const user = await getCurrentUser();
@@ -274,30 +277,21 @@ export async function finishStrengthCycle(formData: FormData) {
   if (!program) throw new Error("Program not found");
 
   const state: ProgramState = JSON.parse(program.movements);
-  const week3 = waveWeek(3);
-  const prescribed = week3.sets[week3.sets.length - 1].reps;
+  const days = parseDays(program.days);
+  const hasWeightedDay = days.some((d) => d.equipment === "WEIGHTS");
 
-  let anyHold = false;
   for (const m of MOVEMENTS) {
+    // Judge each lift against the prescription of the mode it actually resolves to: a lift
+    // swapped to a bodyweight exercise (even on a weighted day, e.g. pull-ups for the row)
+    // tests against ~95 % of its rep max, not against the weighted top set's single rep.
+    const ex = resolveExercise(m, hasWeightedDay ? "WEIGHTS" : "BODYWEIGHT", state);
+    const cur: MovementState = state[m] ?? {};
+    const prescribed = prescribedTestReps(ex.mode, cur);
     const raw = formData.get(`amrap_${m}`);
     const amrap = raw == null || String(raw).trim() === "" ? prescribed : Number(raw);
-    const adjustment = decideAdjustment(amrap, prescribed, program.consecutiveHolds);
-    if (adjustment !== "INCREASE") anyHold = true;
-
-    const cur: MovementState = state[m] ?? {};
-    const bw = nextBodyweight(
-      { repMax: cur.repMax ?? 5, levelIndex: cur.levelIndex ?? 0 },
-      adjustment,
-      { mode: "LEVELS", levelCount: MOVEMENT_LEVELS[m].length, graduateAt: 15, resetReps: 5 },
-    );
-    state[m] = {
-      trainingMax: nextTrainingMax(cur.trainingMax ?? 0, adjustment, {
-        increment: incrementFor(m),
-        rounding: program.rounding,
-      }),
-      repMax: bw.repMax,
-      levelIndex: bw.levelIndex,
-    };
+    // Advance only the progression fields — the chosen exercise variants etc. are preserved.
+    // Short cycles are counted per lift in each movement's `holds` (see advanceMovementState).
+    state[m] = advanceMovementState(m, cur, amrap, prescribed, { rounding: program.rounding });
   }
 
   await prisma.strengthProgram.update({
@@ -306,7 +300,9 @@ export async function finishStrengthCycle(formData: FormData) {
       movements: JSON.stringify(state),
       cycle: program.cycle + 1,
       week: 1,
-      consecutiveHolds: anyHold ? program.consecutiveHolds + 1 : 0,
+      // Legacy program-level counter, superseded by the per-movement `holds`; keep it retired
+      // at 0 so old rows can't influence anything if code ever reads it again.
+      consecutiveHolds: 0,
     },
   });
   revalidatePath("/strength");

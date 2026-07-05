@@ -13,6 +13,8 @@ import { MOVEMENTS, PROGRAM_EQUIPMENT, WEIGHTED_LAYOUTS, type ProgramEquipment, 
 import {
   buildSchedule,
   CUSTOM_EXERCISE_ID,
+  programCycleWeeks,
+  rotationWaveWeek,
   waveWeek,
   type ProgramState,
   type DayPlan,
@@ -59,9 +61,13 @@ export async function StrengthProgramView({
   const layout: WeightedLayout = (WEIGHTED_LAYOUTS as readonly string[]).includes(program.weightedLayout)
     ? (program.weightedLayout as WeightedLayout)
     : "ROTATE";
+  // A single rotating weighted day cycles over 8 program weeks (each pair walks its own
+  // 4-week wave); everything else over 4. The status badge reflects the WEIGHTED lifts' wave
+  // (test/deload), which for a rotating program is the training pair's own wave week.
+  const cycleWeeks = programCycleWeeks(days, layout);
   const activeWeek = program.week;
-  const viewWeek = previewWeek ?? activeWeek;
-  const wave = waveWeek(activeWeek);
+  const viewWeek = previewWeek != null && previewWeek <= cycleWeeks ? previewWeek : activeWeek;
+  const wave = waveWeek(cycleWeeks === 8 ? rotationWaveWeek(activeWeek) : activeWeek);
   const schedule = buildSchedule(days, state, { includePull, layout, week: viewWeek });
   const exLabel = (e: PlannedExercise): string =>
     e.exerciseId === CUSTOM_EXERCISE_ID ? e.custom || t("strength.exerciseName") : t(e.labelKey as DictKey);
@@ -77,7 +83,7 @@ export async function StrengthProgramView({
           <Badge tone={wave.deload ? "amber" : "slate"}>{t("strength.activeWeek", { n: activeWeek })}</Badge>
           {wave.deload ? (
             <span className="text-sm text-amber-700">{t("strength.deload")}</span>
-          ) : activeWeek === 3 ? (
+          ) : wave.week === 3 ? (
             <span className="text-sm text-teal-700">{t("strength.testWeek")}</span>
           ) : null}
           {viewWeek !== activeWeek ? (
@@ -115,7 +121,7 @@ export async function StrengthProgramView({
       <div className="space-y-2">
         <p className="text-xs text-slate-500">{t("strength.weekPreviewHint")}</p>
         <div className="grid grid-cols-4 gap-2">
-          {[1, 2, 3, 4].map((w) => (
+          {Array.from({ length: cycleWeeks }, (_, i) => i + 1).map((w) => (
             <Link
               key={w}
               href={`/strength?week=${w}`}
