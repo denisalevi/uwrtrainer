@@ -11,6 +11,7 @@ import {
   levelLabel,
   decideAdjustment,
   advanceMovementState,
+  prescribedTestReps,
   nextTrainingMax,
   nextBodyweight,
   modeForEquipment,
@@ -219,6 +220,28 @@ describe("nextBodyweight", () => {
     expect(
       nextBodyweight({ repMax: 20, levelIndex: 5 }, "INCREASE", { levelCount: 6, graduateAt: 15 }),
     ).toEqual({ repMax: 21, levelIndex: 5 });
+  });
+});
+
+describe("prescribedTestReps (what the week-3 AMRAP is judged against)", () => {
+  it("a weighted lift tests against the wave's fixed top-set rep count (1)", () => {
+    expect(prescribedTestReps("WEIGHTED", { trainingMax: 100, repMax: 20 })).toBe(1);
+  });
+  it("a bodyweight lift tests against ~95% of its CURRENT rep max", () => {
+    // Same numbers bodyweightWorkout prescribes for the week-3 top set.
+    expect(prescribedTestReps("BODYWEIGHT", { repMax: 10 })).toBe(10); // round(0.95×10)
+    expect(prescribedTestReps("BODYWEIGHT", { repMax: 8 })).toBe(8); // round(7.6)
+    expect(prescribedTestReps("BODYWEIGHT", { repMax: 5 })).toBe(5); // round(4.75)
+  });
+  it("bodyweight defaults to the 5-rep base and never prescribes below 1", () => {
+    expect(prescribedTestReps("BODYWEIGHT", {})).toBe(5);
+    expect(prescribedTestReps("BODYWEIGHT", { repMax: 1 })).toBe(1);
+  });
+  it("so merely matching the weighted prescription no longer auto-increases a bodyweight lift", () => {
+    // The old bug: prescribed was always 1, so ANY bodyweight AMRAP ≥ 1 rep increased.
+    const prescribed = prescribedTestReps("BODYWEIGHT", { repMax: 12 });
+    expect(decideAdjustment(5, prescribed)).toBe("HOLD"); // 5 reps < round(0.95×12)=11
+    expect(decideAdjustment(11, prescribed)).toBe("INCREASE");
   });
 });
 

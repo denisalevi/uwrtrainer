@@ -331,6 +331,20 @@ export function nextBodyweight(
 // ─────────────────────────────────────────────── Closing out a cycle (per lift) ──
 
 /**
+ * The rep target the week-3 AMRAP test is judged against, for the mode the lift is actually
+ * performed in. A WEIGHTED lift's week-3 top set prescribes the wave's fixed rep count (1 at
+ * 95 % of the training max); a BODYWEIGHT lift's top set prescribes ~95 % of its CURRENT rep
+ * max — so beating it must be judged against that, not against the weighted "1".
+ */
+export function prescribedTestReps(mode: SlotMode, cur: MovementState): number {
+  const week3 = waveWeek(3);
+  const top = week3.sets[week3.sets.length - 1];
+  if (mode === "WEIGHTED") return top.reps;
+  // Same maths bodyweightWorkout uses for the week-3 top set.
+  return bodyweightWorkout(cur.repMax ?? 5, 3, { movementLabel: "" }).sets.at(-1)!.reps;
+}
+
+/**
  * Close out a cycle for ONE movement: judge its week-3 AMRAP result against its prescription,
  * advance both maxima (weighted training max + bodyweight rep/level), and return the movement's
  * next-cycle state. Everything else the state carries (chosen exercise variants, custom names)

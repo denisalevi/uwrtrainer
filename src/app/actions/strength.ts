@@ -22,7 +22,8 @@ import {
   defaultFullState,
   decideAdjustment,
   advanceMovementState,
-  waveWeek,
+  prescribedTestReps,
+  resolveExercise,
   catalogEntry,
   defaultExerciseId,
   CUSTOM_EXERCISE_ID,
@@ -272,14 +273,19 @@ export async function finishStrengthCycle(formData: FormData) {
   if (!program) throw new Error("Program not found");
 
   const state: ProgramState = JSON.parse(program.movements);
-  const week3 = waveWeek(3);
-  const prescribed = week3.sets[week3.sets.length - 1].reps;
+  const days = parseDays(program.days);
+  const hasWeightedDay = days.some((d) => d.equipment === "WEIGHTS");
 
   let anyHold = false;
   for (const m of MOVEMENTS) {
+    // Judge each lift against the prescription of the mode it actually resolves to: a lift
+    // swapped to a bodyweight exercise (even on a weighted day, e.g. pull-ups for the row)
+    // tests against ~95 % of its rep max, not against the weighted top set's single rep.
+    const ex = resolveExercise(m, hasWeightedDay ? "WEIGHTS" : "BODYWEIGHT", state);
+    const cur: MovementState = state[m] ?? {};
+    const prescribed = prescribedTestReps(ex.mode, cur);
     const raw = formData.get(`amrap_${m}`);
     const amrap = raw == null || String(raw).trim() === "" ? prescribed : Number(raw);
-    const cur: MovementState = state[m] ?? {};
     if (decideAdjustment(amrap, prescribed, program.consecutiveHolds) !== "INCREASE") anyHold = true;
     // Advance only the progression fields — the chosen exercise variants etc. are preserved.
     state[m] = advanceMovementState(m, cur, amrap, prescribed, {
