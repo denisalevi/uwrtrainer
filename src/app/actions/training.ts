@@ -261,15 +261,29 @@ export async function logPracticeAttendance(formData: FormData) {
 
     const toCreate = validIds.filter((id) => !alreadyDoneIds.has(id));
     if (toCreate.length > 0) {
-      await prisma.sessionLog.createMany({
-        data: toCreate.map((userId) => ({
-          userId,
-          category: "RUGBY",
-          status: "DONE",
-          practiceSlotId,
-          date,
-        })),
-      });
+      // Race backstop: this read-then-create can race a simultaneous submitter, so the DB has a
+      // partial unique index on (userId, practiceSlotId, date) for DONE rows (migration
+      // `attendance_dedup_index`; SQLite createMany has no skipDuplicates). If the batch hits it,
+      // fall back to per-user creates and swallow P2002 — the row already existing IS the goal.
+      const rows = toCreate.map((userId) => ({
+        userId,
+        category: "RUGBY",
+        status: "DONE",
+        practiceSlotId,
+        date,
+      }));
+      try {
+        await prisma.sessionLog.createMany({ data: rows });
+      } catch (e) {
+        if ((e as { code?: string }).code !== "P2002") throw e;
+        for (const row of rows) {
+          try {
+            await prisma.sessionLog.create({ data: row });
+          } catch (e2) {
+            if ((e2 as { code?: string }).code !== "P2002") throw e2;
+          }
+        }
+      }
     }
   }
 

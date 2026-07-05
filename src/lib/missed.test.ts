@@ -93,9 +93,11 @@ vi.mock("@/lib/db", () => ({
 const {
   reconcileWeekForUser,
   reconcileRugbyMissed,
+  runWeeklyReconcileIfDue,
   isWeekReconciled,
   isoWeekKey,
   RECONCILE_GRACE_DAYS,
+  RECONCILE_MAX_BACKFILL_WEEKS,
 } = await import("./missed");
 
 // A known Monday week start.
@@ -301,6 +303,57 @@ describe("reconcileWeekForUser — freeze + self-heal", () => {
 
     addLog({ category: "CARDIO", status: "DONE" }); // now 2 of 2 → shortfall 0
     await reconcileWeekForUser(WEEK, "u1");
+    expect(summaries()).toHaveLength(0);
+  });
+});
+
+describe("runWeeklyReconcileIfDue — downtime backfill", () => {
+  const GUARD_KEY = "missed.lastReconciledWeek";
+  // Weeks: WEEK (Mon 05-04) and WEEK+1 (Mon 05-11) both close while the server is "down".
+  const week2 = new Date(2026, 4, 11);
+  // First tick after downtime: past week2's end (05-18) + grace.
+  const nowAfterGap = new Date(2026, 4, 18 + RECONCILE_GRACE_DAYS, 12, 0, 0);
+
+  it("a two-week gap reconciles BOTH closed weeks with their frozen targets", async () => {
+    // Last reconciled week was the one before WEEK (server went down right after).
+    db.setting[GUARD_KEY] = isoWeekKey(new Date(2026, 3, 27)); // Mon 2026-04-27
+    seedPlan("u1", [{ category: "CARDIO", practiceSlotId: null, targetPerWeek: 2, note: null }]);
+    // One DONE in week 2 only.
+    addLog({ category: "CARDIO", status: "DONE", date: new Date(2026, 4, 12, 10) });
+
+    const res = await runWeeklyReconcileIfDue(nowAfterGap);
+    expect(res.ran).toBe(true);
+
+    const week1Rows = summaries().filter((l) => within(l.date, WEEK, week2));
+    const week2Rows = summaries().filter((l) => within(l.date, week2, new Date(2026, 4, 18)));
+    expect(week1Rows).toHaveLength(1);
+    expect(JSON.parse(week1Rows[0].details!)).toEqual({ missed: 2, target: 2 });
+    expect(week2Rows).toHaveLength(1);
+    expect(JSON.parse(week2Rows[0].details!)).toEqual({ missed: 1, target: 2 });
+
+    // Guard advanced to the most recent reconciled week.
+    expect(db.setting[GUARD_KEY]).toBe(isoWeekKey(week2));
+
+    // Second tick is a no-op, and a later plan change never alters the closed weeks (frozen).
+    db.plans[0].items[0].targetPerWeek = 5;
+    const res2 = await runWeeklyReconcileIfDue(nowAfterGap);
+    expect(res2.ran).toBe(false);
+    expect(JSON.parse(week1Rows[0].details!)).toEqual({ missed: 2, target: 2 });
+  });
+
+  it("no guard (first run) backfills at most RECONCILE_MAX_BACKFILL_WEEKS weeks", async () => {
+    seedPlan("u1", [{ category: "CARDIO", practiceSlotId: null, targetPerWeek: 1, note: null }]);
+    const res = await runWeeklyReconcileIfDue(nowAfterGap);
+    expect(res.ran).toBe(true);
+    expect(summaries()).toHaveLength(RECONCILE_MAX_BACKFILL_WEEKS);
+    expect(db.setting[GUARD_KEY]).toBe(isoWeekKey(week2));
+  });
+
+  it("does nothing while the just-closed week is still in grace", async () => {
+    db.setting[GUARD_KEY] = isoWeekKey(WEEK);
+    seedPlan("u1", [{ category: "CARDIO", practiceSlotId: null, targetPerWeek: 1, note: null }]);
+    const res = await runWeeklyReconcileIfDue(new Date(2026, 4, 19, 12)); // week2 closed 05-18, grace until 05-21
+    expect(res.ran).toBe(false);
     expect(summaries()).toHaveLength(0);
   });
 });
