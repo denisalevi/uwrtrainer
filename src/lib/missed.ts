@@ -415,10 +415,27 @@ export async function selfHealCountWeek(
 }
 
 /**
- * The scheduler tick: reconcile the most-recently-COMPLETED ISO week exactly once, but only after
- * a grace period (~3 days) so late logging lands first. Uses the `missed.lastReconciledWeek`
- * Setting as an idempotency guard so it runs once per week even across restarts or multiple
- * same-day checks. Never runs for the current (incomplete) week. Returns a small status object.
+ * On first run (or when the guard is stale/garbage) don't backfill the whole history of an old
+ * install — reconcile at most this many closed weeks back from the most recent one.
+ */
+export const RECONCILE_MAX_BACKFILL_WEEKS = 8;
+
+/**
+ * The scheduler tick: reconcile every COMPLETED-and-past-grace ISO week that hasn't been
+ * reconciled yet, exactly once each. Uses the `missed.lastReconciledWeek` Setting as the
+ * idempotency guard: when due, we walk back from the most recent reconcilable week to the guard
+ * week (bounded by RECONCILE_MAX_BACKFILL_WEEKS when the guard is missing or out of range) and
+ * reconcile each closed week oldest-first, advancing the guard after each week completes — so a
+ * week that closed while the server was down still gets its summary rows (with targets frozen at
+ * reconcile time), and a crash mid-backfill resumes where it left off.
+ *
+ * Concurrency note: the guard is read-then-written without a lock, same as it always was — two
+ * overlapping ticks (or two app instances) can both pass the guard check and reconcile the same
+ * week. That is harmless-by-design because `reconcileWeekForUser` is idempotent, but it is NOT a
+ * multi-instance lock; don't rely on it for one.
+ *
+ * Never runs for the current (incomplete) week, nor for a closed week still in grace. Returns a
+ * small status object (`week` is the most recent reconcilable week; `created` sums all weeks run).
  */
 export async function runWeeklyReconcileIfDue(
   now: Date = new Date(),
@@ -429,6 +446,7 @@ export async function runWeeklyReconcileIfDue(
 
   // Grace: only reconcile the just-closed week once we're past weekEnd + grace days, so late
   // logging lands first. Until then, do nothing this tick (a later tick will pick it up).
+  // (Any OLDER closed week is necessarily past grace too, so the whole tick can wait.)
   if (!isWeekReconciled(lastCompletedWeekStart, now)) {
     return { ran: false, week };
   }
@@ -436,13 +454,27 @@ export async function runWeeklyReconcileIfDue(
   const guard = await prisma.setting.findUnique({ where: { key: LAST_RECONCILED_WEEK_KEY } });
   if (guard?.value === week) return { ran: false, week };
 
-  const created = await reconcileNonRugbyWeek(lastCompletedWeekStart);
+  // Collect every closed week after the guard week, oldest first. Walk back from the most recent
+  // reconcilable week until we hit the guard; if there is no guard (first run) or it's further
+  // back than the backfill window (stale/garbage value), stop at the bound.
+  const pending: Date[] = [];
+  for (let i = 0; i < RECONCILE_MAX_BACKFILL_WEEKS; i++) {
+    const ws = addWeeks(lastCompletedWeekStart, -i);
+    if (guard?.value === isoWeekKey(ws)) break;
+    pending.unshift(ws);
+  }
 
-  await prisma.setting.upsert({
-    where: { key: LAST_RECONCILED_WEEK_KEY },
-    create: { key: LAST_RECONCILED_WEEK_KEY, value: week },
-    update: { value: week },
-  });
+  let created = 0;
+  for (const ws of pending) {
+    created += await reconcileNonRugbyWeek(ws);
+    // Advance the guard after EACH week so a crash mid-backfill doesn't redo finished weeks.
+    const key = isoWeekKey(ws);
+    await prisma.setting.upsert({
+      where: { key: LAST_RECONCILED_WEEK_KEY },
+      create: { key: LAST_RECONCILED_WEEK_KEY, value: key },
+      update: { value: key },
+    });
+  }
 
   return { ran: true, week, created };
 }
