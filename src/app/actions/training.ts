@@ -176,13 +176,26 @@ export async function logPracticeAttendance(formData: FormData) {
 
   const slot = await prisma.practiceSlot.findUnique({
     where: { id: practiceSlotId },
-    select: { id: true },
+    select: { id: true, dayOfWeek: true },
   });
   if (!slot) throw new Error("Practice not found");
 
-  // Normalize to local midnight so dedup compares whole-day.
-  const date = new Date(dateStr);
-  date.setHours(0, 0, 0, 0);
+  // Parse yyyy-mm-dd as LOCAL midnight (new Date("yyyy-mm-dd") would be UTC midnight, which can
+  // shift the day — and the weekday — in non-UTC timezones). Whole-day granularity for dedup.
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  const date = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(NaN);
+  if (Number.isNaN(date.getTime())) throw new Error("Invalid date");
+
+  // A practice can only be recorded for a day that already happened (attendance creates
+  // undeletable auto-missed rows for absent committed players — a future or wrong-weekday date
+  // would mint phantom penalties for the whole roster).
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  if (date > todayStart) throw new Error("Date cannot be in the future");
+  if (date.getDay() !== slot.dayOfWeek) {
+    throw new Error("Date does not match the practice's weekday");
+  }
+
   const dayEnd = new Date(date);
   dayEnd.setDate(dayEnd.getDate() + 1);
 
