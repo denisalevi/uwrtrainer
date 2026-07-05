@@ -18,6 +18,15 @@ export default async function EditLogPage({ params }: { params: Promise<{ id: st
   // A logged strength workout is edited in the full-session logger, not the generic form.
   if (log.category === "STRENGTH" && log.status === "DONE") redirect(`/strength/log?id=${log.id}`);
 
+  // A rugby session tied to a practice slot is a team-practice attendance tick — edit it in the
+  // group attendance dialogue (where people can be added/removed), not the personal log form.
+  if (log.category === "RUGBY" && log.practiceSlotId) {
+    const y = log.date.getFullYear();
+    const m = String(log.date.getMonth() + 1).padStart(2, "0");
+    const d = String(log.date.getDate()).padStart(2, "0");
+    redirect(`/attendance?slot=${log.practiceSlotId}&date=${y}-${m}-${d}&edit=1`);
+  }
+
   // Auto rows (auto-MISSED penalties) are system-owned and not editable — resolve them from the
   // dashboard ("Add yourself" / "Log the session" / "Give a reason") instead.
   if (log.auto) redirect("/dashboard");

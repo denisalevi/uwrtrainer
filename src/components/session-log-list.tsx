@@ -22,6 +22,14 @@ export type SessionLogListItem = {
 
 type T = Awaited<ReturnType<typeof getServerT>>["t"];
 
+/** Local yyyy-mm-dd for a date (day-granular; matches how attendance keys slot+date). */
+function localDayKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 /**
  * Shared read-only session-log list used by the dashboard (home) and the team member view.
  *
@@ -154,7 +162,13 @@ async function SessionRow({
   const summaryLabel =
     isAutoMissed && !log.practiceSlotId ? weeklySummaryLabel(t, log.category, log.details) : null;
   const title = summaryLabel ?? log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey);
-  const editHref = isStrength ? `/strength/log?id=${log.id}` : `/log/${log.id}`;
+  // A rugby session tied to a practice slot IS a team-practice attendance tick — edit it in the
+  // group attendance dialogue (add/remove people), not the detached personal log form.
+  const editHref = isStrength
+    ? `/strength/log?id=${log.id}`
+    : log.category === "RUGBY" && log.practiceSlotId
+      ? `/attendance?slot=${log.practiceSlotId}&date=${localDayKey(log.date)}&edit=1`
+      : `/log/${log.id}`;
   const showEdit = editable && !log.auto;
 
   const subtitle = [

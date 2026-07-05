@@ -11,6 +11,14 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-07-06
+
+### Changed
+- Editing a **rugby team-practice** session (from home or the log detail) now opens the **group
+  attendance dialogue** for that practice + date — where you can add/remove people — instead of a
+  detached personal log form. They were always the same record (your attendance tick); now editing
+  reflects that.
+
 ## [0.18.0] - 2026-07-06
 
 ### Added
