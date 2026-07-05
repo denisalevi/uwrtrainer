@@ -11,6 +11,13 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-07-05
+
+### Changed
+- Dropped the unused `output: "standalone"` Next config. The container runs via `next start`
+  with the full `node_modules`, so the standalone bundle was built and ignored — and it emitted a
+  start-up warning. Removing it silences the warning with no runtime change.
+
 ## [0.17.1] - 2026-07-05
 
 ### Changed
