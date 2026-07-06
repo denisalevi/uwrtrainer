@@ -82,7 +82,7 @@ export default async function PlayerDetailPage({
         {recent.length === 0 ? (
           <p className="text-sm text-slate-500">{t("dash.nothingLogged")}</p>
         ) : (
-          <SessionLogList logs={recent} canGiveReason={viewer.id === player.id} />
+          <SessionLogList logs={recent} canGiveReason={viewer.id === player.id} planUserId={player.id} />
         )}
       </section>
 

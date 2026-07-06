@@ -56,10 +56,10 @@ export default async function FeedPage() {
     : { id: "" }; // no team -> empty feed
   const { t } = await getServerT();
 
-  // Last 7 days by the DONE/MISSED `date` field (not createdAt).
+  // The whole history by the DONE/MISSED `date` field (not createdAt) — the feed scrolls back
+  // forever; only future-dated entries are excluded.
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const start = addDays(today, -6);
   const end = addDays(today, 1); // exclusive upper bound = tomorrow midnight
 
   const [rows, missedRows] = await Promise.all([
@@ -67,7 +67,7 @@ export default async function FeedPage() {
       // The feed is "what people DID" — exclude auto-generated MISSED rows as standalone entries.
       // (Ticked-practice missed is surfaced ONLY inside its practice event, see `missedBySlotDay`.)
       where: {
-        date: { gte: start, lt: end },
+        date: { lt: end },
         NOT: { status: "MISSED", auto: true },
         user: teamScope,
       },
@@ -81,7 +81,7 @@ export default async function FeedPage() {
     // event with "Committed but didn't come: …". Never shown as their own feed entries.
     prisma.sessionLog.findMany({
       where: {
-        date: { gte: start, lt: end },
+        date: { lt: end },
         status: "MISSED",
         auto: true,
         category: "RUGBY",

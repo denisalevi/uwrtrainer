@@ -164,6 +164,33 @@ export async function getCurrentWeekDetail(userId: string): Promise<WeekDetail> 
   return { weekStart, score: scoreWeek(items), items };
 }
 
+export type WeekPlanItem = ScoreItem & { note: string | null; label: string | null };
+
+/**
+ * Plan-vs-done items for each requested week (keyed by weekStart ms) — drives the
+ * per-week achievement headers in the session-log list.
+ */
+export async function getWeekItemsForWeeks(
+  userId: string,
+  weekStarts: Date[],
+): Promise<Map<number, WeekPlanItem[]>> {
+  const out = new Map<number, WeekPlanItem[]>();
+  if (weekStarts.length === 0) return out;
+  const sorted = [...weekStarts].sort((a, b) => a.getTime() - b.getTime());
+  const start = sorted[0];
+  const end = addWeeks(sorted[sorted.length - 1], 1);
+  const plans = await loadPlans([userId]);
+  const logsByUser = await loadLogs([userId], start, end);
+  const logs = logsByUser.get(userId) ?? [];
+  for (const ws of sorted) {
+    out.set(
+      ws.getTime(),
+      buildScoreItems(activeItems(plans, userId, addDays(ws, 6)), logsInWeek(logs, ws), ws),
+    );
+  }
+  return out;
+}
+
 /** Current trailing full-adherence-week streak (looks back up to `weeks` weeks). */
 export async function getStreak(userId: string, weeks = 26): Promise<number> {
   const thisWeekStart = startOfWeek(new Date());

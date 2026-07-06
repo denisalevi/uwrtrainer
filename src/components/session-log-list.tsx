@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getServerT } from "@/lib/i18n/server";
 import { startOfWeek, addDays } from "@/lib/dates";
+import { getWeekItemsForWeeks, type WeekPlanItem } from "@/lib/stats";
 import { StrengthWorkoutView } from "@/components/strength-workout-view";
 import { MissedActions } from "@/components/missed-actions";
 import { weeklySummaryLabel, missedResolveAction } from "@/lib/missed-label";
@@ -31,26 +32,46 @@ function localDayKey(d: Date): string {
 }
 
 /**
+ * Week-header tone. The framing is positive ("n of m done"), the colour carries the verdict:
+ *  - green   → every planned session of that week was done
+ *  - grey    → something was missed but every miss has a reason (excused, calm colour)
+ *  - red     → missed with no reason given (gently alarming)
+ *  - neutral → current (still open) week, or no plan data available for that week
+ */
+type WeekTone = "green" | "grey" | "red" | "neutral";
+
+const TONE_STYLES: Record<WeekTone, { box: string; head: string; count: string }> = {
+  green: { box: "border-emerald-200", head: "bg-emerald-50 text-emerald-900", count: "text-emerald-700" },
+  grey: { box: "border-slate-200", head: "bg-slate-100 text-slate-700", count: "text-slate-500" },
+  red: { box: "border-rose-200", head: "bg-rose-50 text-rose-900", count: "text-rose-700" },
+  neutral: { box: "border-slate-200", head: "bg-teal-50/60 text-slate-800", count: "text-teal-700" },
+};
+
+/**
  * Shared read-only session-log list used by the dashboard (home) and the team member view.
  *
- * Layout: sessions are grouped into **weeks (Mon–Sun)**, newest week first, each under a labelled
- * separator. Within a week they're grouped by **day** (a day heading marks where one day ends and
- * the next begins), and any **auto-MISSED** rows are collected at the **end of that week**. Every
- * entry is a bounded card that stays **collapsed by default** and expands on tap into the same
- * detail view (strength workouts via `StrengthWorkoutView`, everything else a small definition
- * list) — so an opened entry is clearly its own box, not blended into its neighbours.
+ * Layout: sessions are grouped into **week boxes (Mon–Sun)**, newest week first. Each week is one
+ * bordered box with a colour-coded header (see `WeekTone`) showing "n of m sessions done" for that
+ * week's plan; tapping the header expands the per-plan-item breakdown with a link to log a session.
+ * Within a week, entries sit in per-**day** boxes, and any **auto-MISSED** rows are collected at
+ * the **end of that week**. Every entry is a bounded card that stays **collapsed by default** and
+ * expands on tap into the same detail view (strength workouts via `StrengthWorkoutView`, everything
+ * else a small definition list).
  *
  *  - `canGiveReason` gates the owner-only "Give a reason" form on auto-MISSED rows.
  *  - `editable` adds an Edit button inside the expanded detail for the viewer's own non-auto rows.
+ *  - `planUserId` enables the per-week achievement headers (plan-vs-done for that user).
  */
 export async function SessionLogList({
   logs,
   canGiveReason,
   editable = false,
+  planUserId,
 }: {
   logs: SessionLogListItem[];
   canGiveReason: boolean;
   editable?: boolean;
+  planUserId?: string;
 }) {
   const { t } = await getServerT();
 
@@ -63,11 +84,16 @@ export async function SessionLogList({
     else weeks.set(key, [log]);
   }
   const weekKeys = [...weeks.keys()].sort((a, b) => b - a);
+  const currentWeekKey = startOfWeek(new Date()).getTime();
+
+  const weekItems = planUserId
+    ? await getWeekItemsForWeeks(planUserId, weekKeys.map((k) => new Date(k)))
+    : null;
 
   const dateFmt = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString(undefined, opts);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {weekKeys.map((wk) => {
         const weekLogs = weeks.get(wk)!;
         const autos = weekLogs.filter((l) => l.auto && l.status === "MISSED");
@@ -90,52 +116,116 @@ export async function SessionLogList({
           { day: "numeric", month: "short" },
         )}`;
 
+        // Plan achievement for this week (only when planUserId was given and a plan existed).
+        const items = weekItems?.get(wk)?.filter((i) => i.target > 0) ?? null;
+        const total = items?.reduce((s, i) => s + i.target, 0) ?? 0;
+        // Cap per item so overshooting one category can't mask a miss in another.
+        const done = items?.reduce((s, i) => s + Math.min(i.done, i.target), 0) ?? 0;
+        const excusedAll = autos.length > 0 && autos.every((a) => a.missReason);
+        let tone: WeekTone;
+        if (!items || total === 0) tone = "neutral";
+        else if (done >= total) tone = "green";
+        else if (wk === currentWeekKey) tone = "neutral"; // week still open — don't judge it yet
+        else tone = excusedAll ? "grey" : "red";
+        const s = TONE_STYLES[tone];
+        const hasBreakdown = !!items && total > 0;
+
+        const header = (
+          <>
+            <span className="text-sm font-semibold">{weekLabel}</span>
+            <span className={`flex shrink-0 items-center gap-1.5 text-xs font-medium ${s.count}`}>
+              {hasBreakdown && (
+                <span>
+                  {tone === "green" && "✓ "}
+                  {t("week.sessionsDone", { done, total })}
+                </span>
+              )}
+              {hasBreakdown && (
+                <span className="text-slate-400 transition-transform group-open:rotate-90">›</span>
+              )}
+            </span>
+          </>
+        );
+
         return (
-          <section key={wk} className="space-y-3">
-            <div className="flex items-center gap-3">
-              <h3 className="shrink-0 text-sm font-semibold text-slate-600">{weekLabel}</h3>
-              <div className="h-px flex-1 bg-slate-200" />
-            </div>
-
-            {dayKeys.map((dk) => (
-              <div key={dk} className="space-y-2">
-                <p className="px-1 text-xs font-medium uppercase tracking-wide text-slate-400">
-                  {dateFmt(new Date(dk), { weekday: "short", day: "numeric", month: "short" })}
-                </p>
-                <div className="space-y-2">
-                  {days.get(dk)!.map((log) => (
-                    <SessionRow
-                      key={log.id}
-                      log={log}
-                      t={t}
-                      canGiveReason={canGiveReason}
-                      editable={editable}
-                      showDate={false}
-                    />
+          <section key={wk} className={`overflow-hidden rounded-xl border ${s.box}`}>
+            {hasBreakdown ? (
+              <details className="group">
+                <summary
+                  className={`flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 ${s.head}`}
+                >
+                  {header}
+                </summary>
+                <div className={`space-y-1.5 border-t px-3 py-2.5 text-sm ${s.box} ${s.head}`}>
+                  {items!.map((it, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate">
+                        {it.label ??
+                          (it.category === "OTHER" && it.note
+                            ? it.note
+                            : t(`cat.${it.category}` as DictKey))}
+                      </span>
+                      <span className={`shrink-0 text-xs font-medium ${s.count}`}>
+                        {t("week.sessionsDone", { done: Math.min(it.done, it.target), total: it.target })}
+                        {it.done > it.target ? ` +${it.done - it.target}` : ""}
+                      </span>
+                    </div>
                   ))}
+                  <Link
+                    href="/log"
+                    className="inline-block pt-1 text-sm font-medium text-teal-700 underline"
+                  >
+                    ➕ {t("dash.logSession")}
+                  </Link>
                 </div>
-              </div>
-            ))}
-
-            {autos.length > 0 && (
-              <div className="space-y-2">
-                <p className="px-1 text-xs font-medium uppercase tracking-wide text-amber-500">
-                  {t("dash.autoFlagged")}
-                </p>
-                <div className="space-y-2">
-                  {autos.map((log) => (
-                    <SessionRow
-                      key={log.id}
-                      log={log}
-                      t={t}
-                      canGiveReason={canGiveReason}
-                      editable={editable}
-                      showDate
-                    />
-                  ))}
-                </div>
+              </details>
+            ) : (
+              <div className={`flex items-center justify-between gap-2 px-3 py-2.5 ${s.head}`}>
+                {header}
               </div>
             )}
+
+            <div className="space-y-2 border-t border-slate-200 bg-white p-2">
+              {dayKeys.map((dk) => (
+                <div key={dk} className="rounded-lg bg-slate-50 p-2">
+                  <p className="px-1 pb-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">
+                    {dateFmt(new Date(dk), { weekday: "short", day: "numeric", month: "short" })}
+                  </p>
+                  <div className="space-y-2">
+                    {days.get(dk)!.map((log) => (
+                      <SessionRow
+                        key={log.id}
+                        log={log}
+                        t={t}
+                        canGiveReason={canGiveReason}
+                        editable={editable}
+                        showDate={false}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {autos.length > 0 && (
+                <div className="rounded-lg bg-amber-50/60 p-2">
+                  <p className="px-1 pb-1.5 text-xs font-medium uppercase tracking-wide text-amber-600">
+                    {t("dash.autoFlagged")}
+                  </p>
+                  <div className="space-y-2">
+                    {autos.map((log) => (
+                      <SessionRow
+                        key={log.id}
+                        log={log}
+                        t={t}
+                        canGiveReason={canGiveReason}
+                        editable={editable}
+                        showDate
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </section>
         );
       })}

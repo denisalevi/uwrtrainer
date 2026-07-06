@@ -79,8 +79,8 @@ export const en = {
 
   // ── Activity feed (Part B) ──
   "feed.title": "Activity feed",
-  "feed.subtitle": "What the team did in the last 7 days.",
-  "feed.empty": "Nothing logged in the last 7 days.",
+  "feed.subtitle": "Everything the team has logged, newest first.",
+  "feed.empty": "Nothing logged yet.",
   "feed.today": "Today",
   "feed.yesterday": "Yesterday",
   "feed.wentToPractice": "{n} went to {label}",
@@ -127,6 +127,7 @@ export const en = {
   "dash.nothingLogged": "Nothing logged this week yet.",
   "dash.recentLogs": "Recent sessions",
   "dash.allLogs": "All sessions",
+  "week.sessionsDone": "{done} of {total} done",
   "dash.autoFlagged": "Auto-flagged",
 
   "log.title": "Log a session",
@@ -570,8 +571,8 @@ export const de: Record<DictKey, string> = {
 
   // ── Aktivitäts-Feed (Teil B) ──
   "feed.title": "Aktivitäts-Feed",
-  "feed.subtitle": "Was das Team in den letzten 7 Tagen gemacht hat.",
-  "feed.empty": "Nichts in den letzten 7 Tagen eingetragen.",
+  "feed.subtitle": "Alles, was das Team eingetragen hat – Neuestes zuerst.",
+  "feed.empty": "Noch nichts eingetragen.",
   "feed.today": "Heute",
   "feed.yesterday": "Gestern",
   "feed.wentToPractice": "{n} waren bei {label}",
@@ -618,6 +619,7 @@ export const de: Record<DictKey, string> = {
   "dash.nothingLogged": "Diese Woche noch nichts eingetragen.",
   "dash.recentLogs": "Letzte Einheiten",
   "dash.allLogs": "Alle Einheiten",
+  "week.sessionsDone": "{done} von {total} geschafft",
   "dash.autoFlagged": "Automatisch markiert",
 
   "log.title": "Einheit eintragen",

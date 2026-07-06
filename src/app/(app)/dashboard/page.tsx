@@ -104,7 +104,7 @@ export default async function DashboardPage() {
         {recent.length === 0 ? (
           <p className="text-sm text-slate-500">{t("dash.nothingLogged")}</p>
         ) : (
-          <SessionLogList logs={recent} canGiveReason editable />
+          <SessionLogList logs={recent} canGiveReason editable planUserId={user.id} />
         )}
       </section>
     </div>

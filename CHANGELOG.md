@@ -11,6 +11,21 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-07-06
+
+### Added
+- **Colour-coded week boxes on home** (and the team-member view). Each week of the session
+  history is now one bordered box with per-day boxes inside and an achievement header framed
+  positively — "n of m done", never "n missed": **green** when every planned session was done,
+  **grey** when something was missed but every miss has a reason, a gentle **red** when a miss
+  has no reason yet, and neutral for the still-open current week. Tapping the header expands
+  the per-plan-item breakdown (with over-target sessions shown as `+n`) and a shortcut to log
+  a session; giving a reason still works on the flagged entries inside the box.
+
+### Changed
+- **The feed now scrolls back forever** — it shows the team's whole logged history (newest
+  first) instead of only the last 7 days.
+
 ## [0.18.1] - 2026-07-06
 
 ### Changed
