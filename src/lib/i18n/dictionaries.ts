@@ -387,7 +387,8 @@ export const en = {
   "strength.restDismiss": "Dismiss timer",
   "strength.restOver": "Rest over — go!",
   "mv.PUSH": "Push",
-  "mv.PULL": "Pull",
+  "mv.PULL": "Row (horizontal pull)",
+  "mv.PULLV": "Pull-up (vertical pull)",
   "mv.SQUAT": "Squat",
   "mv.HINGE": "Hinge",
   "mv.PRESS": "Overhead",
@@ -402,6 +403,8 @@ export const en = {
   "ex.push.archer": "Archer push-up",
   "ex.push.onearm": "One-arm push-up",
   "ex.pull.band": "Band-assisted pull-up",
+  "ex.pull.invrow": "Inverted row",
+  "ex.pull.invrowfeet": "Feet-elevated inverted row",
   "ex.pull.full": "Pull-up",
   "ex.pull.weighted": "Weighted pull-up",
   "ex.squat.bw": "Bodyweight squat",
@@ -470,10 +473,12 @@ export const en = {
   "strength.tmShort": "TM",
   "strength.minutesAssistHint":
     "60+ min sessions add extra 'Boring But Big' volume (5×10 at ~50%). Shorter sessions keep just the main sets.",
-  "set.strengthSection": "Strength program",
-  "set.includePull": "Include a pull exercise",
-  "set.includePullHint":
-    "When on, new default plans include a pull (row / pull-up). Classic Wendler is squat, bench, deadlift and press only.",
+  "set.pullsTitle": "Pull exercises",
+  "set.pullsHint": "Optional pulls in your plan — classic Wendler is squat, bench, deadlift and press only.",
+  "set.includePullups": "Pull-ups (vertical pull)",
+  "set.includeRows": "Rows (horizontal pull)",
+  "set.pullsNote":
+    "With two weighted days, pull-ups join one day and rows the other; bodyweight days include every enabled pull.",
   "set.warmupTitle": "Warm-up sets",
   "set.warmupHint":
     "Up to 3 ramp sets added before the working sets when logging a weighted lift, as a percentage of the training max. Leave a row blank to skip it.",
@@ -895,7 +900,8 @@ export const de: Record<DictKey, string> = {
   "strength.restDismiss": "Timer ausblenden",
   "strength.restOver": "Pause vorbei — los!",
   "mv.PUSH": "Drücken",
-  "mv.PULL": "Ziehen",
+  "mv.PULL": "Rudern (horizontaler Zug)",
+  "mv.PULLV": "Klimmzug (vertikaler Zug)",
   "mv.SQUAT": "Kniebeuge",
   "mv.HINGE": "Hüftbeuge",
   "mv.PRESS": "Überkopf",
@@ -910,6 +916,8 @@ export const de: Record<DictKey, string> = {
   "ex.push.archer": "Archer-Liegestütz",
   "ex.push.onearm": "Einarmiger Liegestütz",
   "ex.pull.band": "Klimmzug mit Band",
+  "ex.pull.invrow": "Rudern liegend (Inverted Row)",
+  "ex.pull.invrowfeet": "Rudern liegend, Füße erhöht",
   "ex.pull.full": "Klimmzug",
   "ex.pull.weighted": "Klimmzug mit Zusatzgewicht",
   "ex.squat.bw": "Kniebeuge",
@@ -979,10 +987,12 @@ export const de: Record<DictKey, string> = {
   "strength.tmShort": "TM",
   "strength.minutesAssistHint":
     "Einheiten ab 60 Min ergänzen Zusatzvolumen ('Boring But Big', 5×10 mit ~50 %). Kürzere Einheiten behalten nur die Hauptsätze.",
-  "set.strengthSection": "Kraftprogramm",
-  "set.includePull": "Zugübung einbeziehen",
-  "set.includePullHint":
-    "Wenn aktiv, enthalten neue Standardpläne eine Zugübung (Rudern / Klimmzug). Klassisches Wendler ist nur Kniebeuge, Bankdrücken, Kreuzheben und Schulterdrücken.",
+  "set.pullsTitle": "Zugübungen",
+  "set.pullsHint": "Optionale Zugübungen im Plan — klassisches Wendler ist nur Kniebeuge, Bankdrücken, Kreuzheben und Schulterdrücken.",
+  "set.includePullups": "Klimmzüge (vertikaler Zug)",
+  "set.includeRows": "Rudern (horizontaler Zug)",
+  "set.pullsNote":
+    "Bei zwei Hanteltagen kommen Klimmzüge an den einen und Rudern an den anderen Tag; Bodyweight-Tage enthalten alle aktivierten Zugübungen.",
   "set.warmupTitle": "Aufwärmsätze",
   "set.warmupHint":
     "Bis zu 3 Aufwärmsätze, die beim Protokollieren einer gewichteten Übung vor den Arbeitssätzen ergänzt werden – als Prozentsatz des Trainingsmaximums. Leere Zeile = übersprungen.",

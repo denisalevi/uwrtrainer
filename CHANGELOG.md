@@ -11,6 +11,23 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-07-07
+
+### Added
+- **Two separate pull slots: pull-ups and rows.** The single pull movement split into a
+  vertical pull (`PULLV` — band/full/weighted pull-ups; the weighted variant progresses in
+  *added* kg like any 5/3/1 lift) and a horizontal pull (`PULL` — barbell/dumbbell/kettlebell
+  rows, or inverted rows without weights). Each has its own exercise choice, maxima and
+  progression, and with two weighted days each pull rides its **own** day: pull-ups join the
+  squat+bench day, rows the deadlift+press day. Bodyweight days include every enabled pull.
+
+### Changed
+- **The pull toggle is per user now** (was a trainer/team setting) and there are two of them:
+  "Pull-ups (vertical pull)" and "Rows (horizontal pull)" in Settings → Strength program, both
+  on by default. Existing programs were migrated: the old pull's row training max stayed on the
+  row, its pull-up rep max moved to the new vertical pull (weighted pull-up max starts empty —
+  set it after your next assessment).
+
 ## [0.21.0] - 2026-07-07
 
 ### Added

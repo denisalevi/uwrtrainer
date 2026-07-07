@@ -12,6 +12,7 @@ import {
   type ProgramEquipment,
   type SlotMode,
   type WeightedLayout,
+  type PullPrefs,
 } from "@/lib/constants";
 import {
   EXERCISE_CATALOG,
@@ -45,7 +46,7 @@ export function ProgramForm({
   initialMaxima = {},
   initialLayout,
   initialNotes = "",
-  includePull,
+  pulls,
   tmPct = 0.9,
   rounding = 2.5,
 }: {
@@ -58,13 +59,13 @@ export function ProgramForm({
   initialMaxima?: Maxima;
   initialLayout: WeightedLayout;
   initialNotes?: string;
-  includePull: boolean;
+  pulls: PullPrefs;
   /** Submaximal buffer + loadable increment used to turn a weight×reps set into a training max — mirrors the server defaults so the live preview matches what gets stored. */
   tmPct?: number;
   rounding?: number;
 }) {
   const { t } = useT();
-  const movements = programSlotMovements(includePull);
+  const movements = programSlotMovements(pulls);
 
   const [days, setDays] = useState<DayPlan[]>(
     initialDays.length
@@ -178,7 +179,7 @@ export function ProgramForm({
       bodyweightCustom: maxima[m].bcustom,
     };
   }
-  const preview = buildSchedule(days, previewState, { includePull, layout, week: 1 });
+  const preview = buildSchedule(days, previewState, { pulls, layout, week: 1 });
 
   const daysPayload = JSON.stringify(
     days.map((d, i) => ({

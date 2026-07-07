@@ -2,7 +2,6 @@ import Link from "next/link";
 import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
-import { SETTING_INCLUDE_PULL, DEFAULT_INCLUDE_PULL } from "@/lib/constants";
 import { StrengthWizard } from "@/components/strength-wizard";
 import { isWeightRoundingMode, type RoundingPref } from "@/lib/strength";
 import { StrengthProgramView } from "@/components/strength-program";
@@ -25,14 +24,11 @@ export default async function StrengthPage({
       ? parsedWeek
       : undefined;
 
-  const [program, pullSetting] = await Promise.all([
-    prisma.strengthProgram.findFirst({
-      where: { userId: user.id, active: true },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.setting.findUnique({ where: { key: SETTING_INCLUDE_PULL } }),
-  ]);
-  const includePull = pullSetting ? pullSetting.value !== "false" : DEFAULT_INCLUDE_PULL;
+  const program = await prisma.strengthProgram.findFirst({
+    where: { userId: user.id, active: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const pulls = { pullups: user.strengthPullups, rows: user.strengthRows };
   const rounding: RoundingPref = {
     mode: isWeightRoundingMode(user.weightRounding) ? user.weightRounding : "DOWN",
     increment: user.weightIncrement > 0 ? user.weightIncrement : 2.5,
@@ -56,9 +52,9 @@ export default async function StrengthPage({
         )}
       </header>
       {program && program.days && program.days !== "[]" ? (
-        <StrengthProgramView program={program} includePull={includePull} previewWeek={previewWeek} rounding={rounding} />
+        <StrengthProgramView program={program} pulls={pulls} previewWeek={previewWeek} rounding={rounding} />
       ) : (
-        <StrengthWizard includePull={includePull} />
+        <StrengthWizard pulls={pulls} />
       )}
     </div>
   );

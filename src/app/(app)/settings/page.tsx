@@ -1,21 +1,16 @@
 import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
-import {
-  isTrainer,
-  SETTING_INCLUDE_PULL,
-  DEFAULT_INCLUDE_PULL,
-  parseWarmupScheme,
-  parseBbbConfig,
-} from "@/lib/constants";
+import { isTrainer, parseWarmupScheme, parseBbbConfig } from "@/lib/constants";
 import {
   setLocale,
   setRestTimerSettings,
   setWeightRounding,
   setStrengthWarmup,
   setStrengthBbb,
+  setStrengthPulls,
 } from "@/app/actions/settings";
-import { createTeam, updateLeaderboards, updateStrengthIncludePull } from "@/app/actions/trainer";
+import { createTeam, updateLeaderboards } from "@/app/actions/trainer";
 import { logout } from "@/app/actions/auth";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Badge, Button, Collapsible, Input, Label, Select, SectionTitle, cn } from "@/components/ui";
@@ -67,10 +62,6 @@ export default async function SettingsPage({
   const boards = trainer
     ? await prisma.leaderboard.findMany({ orderBy: { sortOrder: "asc" } })
     : [];
-  const pullSetting = trainer
-    ? await prisma.setting.findUnique({ where: { key: SETTING_INCLUDE_PULL } })
-    : null;
-  const includePull = pullSetting ? pullSetting.value !== "false" : DEFAULT_INCLUDE_PULL;
   // Pad the parsed scheme to a fixed 3 rows for the form (blank rows are dropped on save).
   const warmup = parseWarmupScheme(user.strengthWarmup);
   const warmupRows = Array.from({ length: 3 }, (_, i) => warmup[i] ?? null);
@@ -218,6 +209,34 @@ export default async function SettingsPage({
           </form>
         </Collapsible>
 
+        {/* Optional pull slots (vertical / horizontal) in the auto-laid-out plan */}
+        <Collapsible title={t("set.pullsTitle")} hint={t("set.pullsHint")}>
+          <form action={setStrengthPulls} className="space-y-3">
+            <label className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                name="pullups"
+                defaultChecked={user.strengthPullups}
+                className="h-5 w-5 rounded border-slate-300 text-teal-600 focus:ring-teal-400"
+              />
+              <span className="flex-1 text-sm font-medium text-slate-800">{t("set.includePullups")}</span>
+            </label>
+            <label className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                name="rows"
+                defaultChecked={user.strengthRows}
+                className="h-5 w-5 rounded border-slate-300 text-teal-600 focus:ring-teal-400"
+              />
+              <span className="flex-1 text-sm font-medium text-slate-800">{t("set.includeRows")}</span>
+            </label>
+            <p className="text-xs text-slate-500">{t("set.pullsNote")}</p>
+            <Button type="submit" className="w-full">
+              {t("common.save")}
+            </Button>
+          </form>
+        </Collapsible>
+
         {/* Warm-up ramp (prepended before the working sets when logging weighted lifts) */}
         <Collapsible title={t("set.warmupTitle")} hint={t("set.warmupHint")}>
           <form action={setStrengthWarmup} className="space-y-3">
@@ -338,23 +357,6 @@ export default async function SettingsPage({
             </form>
           </Collapsible>
 
-          <Collapsible title={t("set.strengthSection")}>
-            <form action={updateStrengthIncludePull} className="space-y-3">
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  name="includePull"
-                  defaultChecked={includePull}
-                  className="h-5 w-5 rounded border-slate-300 text-teal-600 focus:ring-teal-400"
-                />
-                <span className="flex-1 text-sm font-medium text-slate-800">{t("set.includePull")}</span>
-              </label>
-              <p className="pl-8 text-xs text-slate-500">{t("set.includePullHint")}</p>
-              <Button type="submit" className="w-full">
-                {t("common.save")}
-              </Button>
-            </form>
-          </Collapsible>
         </SettingsGroup>
       )}
 

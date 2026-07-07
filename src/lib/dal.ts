@@ -27,6 +27,8 @@ export type CurrentUser = {
   weightIncrement: number;
   strengthWarmup: string | null;
   strengthBbb: string | null;
+  strengthPullups: boolean;
+  strengthRows: boolean;
 };
 
 /**
@@ -60,6 +62,8 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       weightIncrement: true,
       strengthWarmup: true,
       strengthBbb: true,
+      strengthPullups: true,
+      strengthRows: true,
     },
   });
   if (!user) return null;

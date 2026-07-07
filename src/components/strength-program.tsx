@@ -9,7 +9,7 @@ import {
   updateStrengthSettings,
   resetStrengthProgram,
 } from "@/app/actions/strength";
-import { MOVEMENTS, PROGRAM_EQUIPMENT, WEIGHTED_LAYOUTS, type ProgramEquipment, type WeightedLayout } from "@/lib/constants";
+import { MOVEMENTS, PROGRAM_EQUIPMENT, WEIGHTED_LAYOUTS, type ProgramEquipment, type WeightedLayout, type PullPrefs } from "@/lib/constants";
 import {
   buildSchedule,
   CUSTOM_EXERCISE_ID,
@@ -46,12 +46,12 @@ function setLine(set: WorkoutSet): string {
 
 export async function StrengthProgramView({
   program,
-  includePull,
+  pulls,
   previewWeek,
   rounding,
 }: {
   program: Program;
-  includePull: boolean;
+  pulls: PullPrefs;
   previewWeek?: number;
   rounding?: RoundingPref;
 }) {
@@ -71,7 +71,7 @@ export async function StrengthProgramView({
   const activeWeek = program.week;
   const viewWeek = previewWeek != null && previewWeek <= cycleWeeks ? previewWeek : activeWeek;
   const wave = waveWeek(cycleWeeks === 8 ? rotationWaveWeek(activeWeek) : activeWeek);
-  const schedule = buildSchedule(days, state, { includePull, layout, week: viewWeek, rounding });
+  const schedule = buildSchedule(days, state, { pulls, layout, week: viewWeek, rounding });
   const exLabel = (e: PlannedExercise): string =>
     e.exerciseId === CUSTOM_EXERCISE_ID ? e.custom || t("strength.exerciseName") : t(e.labelKey as DictKey);
 
@@ -251,7 +251,7 @@ export async function StrengthProgramView({
             initialMaxima={state}
             initialLayout={layout}
             initialNotes={program.notes ?? ""}
-            includePull={includePull}
+            pulls={pulls}
             tmPct={program.trainingMaxPct}
             rounding={program.rounding}
           />

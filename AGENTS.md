@@ -91,14 +91,16 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
   scores, leaderboards, team summary): `src/lib/stats.ts`. Leaderboards are computed **on the
   fly** — there is no cache table, by design (robustness over micro-perf for a small team).
 - **Strength program** (pure, unit-tested): `src/lib/strength.ts` — a Wendler 5/3/1 engine
-  that also works with zero equipment. Five movement patterns (push/pull/squat/hinge/press).
-  Setup is **auto-laid-out**: the player sets day count + each day's `equipment`
-  (`"WEIGHTS"|"BODYWEIGHT"`) + length, and `buildSchedule(days, state, {includePull,layout,week})`
-  distributes the four cores. Two rules (unit-tested): **weighted days split** the cores (each
+  that also works with zero equipment. Six movement patterns: push/squat/hinge/press cores plus
+  two optional pulls — `PULL` (horizontal, rows) and `PULLV` (vertical, pull-ups; its weighted
+  variant progresses in ADDED kg). Setup is **auto-laid-out**: the player sets day count + each
+  day's `equipment` (`"WEIGHTS"|"BODYWEIGHT"`) + length, and
+  `buildSchedule(days, state, {pulls,layout,week})` distributes the four cores. Two rules (unit-tested): **weighted days split** the cores (each
   lift once/week, spreadsheet pairing squat+bench / deadlift+press via `weightedAssignment()`);
   **bodyweight days are full-body** (all patterns). A single weighted day uses `weightedLayout`
-  (`ROTATE` 2-week pairs by week parity, or `ALL_IN_ONE`). Pull rides the lightest weighted
-  pressing day (`pullRiderDay()`), never the deadlift day. The `StrengthProgram` model holds
+  (`ROTATE` 2-week pairs by week parity, or `ALL_IN_ONE`). Each enabled pull rides its own
+  weighted pressing day where possible (`pullRiderDays()`, vertical on the lightest), never the
+  deadlift day. The `StrengthProgram` model holds
   `days` (JSON `[{id,name,equipment,minutes}]` — what each day *contains* is derived, not stored),
   `weightedLayout`, `notes` (trainer-visible free text), and `movements` (JSON per-movement state
   `{trainingMax?,repMax?,levelIndex?, weighted/bodyweightExerciseId, *Custom}`, **shared across
@@ -106,10 +108,11 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
   `resolveExercise()`/`workoutForSlot()` build a movement's sets (weighted reads `trainingMax`,
   bodyweight reads `repMax`). A lift's chosen exercise can be either kind regardless of the day —
   `resolveExercise` returns the mode from the exercise, so a weighted day can hold a bodyweight
-  lift (e.g. pull-ups for the row). Whether defaults include a pull/row is the **team setting**
-  `strength.includePull` (Setting table, default on). Exercise/lift names are **i18n keys**
-  (`ex.*`/`lift.*`) the engine returns and the UI translates. Actions: `actions/strength.ts`
-  (+ `updateStrengthIncludePull` in `actions/trainer.ts`). UI: `/strength` (view + `program-form`
+  lift (e.g. pull-ups for the row). Which pulls a plan includes is **per user**
+  (`User.strengthPullups` / `User.strengthRows`, both default on), set in Settings alongside the
+  other per-user strength prefs (`strengthWarmup`/`strengthBbb` JSON, rest timer, rounding).
+  Exercise/lift names are **i18n keys** (`ex.*`/`lift.*`) the engine returns and the UI
+  translates. Actions: `actions/strength.ts` (+ per-user prefs in `actions/settings.ts`). UI: `/strength` (view + `program-form`
   for setup/settings — per-day equipment, per-lift Modify + inline shared maxima, live plan
   preview, notes box). `/strength/log` (`strength-workout-logger`) is the **only** strength-logging
   UI: pick a plan day to preload its exercises or start empty, debounced autosave via

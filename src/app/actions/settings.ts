@@ -119,6 +119,24 @@ export async function setStrengthBbb(formData: FormData) {
   redirect("/settings");
 }
 
+/** Toggle the user's optional pull slots (vertical pull-ups / horizontal rows). */
+export async function setStrengthPulls(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      strengthPullups: formData.get("pullups") === "on",
+      strengthRows: formData.get("rows") === "on",
+    },
+  });
+  revalidatePath("/settings");
+  revalidatePath("/strength");
+  revalidatePath("/strength/log");
+  redirect("/settings");
+}
+
 /** Switch the active team (must be a team the user belongs to). */
 export async function switchTeam(formData: FormData) {
   const user = await getCurrentUser();

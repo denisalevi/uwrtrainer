@@ -4,8 +4,6 @@ import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import {
-  SETTING_INCLUDE_PULL,
-  DEFAULT_INCLUDE_PULL,
   parseWarmupScheme,
   parseBbbConfig,
   WEIGHTED_LAYOUTS,
@@ -49,14 +47,11 @@ export default async function StrengthLogPage({
   const user = await requireUser();
   const { t } = await getServerT();
 
-  const [program, pullSetting] = await Promise.all([
-    prisma.strengthProgram.findFirst({
-      where: { userId: user.id, active: true },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.setting.findUnique({ where: { key: SETTING_INCLUDE_PULL } }),
-  ]);
-  const includePull = pullSetting ? pullSetting.value !== "false" : DEFAULT_INCLUDE_PULL;
+  const program = await prisma.strengthProgram.findFirst({
+    where: { userId: user.id, active: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const pulls = { pullups: user.strengthPullups, rows: user.strengthRows };
   // Warm-up + BBB are per-user settings; percentages are stored as whole numbers → convert to
   // the engine's fraction form. Warm-ups are skipped on the deload week (its sets are already light).
   const warmupScheme = parseWarmupScheme(user.strengthWarmup).map((s) => ({
@@ -79,7 +74,7 @@ export default async function StrengthLogPage({
     const layout: WeightedLayout = (WEIGHTED_LAYOUTS as readonly string[]).includes(program.weightedLayout)
       ? (program.weightedLayout as WeightedLayout)
       : "ROTATE";
-    const schedule = buildSchedule(days, state, { includePull, layout, week: program.week, rounding });
+    const schedule = buildSchedule(days, state, { pulls, layout, week: program.week, rounding });
     const exLabel = (e: PlannedExercise): string =>
       e.exerciseId === CUSTOM_EXERCISE_ID ? e.custom || t("strength.exerciseName") : t(e.labelKey as DictKey);
     loggerDays = schedule.map((day) => ({

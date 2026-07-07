@@ -25,6 +25,7 @@ import {
   type SlotMode,
   type SlotTool,
   type WeightedLayout,
+  type PullPrefs,
 } from "@/lib/constants";
 
 // ────────────────────────────────────────────────────────────── Estimating a max ──
@@ -526,12 +527,12 @@ export type ProgramState = Partial<Record<MovementKey, MovementState>>;
 
 /**
  * Which movements a program trains. WEIGHTED mirrors classic 5/3/1. With a pull-up bar
- * (REPS) we add PULL. Pure bodyweight (LEVELS) has no pull option, so it trains the press
- * instead — fixes "pull-ups shown with no equipment".
+ * (REPS) we add the vertical pull. Pure bodyweight (LEVELS) has no pull option, so it trains
+ * the press instead — fixes "pull-ups shown with no equipment".
  */
 export function programMovements(mode: StrengthMode): MovementKey[] {
   if (mode === "WEIGHTED") return ["SQUAT", "HINGE", "PUSH", "PRESS"];
-  if (mode === "REPS") return ["PUSH", "PULL", "SQUAT", "HINGE"];
+  if (mode === "REPS") return ["PUSH", "PULLV", "SQUAT", "HINGE"];
   return ["PUSH", "SQUAT", "HINGE", "PRESS"]; // LEVELS — bodyweight only, no pull
 }
 
@@ -543,10 +544,12 @@ const WEIGHTED_LABELS: Record<MovementKey, string> = {
   PUSH: "lift.PUSH",
   PRESS: "lift.PRESS",
   PULL: "lift.PULL",
+  PULLV: "ex.pull.weighted",
 };
 const REPS_LABELS: Record<MovementKey, string> = {
   PUSH: "ex.push.full",
-  PULL: "ex.pull.full",
+  PULL: "ex.pull.invrow",
+  PULLV: "ex.pull.full",
   SQUAT: "ex.squat.bw",
   HINGE: "ex.hinge.slrdl",
   PRESS: "ex.press.pike",
@@ -696,17 +699,24 @@ export const EXERCISE_CATALOG: Record<MovementKey, CatalogEntry[]> = {
     { id: "PULL_BB", labelKey: "lift.PULL", tool: "BARBELL", mode: "WEIGHTED" },
     { id: "PULL_DB", labelKey: "lift.PULL.db", tool: "DUMBBELLS", mode: "WEIGHTED" },
     { id: "PULL_KB", labelKey: "lift.PULL.kb", tool: "KETTLEBELL", mode: "WEIGHTED" },
-    { id: "PULL_FULL", labelKey: "ex.pull.full", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
-    { id: "PULL_BAND", labelKey: "ex.pull.band", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
-    { id: "PULL_WEIGHTED", labelKey: "ex.pull.weighted", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+    { id: "PULL_INV", labelKey: "ex.pull.invrow", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+    { id: "PULL_INV_FEET", labelKey: "ex.pull.invrowfeet", tool: "BODYWEIGHT", mode: "BODYWEIGHT" },
+  ],
+  PULLV: [
+    // Weighted pull-up progresses in added kg (its training max is the ADDED weight, not total).
+    { id: "PULLV_WEIGHTED", labelKey: "ex.pull.weighted", tool: "PULLUP_BAR", mode: "WEIGHTED" },
+    { id: "PULL_FULL", labelKey: "ex.pull.full", tool: "PULLUP_BAR", mode: "BODYWEIGHT" },
+    { id: "PULL_BAND", labelKey: "ex.pull.band", tool: "PULLUP_BAR", mode: "BODYWEIGHT" },
   ],
 };
 
 const DEFAULT_WEIGHTED_ID: Record<MovementKey, string> = {
   SQUAT: "SQUAT_BB", HINGE: "HINGE_BB", PUSH: "PUSH_BB", PRESS: "PRESS_BB", PULL: "PULL_BB",
+  PULLV: "PULLV_WEIGHTED",
 };
 const DEFAULT_BODYWEIGHT_ID: Record<MovementKey, string> = {
-  SQUAT: "SQUAT_BW", HINGE: "HINGE_SLRDL", PUSH: "PUSH_FULL", PRESS: "PRESS_PIKE", PULL: "PULL_FULL",
+  SQUAT: "SQUAT_BW", HINGE: "HINGE_SLRDL", PUSH: "PUSH_FULL", PRESS: "PRESS_PIKE", PULL: "PULL_INV",
+  PULLV: "PULL_FULL",
 };
 
 /** Look up a catalog entry by movement + id. */
@@ -714,10 +724,18 @@ export function catalogEntry(movement: MovementKey, exerciseId: string): Catalog
   return EXERCISE_CATALOG[movement]?.find((e) => e.id === exerciseId);
 }
 
-/** The movements a program trains, in order. PULL only when the trainer enables it. */
-export function programSlotMovements(includePull: boolean): MovementKey[] {
+/** The enabled optional pull movements, in rider order (vertical first). */
+export function enabledPulls(pulls: PullPrefs): MovementKey[] {
+  const out: MovementKey[] = [];
+  if (pulls.pullups) out.push("PULLV");
+  if (pulls.rows) out.push("PULL");
+  return out;
+}
+
+/** The movements a program trains, in order. Pulls are per-user opt-ins. */
+export function programSlotMovements(pulls: PullPrefs): MovementKey[] {
   const base: MovementKey[] = ["SQUAT", "HINGE", "PUSH", "PRESS"];
-  return includePull ? [...base, "PULL"] : base;
+  return [...base, ...enabledPulls(pulls)];
 }
 
 /** The default exercise id for a movement in a given mode (barbell lift / first ladder rung). */
@@ -758,8 +776,9 @@ export function workoutForSlot(
 
 // ───────────────────────────────────── Weekly schedule (auto-layout) ──
 //
-// The four "core" lifts are squat / hinge(deadlift) / push(bench) / press(overhead); a pull
-// (row) is an optional rider on a pressing day. How they fill your week is DERIVED, not hand-
+// The four "core" lifts are squat / hinge(deadlift) / push(bench) / press(overhead); the pulls
+// (PULLV pull-ups, PULL rows — per-user opt-ins) are riders on pressing days, each on its own
+// day where possible. How they fill your week is DERIVED, not hand-
 // built, from two rules grounded in Wendler:
 //
 //   • WEIGHTED days are recovery-limited, so the cores are SPLIT across them — each lift loaded
@@ -847,22 +866,23 @@ export function weightedAssignment(
 }
 
 /**
- * Which weighted day the pull rides: a pressing day (has bench or overhead), preferring the
- * lightest one, then a non-deadlift day, then the overhead day. Returns an index into
- * `assignment`, or null if no weighted pressing day exists.
+ * Which weighted days the pulls ride: pressing days (bench or overhead), ranked lightest
+ * first, then non-deadlift, then the overhead day. Returns indices into `assignment` — one
+ * per requested rider, each on its OWN day where possible (wrapping when there are more
+ * pulls than pressing days). Empty if no weighted pressing day exists.
  */
-export function pullRiderDay(assignment: MovementKey[][]): number | null {
+export function pullRiderDays(assignment: MovementKey[][], count: number): number[] {
   const pressing = assignment
     .map((cores, i) => ({ i, cores }))
     .filter((x) => x.cores.includes("PUSH") || x.cores.includes("PRESS"));
-  if (pressing.length === 0) return null;
+  if (pressing.length === 0 || count <= 0) return [];
   pressing.sort(
     (a, b) =>
       a.cores.length - b.cores.length ||
       Number(a.cores.includes("HINGE")) - Number(b.cores.includes("HINGE")) ||
       Number(b.cores.includes("PRESS")) - Number(a.cores.includes("PRESS")),
   );
-  return pressing[0].i;
+  return Array.from({ length: count }, (_, k) => pressing[k % pressing.length].i);
 }
 
 /**
@@ -909,12 +929,14 @@ function plannedExercise(
 export function buildSchedule(
   days: DayPlan[],
   state: ProgramState,
-  opts: { includePull: boolean; layout: WeightedLayout; week: number; rounding?: RoundingPref },
+  opts: { pulls: PullPrefs; layout: WeightedLayout; week: number; rounding?: RoundingPref },
 ): PlannedDay[] {
-  const { includePull, layout, week, rounding } = opts;
+  const { pulls, layout, week, rounding } = opts;
   const weightedDays = days.filter((d) => d.equipment === "WEIGHTS");
   const assignment = weightedAssignment(weightedDays.length, layout, week);
-  const riderIdx = includePull ? pullRiderDay(assignment) : null;
+  // Each enabled pull rides its own pressing day where possible (vertical on the lightest).
+  const riders = enabledPulls(pulls);
+  const riderIdxs = pullRiderDays(assignment, riders.length);
   // A single rotating weighted day runs an 8-week super-cycle: the training pair's sets come
   // off ITS OWN wave week (rotationWaveWeek), not the raw program week — otherwise the
   // rotation is phase-locked and half the lifts never see the test/deload weeks.
@@ -926,7 +948,9 @@ export function buildSchedule(
       const myIdx = w++;
       const cores = assignment[myIdx] ?? [];
       const movements = [...cores];
-      if (riderIdx === myIdx) movements.push("PULL");
+      riders.forEach((pull, k) => {
+        if (riderIdxs[k] === myIdx) movements.push(pull);
+      });
       const liftWeek = rotating ? rotationWaveWeek(week) : week;
       const exercises = movements.map((m) => plannedExercise(m, "WEIGHTS", state, liftWeek, rounding));
       return {
@@ -938,8 +962,8 @@ export function buildSchedule(
         exercises,
       };
     }
-    // Bodyweight day: full-body, all patterns (+ pull).
-    const movements = includePull ? [...CORE_MOVEMENTS, "PULL" as MovementKey] : [...CORE_MOVEMENTS];
+    // Bodyweight day: full-body, all patterns (+ the enabled pulls).
+    const movements = [...CORE_MOVEMENTS, ...riders];
     const exercises = movements.map((m) => plannedExercise(m, "BODYWEIGHT", state, week, rounding));
     return { id: day.id, name: day.name, equipment: day.equipment, minutes: day.minutes, exercises };
   });

@@ -24,7 +24,7 @@ import {
   workoutForSlot,
   suggestedMinutes,
   weightedAssignment,
-  pullRiderDay,
+  pullRiderDays,
   buildSchedule,
   rotationWaveWeek,
   programCycleWeeks,
@@ -387,11 +387,12 @@ describe("EXERCISE_CATALOG", () => {
       expect(new Set(ids).size).toBe(ids.length);
     }
   });
-  it("weighted entries are loadable tools, bodyweight entries are BODYWEIGHT", () => {
+  it("weighted entries are loadable tools, bodyweight entries are unloaded", () => {
     for (const m of MOVEMENTS) {
       for (const e of EXERCISE_CATALOG[m]) {
-        if (e.mode === "WEIGHTED") expect(e.tool).not.toBe("BODYWEIGHT");
-        else expect(e.tool).toBe("BODYWEIGHT");
+        // The weighted pull-up is the one loadable exercise on an "unloaded" tool.
+        if (e.mode === "WEIGHTED" && e.id !== "PULLV_WEIGHTED") expect(e.tool).not.toBe("BODYWEIGHT");
+        if (e.mode === "BODYWEIGHT") expect(["BODYWEIGHT", "PULLUP_BAR"]).toContain(e.tool);
       }
     }
   });
@@ -402,14 +403,20 @@ describe("EXERCISE_CATALOG", () => {
 });
 
 describe("defaults & program movements", () => {
-  it("includes PULL only when enabled", () => {
-    expect(programSlotMovements(true)).toContain("PULL");
-    expect(programSlotMovements(false)).not.toContain("PULL");
-    expect(programSlotMovements(false)).toEqual(["SQUAT", "HINGE", "PUSH", "PRESS"]);
+  it("includes the pulls only when enabled (vertical first)", () => {
+    expect(programSlotMovements({ pullups: true, rows: true })).toEqual([
+      "SQUAT", "HINGE", "PUSH", "PRESS", "PULLV", "PULL",
+    ]);
+    expect(programSlotMovements({ pullups: true, rows: false })).toEqual([
+      "SQUAT", "HINGE", "PUSH", "PRESS", "PULLV",
+    ]);
+    expect(programSlotMovements({ pullups: false, rows: false })).toEqual(["SQUAT", "HINGE", "PUSH", "PRESS"]);
   });
   it("default exercise ids are the barbell lift / first bodyweight rung", () => {
     expect(defaultExerciseId("PUSH", "WEIGHTED")).toBe("PUSH_BB");
-    expect(defaultExerciseId("PULL", "BODYWEIGHT")).toBe("PULL_FULL"); // pull-up assumed
+    expect(defaultExerciseId("PULLV", "BODYWEIGHT")).toBe("PULL_FULL"); // pull-up
+    expect(defaultExerciseId("PULLV", "WEIGHTED")).toBe("PULLV_WEIGHTED");
+    expect(defaultExerciseId("PULL", "BODYWEIGHT")).toBe("PULL_INV"); // inverted row
   });
 });
 
@@ -432,18 +439,23 @@ describe("weightedAssignment (spreadsheet pairing)", () => {
   });
 });
 
-describe("pullRiderDay (lighter pressing day, never the deadlift day)", () => {
-  it("4 days → the overhead-press day", () => {
+describe("pullRiderDays (pressing days, lightest first, one per pull)", () => {
+  it("4 days → overhead-press day first, then bench day", () => {
     const a = weightedAssignment(4, "ROTATE", 1); // [[SQUAT],[PUSH],[HINGE],[PRESS]]
-    expect(pullRiderDay(a)).toBe(3); // PRESS
+    expect(pullRiderDays(a, 1)).toEqual([3]); // PRESS
+    expect(pullRiderDays(a, 2)).toEqual([3, 1]); // PRESS, then PUSH
   });
   it("3 days → the press day, not the squat+bench day", () => {
     const a = weightedAssignment(3, "ROTATE", 1); // [[SQUAT,PUSH],[HINGE],[PRESS]]
-    expect(pullRiderDay(a)).toBe(2); // PRESS, the single-lift pressing day
+    expect(pullRiderDays(a, 1)).toEqual([2]);
   });
-  it("2 days → the squat+bench day (keeps rows off the deadlift day)", () => {
+  it("2 days → squat+bench day first, deadlift+press day second", () => {
     const a = weightedAssignment(2, "ROTATE", 1); // [[SQUAT,PUSH],[HINGE,PRESS]]
-    expect(pullRiderDay(a)).toBe(0);
+    expect(pullRiderDays(a, 2)).toEqual([0, 1]);
+  });
+  it("more pulls than pressing days wrap onto the same day", () => {
+    const a = weightedAssignment(1, "ALL_IN_ONE", 1);
+    expect(pullRiderDays(a, 2)).toEqual([0, 0]);
   });
 });
 
@@ -470,7 +482,7 @@ describe("buildSchedule", () => {
 
   it("2 weighted days split the cores, each lift once", () => {
     const plan = buildSchedule([day("a", "WEIGHTS"), day("b", "WEIGHTS")], state, {
-      includePull: false, layout: "ROTATE", week: 1,
+      pulls: { pullups: false, rows: false }, layout: "ROTATE", week: 1,
     });
     expect(plan[0].exercises.map((e) => e.movement)).toEqual(["SQUAT", "PUSH"]);
     expect(plan[1].exercises.map((e) => e.movement)).toEqual(["HINGE", "PRESS"]);
@@ -479,7 +491,7 @@ describe("buildSchedule", () => {
 
   it("a bodyweight day is full-body (all four patterns) regardless of day count", () => {
     const plan = buildSchedule([day("a", "BODYWEIGHT"), day("b", "BODYWEIGHT")], state, {
-      includePull: false, layout: "ROTATE", week: 1,
+      pulls: { pullups: false, rows: false }, layout: "ROTATE", week: 1,
     });
     for (const d of plan) {
       expect(d.exercises.map((e) => e.movement)).toEqual(["SQUAT", "HINGE", "PUSH", "PRESS"]);
@@ -487,19 +499,36 @@ describe("buildSchedule", () => {
     }
   });
 
-  it("pull rides one weighted pressing day when enabled", () => {
+  it("with both pulls on, pull-ups and rows ride DIFFERENT weighted days", () => {
     const plan = buildSchedule([day("a", "WEIGHTS"), day("b", "WEIGHTS")], state, {
-      includePull: true, layout: "ROTATE", week: 1,
+      pulls: { pullups: true, rows: true }, layout: "ROTATE", week: 1,
+    });
+    expect(plan[0].exercises.map((e) => e.movement)).toEqual(["SQUAT", "PUSH", "PULLV"]);
+    expect(plan[1].exercises.map((e) => e.movement)).toEqual(["HINGE", "PRESS", "PULL"]);
+  });
+
+  it("a single enabled pull rides one weighted pressing day", () => {
+    const plan = buildSchedule([day("a", "WEIGHTS"), day("b", "WEIGHTS")], state, {
+      pulls: { pullups: false, rows: true }, layout: "ROTATE", week: 1,
     });
     const pulls = plan.flatMap((d) => d.exercises).filter((e) => e.movement === "PULL");
     expect(pulls).toHaveLength(1);
     expect(plan[0].exercises.map((e) => e.movement)).toContain("PULL"); // squat+bench day
   });
 
+  it("bodyweight days include every enabled pull", () => {
+    const plan = buildSchedule([day("a", "BODYWEIGHT")], state, {
+      pulls: { pullups: true, rows: true }, layout: "ROTATE", week: 1,
+    });
+    expect(plan[0].exercises.map((e) => e.movement)).toEqual([
+      "SQUAT", "HINGE", "PUSH", "PRESS", "PULLV", "PULL",
+    ]);
+  });
+
   it("mixed: 1 weighted (rotating) + 1 bodyweight — weighted alternates, bodyweight full-body", () => {
     const days = [day("w", "WEIGHTS"), day("b", "BODYWEIGHT")];
-    const wkA = buildSchedule(days, state, { includePull: false, layout: "ROTATE", week: 1 });
-    const wkB = buildSchedule(days, state, { includePull: false, layout: "ROTATE", week: 2 });
+    const wkA = buildSchedule(days, state, { pulls: { pullups: false, rows: false }, layout: "ROTATE", week: 1 });
+    const wkB = buildSchedule(days, state, { pulls: { pullups: false, rows: false }, layout: "ROTATE", week: 2 });
     expect(wkA[0].exercises.map((e) => e.movement)).toEqual(["SQUAT", "PUSH"]);
     expect(wkA[0].rotation).toBe("A");
     expect(wkB[0].exercises.map((e) => e.movement)).toEqual(["HINGE", "PRESS"]);
@@ -510,7 +539,7 @@ describe("buildSchedule", () => {
 
   it("all-in-one: a single weighted day loads all four weekly", () => {
     const plan = buildSchedule([day("w", "WEIGHTS")], state, {
-      includePull: false, layout: "ALL_IN_ONE", week: 1,
+      pulls: { pullups: false, rows: false }, layout: "ALL_IN_ONE", week: 1,
     });
     expect(plan[0].exercises.map((e) => e.movement)).toEqual(["SQUAT", "HINGE", "PUSH", "PRESS"]);
     expect(plan[0].rotation).toBeUndefined();
@@ -518,7 +547,7 @@ describe("buildSchedule", () => {
 
   it("weighted sets come off the training max (week-1 top set = 85%)", () => {
     const plan = buildSchedule([day("a", "WEIGHTS")], state, {
-      includePull: false, layout: "ALL_IN_ONE", week: 1,
+      pulls: { pullups: false, rows: false }, layout: "ALL_IN_ONE", week: 1,
     });
     const squat = plan[0].exercises.find((e) => e.movement === "SQUAT")!;
     expect(squat.sets[squat.sets.length - 1].weight).toBe(100); // 85% of 120 = 102 → round to 5
@@ -552,7 +581,7 @@ describe("ROTATE runs an 8-week super-cycle (each pair walks its own 4-week wave
   it("every lift sees all four wave weeks across weeks 1-8 (incl. the test and the deload)", () => {
     const seen: Partial<Record<string, number[]>> = {};
     for (let week = 1; week <= 8; week++) {
-      const plan = buildSchedule(days, state, { includePull: false, layout: "ROTATE", week });
+      const plan = buildSchedule(days, state, { pulls: { pullups: false, rows: false }, layout: "ROTATE", week });
       for (const e of plan[0].exercises) {
         (seen[e.movement] ??= []).push(waveOf(e.sets));
       }
@@ -564,7 +593,7 @@ describe("ROTATE runs an 8-week super-cycle (each pair walks its own 4-week wave
   });
 
   it("pair B (deadlift+press) reaches its week-3 AMRAP test — on program week 6", () => {
-    const plan = buildSchedule(days, state, { includePull: false, layout: "ROTATE", week: 6 });
+    const plan = buildSchedule(days, state, { pulls: { pullups: false, rows: false }, layout: "ROTATE", week: 6 });
     expect(plan[0].rotation).toBe("B");
     expect(plan[0].exercises.map((e) => e.movement)).toEqual(["HINGE", "PRESS"]);
     for (const e of plan[0].exercises) {
@@ -574,7 +603,7 @@ describe("ROTATE runs an 8-week super-cycle (each pair walks its own 4-week wave
   });
 
   it("pair A (squat+bench) reaches its deload — on program week 7", () => {
-    const plan = buildSchedule(days, state, { includePull: false, layout: "ROTATE", week: 7 });
+    const plan = buildSchedule(days, state, { pulls: { pullups: false, rows: false }, layout: "ROTATE", week: 7 });
     expect(plan[0].rotation).toBe("A");
     expect(plan[0].exercises.map((e) => e.movement)).toEqual(["SQUAT", "PUSH"]);
     for (const e of plan[0].exercises) expect(waveOf(e.sets)).toBe(4);
@@ -583,7 +612,7 @@ describe("ROTATE runs an 8-week super-cycle (each pair walks its own 4-week wave
   it("a bodyweight day alongside the rotation keeps its plain 4-week wave off the program week", () => {
     const mixed: DayPlan[] = [...days, { id: "b", name: "b", equipment: "BODYWEIGHT", minutes: 45 }];
     const wk5 = buildSchedule(mixed, { ...state, SQUAT: { trainingMax: 120, repMax: 10 } }, {
-      includePull: false, layout: "ROTATE", week: 5,
+      pulls: { pullups: false, rows: false }, layout: "ROTATE", week: 5,
     });
     // Program week 5 ≡ wave week 1 for the bodyweight day (mod 4), while the weighted pair tests.
     expect(waveOf(wk5[1].exercises[0].sets)).toBe(1);

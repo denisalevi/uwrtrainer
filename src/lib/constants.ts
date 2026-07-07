@@ -51,7 +51,8 @@ export const EQUIPMENT_TOOLS = [
 export type EquipmentTool = (typeof EQUIPMENT_TOOLS)[number];
 
 /** The five movement patterns we train. PULL is added for UWR (Wendler omits it). */
-export const MOVEMENTS = ["PUSH", "PULL", "SQUAT", "HINGE", "PRESS"] as const;
+/** PULL = horizontal pull (rows); PULLV = vertical pull (pull-ups). Both optional per user. */
+export const MOVEMENTS = ["PUSH", "PULL", "SQUAT", "HINGE", "PRESS", "PULLV"] as const;
 export type MovementKey = (typeof MOVEMENTS)[number];
 
 /**
@@ -67,7 +68,7 @@ export const SLOT_MODES = ["WEIGHTED", "BODYWEIGHT"] as const;
 export type SlotMode = (typeof SLOT_MODES)[number];
 
 /** The tool a single exercise variant needs — drives the "(Barbell)" label on a slot. */
-export const SLOT_TOOLS = ["BARBELL", "DUMBBELLS", "KETTLEBELL", "BODYWEIGHT"] as const;
+export const SLOT_TOOLS = ["BARBELL", "DUMBBELLS", "KETTLEBELL", "BODYWEIGHT", "PULLUP_BAR"] as const;
 export type SlotTool = (typeof SLOT_TOOLS)[number];
 
 /**
@@ -78,13 +79,12 @@ export type SlotTool = (typeof SLOT_TOOLS)[number];
 export const WEIGHTED_LAYOUTS = ["ROTATE", "ALL_IN_ONE"] as const;
 export type WeightedLayout = (typeof WEIGHTED_LAYOUTS)[number];
 
-/** Global (trainer) setting: whether default plans include a pull/row movement. */
 /** Fixed id of the team created by the multi-team migration. While its registrationCode
  *  is NULL, the env REGISTRATION_CODE acts as its code (pre-multi-team behaviour). */
 export const DEFAULT_TEAM_ID = "team-default";
 
-export const SETTING_INCLUDE_PULL = "strength.includePull";
-export const DEFAULT_INCLUDE_PULL = true;
+/** Which optional pull slots a user's plan includes (User.strengthPullups / strengthRows). */
+export type PullPrefs = { pullups: boolean; rows: boolean };
 
 /**
  * Per-user settings for the logger's auto-added volume (User.strengthWarmup / User.strengthBbb).
@@ -142,7 +142,8 @@ export function parseBbbConfig(value: string | null | undefined): BbbConfig {
  */
 export const MOVEMENT_LEVELS: Record<MovementKey, readonly string[]> = {
   PUSH: ["ex.push.knee", "ex.push.full", "ex.push.feet", "ex.push.archer", "ex.push.onearm"],
-  PULL: ["ex.pull.band", "ex.pull.full", "ex.pull.weighted"],
+  PULL: ["ex.pull.invrow", "ex.pull.invrowfeet"],
+  PULLV: ["ex.pull.band", "ex.pull.full", "ex.pull.weighted"],
   SQUAT: ["ex.squat.bw", "ex.squat.split", "ex.squat.bulgarian", "ex.squat.pistol"],
   HINGE: ["ex.hinge.bridge", "ex.hinge.singlebridge", "ex.hinge.slrdl", "ex.hinge.nordic"],
   PRESS: ["ex.press.pike", "ex.press.feetpike", "ex.press.wallhspu", "ex.press.hspu"],
