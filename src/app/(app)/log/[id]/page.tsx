@@ -55,6 +55,7 @@ export default async function EditLogPage({ params }: { params: Promise<{ id: st
     practiceSlotId: log.practiceSlotId,
     missReason: log.missReason,
     zone: (details.zone as string) ?? null,
+    activity: (details.activity as string) ?? null,
     note: (details.note as string) ?? null,
   };
 

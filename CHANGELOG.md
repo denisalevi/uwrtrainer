@@ -11,6 +11,18 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-07-07
+
+### Added
+- **Cardio sessions have an activity name.** The log form asks what the cardio was (running,
+  cycling, …) and that name becomes the session's title on home, the team member view and the
+  feed — instead of a generic "Cardio".
+
+### Changed
+- **Cleaner expanded session cards.** The expanded view no longer repeats "What did you do?",
+  "Date" and "Did it happen?" (all visible at a glance already) and instead shows what's
+  actually useful: duration, heart-rate zone (cardio) and the note.
+
 ## [0.22.0] - 2026-07-07
 
 ### Added

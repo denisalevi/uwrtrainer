@@ -251,7 +251,19 @@ async function SessionRow({
   const isAutoMissed = log.auto && log.status === "MISSED";
   const summaryLabel =
     isAutoMissed && !log.practiceSlotId ? weeklySummaryLabel(t, log.category, log.details) : null;
-  const title = summaryLabel ?? log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey);
+  // Type-specific extras stored in the details JSON (cardio: activity name + HR zone; note: any).
+  let extras: { zone?: string; activity?: string; note?: string } = {};
+  if (log.details) {
+    try {
+      extras = JSON.parse(log.details) as typeof extras;
+    } catch {
+      extras = {};
+    }
+  }
+  const title =
+    summaryLabel ??
+    log.practiceSlot?.label ??
+    (extras.activity?.trim() || t(`cat.${log.category}` as DictKey));
   // A rugby session tied to a practice slot IS a team-practice attendance tick — edit it in the
   // group attendance dialogue (add/remove people), not the detached personal log form.
   const editHref = isStrength
@@ -288,24 +300,24 @@ async function SessionRow({
           <StrengthWorkoutView details={log.details} />
         ) : (
           <dl className="space-y-1 text-slate-600">
-            <div className="flex gap-2">
-              <dt className="text-slate-400">{t("log.chooseCategory")}</dt>
-              <dd>{title}</dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="text-slate-400">{t("log.date")}</dt>
-              <dd>{log.date.toLocaleDateString()}</dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="text-slate-400">{t("log.status")}</dt>
-              <dd>{t(log.status === "DONE" ? "log.done" : "log.missed")}</dd>
-            </div>
             {log.durationMin != null && (
               <div className="flex gap-2">
                 <dt className="text-slate-400">{t("log.duration")}</dt>
                 <dd>
                   {log.durationMin} {t("common.minutes")}
                 </dd>
+              </div>
+            )}
+            {extras.zone && (
+              <div className="flex gap-2">
+                <dt className="text-slate-400">{t("log.zone")}</dt>
+                <dd>{extras.zone}</dd>
+              </div>
+            )}
+            {extras.note && (
+              <div className="flex gap-2">
+                <dt className="text-slate-400">{t("log.note")}</dt>
+                <dd>{extras.note}</dd>
               </div>
             )}
             {log.missReason && (

@@ -22,6 +22,7 @@ export type ExistingSession = {
   durationMin?: number | null;
   practiceSlotId?: string | null;
   zone?: string | null;
+  activity?: string | null;
   note?: string | null;
   missReason?: string | null;
 };
@@ -166,16 +167,27 @@ export function LogForm({
                 </div>
 
                 {category === "CARDIO" && (
-                  <div>
-                    <Label htmlFor="zone">{t("log.zone")}</Label>
-                    <Select id="zone" name="zone" defaultValue={existing?.zone ?? "Z2"}>
-                      {CARDIO_ZONES.map((z) => (
-                        <option key={z} value={z}>
-                          {z}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
+                  <>
+                    <div>
+                      <Label htmlFor="activity">{t("log.activity")}</Label>
+                      <Input
+                        id="activity"
+                        name="activity"
+                        placeholder={t("log.activityPlaceholder")}
+                        defaultValue={existing?.activity ?? ""}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="zone">{t("log.zone")}</Label>
+                      <Select id="zone" name="zone" defaultValue={existing?.zone ?? "Z2"}>
+                        {CARDIO_ZONES.map((z) => (
+                          <option key={z} value={z}>
+                            {z}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                  </>
                 )}
               </>
             )}

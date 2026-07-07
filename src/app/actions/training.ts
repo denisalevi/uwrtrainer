@@ -18,6 +18,7 @@ const LogSchema = z.object({
   missReason: z.string().max(300).optional(),
   // type-specific
   zone: z.string().optional(),
+  activity: z.string().max(80).optional(),
   note: z.string().max(300).optional(),
 });
 
@@ -28,6 +29,8 @@ function sessionFields(d: LogData) {
   // Strength DONE sessions are created by the workout logger (saveStrengthWorkout), not here.
   let details: Record<string, unknown> | undefined;
   if (d.category === "CARDIO" && d.zone) details = { zone: d.zone };
+  if (d.category === "CARDIO" && d.activity?.trim())
+    details = { ...(details ?? {}), activity: d.activity.trim() };
   if (d.note) details = { ...(details ?? {}), note: d.note };
   return {
     date: new Date(d.date),

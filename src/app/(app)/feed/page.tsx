@@ -39,14 +39,18 @@ function dayKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function noteFromDetails(details: string | null): string | null {
-  if (!details) return null;
+function parseDetails(details: string | null): { note?: string; zone?: string; activity?: string } {
+  if (!details) return {};
   try {
-    const d = JSON.parse(details) as { note?: string; zone?: string };
-    return d.note ?? d.zone ?? null;
+    return JSON.parse(details) as { note?: string; zone?: string; activity?: string };
   } catch {
-    return null;
+    return {};
   }
+}
+
+function noteFromDetails(details: string | null): string | null {
+  const d = parseDetails(details);
+  return d.note ?? d.zone ?? null;
 }
 
 export default async function FeedPage() {
@@ -285,6 +289,7 @@ async function FeedItem({ t, log }: { t: ServerT; log: FeedLog }) {
   const isStrength = log.category === "STRENGTH" && log.status === "DONE";
   const title =
     log.practiceLabel ??
+    parseDetails(log.details).activity?.trim() ??
     (log.category === "OTHER" && noteFromDetails(log.details)
       ? noteFromDetails(log.details)!
       : t(`cat.${log.category}` as DictKey));
