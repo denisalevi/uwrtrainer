@@ -260,10 +260,7 @@ async function SessionRow({
       extras = {};
     }
   }
-  const title =
-    summaryLabel ??
-    log.practiceSlot?.label ??
-    (extras.activity?.trim() || t(`cat.${log.category}` as DictKey));
+  const title = summaryLabel ?? log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey);
   // A rugby session tied to a practice slot IS a team-practice attendance tick — edit it in the
   // group attendance dialogue (add/remove people), not the detached personal log form.
   const editHref = isStrength
@@ -300,6 +297,12 @@ async function SessionRow({
           <StrengthWorkoutView details={log.details} />
         ) : (
           <dl className="space-y-1 text-slate-600">
+            {extras.activity?.trim() && (
+              <div className="flex gap-2">
+                <dt className="text-slate-400">{t("log.activity")}</dt>
+                <dd>{extras.activity}</dd>
+              </div>
+            )}
             {log.durationMin != null && (
               <div className="flex gap-2">
                 <dt className="text-slate-400">{t("log.duration")}</dt>

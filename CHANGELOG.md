@@ -11,6 +11,12 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-07-07
+
+### Changed
+- Cardio session cards keep the "Cardio" title; the activity shows as its own row when the
+  card is opened (and alongside the note in the feed line) instead of replacing the title.
+
 ## [0.23.0] - 2026-07-07
 
 ### Added

@@ -50,7 +50,7 @@ function parseDetails(details: string | null): { note?: string; zone?: string; a
 
 function noteFromDetails(details: string | null): string | null {
   const d = parseDetails(details);
-  return d.note ?? d.zone ?? null;
+  return [d.activity, d.note ?? d.zone].filter(Boolean).join(" · ") || null;
 }
 
 export default async function FeedPage() {
@@ -289,7 +289,6 @@ async function FeedItem({ t, log }: { t: ServerT; log: FeedLog }) {
   const isStrength = log.category === "STRENGTH" && log.status === "DONE";
   const title =
     log.practiceLabel ??
-    parseDetails(log.details).activity?.trim() ??
     (log.category === "OTHER" && noteFromDetails(log.details)
       ? noteFromDetails(log.details)!
       : t(`cat.${log.category}` as DictKey));
