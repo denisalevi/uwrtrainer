@@ -65,7 +65,7 @@ export async function addSlot(formData: FormData) {
   await prisma.practiceSlot.create({
     data: { ...slotData(parsed.data), teamId: user.activeTeamId },
   });
-  revalidatePath("/team/practices");
+  revalidatePath("/settings");
 }
 
 export async function updateSlot(formData: FormData) {
@@ -78,7 +78,7 @@ export async function updateSlot(formData: FormData) {
     where: { id: slotId, teamId: user.activeTeamId ?? undefined },
     data: slotData(parsed.data),
   });
-  revalidatePath("/team/practices");
+  revalidatePath("/settings");
 }
 
 export async function setSlotActive(formData: FormData) {
@@ -89,7 +89,7 @@ export async function setSlotActive(formData: FormData) {
     where: { id, teamId: user.activeTeamId ?? undefined },
     data: { active },
   });
-  revalidatePath("/team/practices");
+  revalidatePath("/settings");
 }
 
 export async function updateLeaderboards(formData: FormData) {
@@ -242,6 +242,33 @@ export async function addUserToTeam(formData: FormData) {
     update: {},
     create: { userId, teamId },
   });
+  revalidatePath("/settings");
   revalidatePath("/team");
   revalidatePath(`/team/${userId}`);
+}
+
+/** Admin: remove a user from a team. Their active team falls back to another membership. */
+export async function removeUserFromTeam(formData: FormData) {
+  const user = await requireTrainerAction();
+  if (user.role !== "ADMIN") throw new Error("Not authorized");
+  const userId = formData.get("userId") as string;
+  const teamId = formData.get("teamId") as string;
+  if (!userId || !teamId) throw new Error("Invalid user or team");
+  await prisma.teamMembership.deleteMany({ where: { userId, teamId } });
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      activeTeamId: true,
+      memberships: { select: { teamId: true }, orderBy: { createdAt: "asc" } },
+    },
+  });
+  if (target && target.activeTeamId === teamId) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { activeTeamId: target.memberships[0]?.teamId ?? null },
+    });
+  }
+  revalidatePath("/settings");
+  revalidatePath("/team");
+  revalidatePath("/attendance");
 }

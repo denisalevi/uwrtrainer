@@ -11,6 +11,28 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-07-07
+
+### Added
+- **Click-to-join teams.** The Teams section in Settings now lists every team; tapping a team
+  you're not in folds open a join-code field for exactly that team (with a clear "wrong code"
+  message on a typo). Admins can join any team directly, no code needed.
+- **Join codes are visible now.** Members see their own team's join code right in the teams
+  list (to share with new teammates), and admins see every team's code. Teams without a code
+  say so ("ask an admin to add you"); an open default team says no code is needed.
+- **Admin member management.** A new admin-only "Team members" section in Settings lists every
+  team with its members — remove someone from a team, or add any existing user via a dropdown.
+  A removed user's active team falls back to their next membership.
+
+### Changed
+- **The Settings page is reorganised into collapsible groups**: *Personal* (language, rest
+  timer, weight rounding, account), *Teams*, *Trainer* (amber-accented, badge "trainers only")
+  and *Administration* (red-accented, "admins only"). Every card folds open/closed, so the page
+  is a short scannable list instead of one long wall of forms.
+- **Team practices management moved into Settings** (Trainer group) instead of hiding behind a
+  separate page — the weekly slots and the add-practice form now fold open in place.
+  `/team/practices` redirects to Settings.
+
 ## [0.19.0] - 2026-07-06
 
 ### Added

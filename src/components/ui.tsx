@@ -78,6 +78,56 @@ export function Badge({
   );
 }
 
+/** A collapsible settings card: native <details> styled like Card, with a chevron summary. */
+export function Collapsible({
+  title,
+  hint,
+  badge,
+  defaultOpen,
+  className,
+  children,
+}: {
+  title: React.ReactNode;
+  hint?: React.ReactNode;
+  badge?: React.ReactNode;
+  defaultOpen?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details
+      open={defaultOpen}
+      className={cn(
+        "group rounded-2xl border border-slate-200 bg-white shadow-sm open:border-slate-300",
+        className,
+      )}
+    >
+      <summary className="flex cursor-pointer select-none items-center gap-3 px-4 py-3 list-none [&::-webkit-details-marker]:hidden">
+        <div className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-800">
+            {title}
+            {badge}
+          </span>
+          {hint && <span className="mt-0.5 block text-xs text-slate-500">{hint}</span>}
+        </div>
+        <svg
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          aria-hidden
+          className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-open:rotate-180"
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.22 7.47a.75.75 0 0 1 1.06 0L10 11.19l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 8.53a.75.75 0 0 1 0-1.06Z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </summary>
+      <div className="border-t border-slate-100 p-4">{children}</div>
+    </details>
+  );
+}
+
 export function ProgressBar({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, Math.round(value * 100)));
   return (

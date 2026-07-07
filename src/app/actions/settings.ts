@@ -89,27 +89,34 @@ export async function switchTeam(formData: FormData) {
   revalidatePath("/", "layout");
 }
 
-/** Join another team by entering that team's registration code. */
-export async function joinTeamByCode(formData: FormData) {
+/**
+ * Join a specific team by entering its join code. The default team is open when no code is
+ * configured (team code and env REGISTRATION_CODE both empty); other teams without a code can
+ * only be joined by an admin adding the user.
+ */
+export async function joinTeam(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
+  const teamId = (formData.get("teamId") as string) || "";
   const code = ((formData.get("code") as string) || "").trim();
-  if (code) {
-    const teams = await prisma.team.findMany({ select: { id: true, registrationCode: true } });
-    const envCode = process.env.REGISTRATION_CODE?.trim() || null;
-    const team = teams.find(
-      (t) => (t.registrationCode?.trim() || (t.id === DEFAULT_TEAM_ID ? envCode : null)) === code,
-    );
-    if (team) {
-      await prisma.teamMembership.upsert({
-        where: { userId_teamId: { userId: user.id, teamId: team.id } },
-        update: {},
-        create: { userId: user.id, teamId: team.id },
-      });
-      await prisma.user.update({ where: { id: user.id }, data: { activeTeamId: team.id } });
-      revalidatePath("/", "layout");
-    }
-  }
+  const team = await prisma.team.findUnique({ where: { id: teamId } });
+  if (!team) redirect("/settings");
+
+  const envCode = process.env.REGISTRATION_CODE?.trim() || null;
+  const effective =
+    team.registrationCode?.trim() || (team.id === DEFAULT_TEAM_ID ? envCode : null);
+  const allowed =
+    user.role === "ADMIN" ||
+    (effective !== null ? code === effective : team.id === DEFAULT_TEAM_ID);
+  if (!allowed) redirect(`/settings?joinError=${encodeURIComponent(team.id)}`);
+
+  await prisma.teamMembership.upsert({
+    where: { userId_teamId: { userId: user.id, teamId: team.id } },
+    update: {},
+    create: { userId: user.id, teamId: team.id },
+  });
+  await prisma.user.update({ where: { id: user.id }, data: { activeTeamId: team.id } });
+  revalidatePath("/", "layout");
   redirect("/settings");
 }
