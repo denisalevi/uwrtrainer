@@ -36,6 +36,10 @@ model User {
   // "EXACT" | "DOWN" (Wendler default) | "NEAREST" | "UP", to weightIncrement kg.
   weightRounding    String  @default("DOWN")
   weightIncrement   Float   @default(2.5)
+  // Per-user strength-logging prefs: warm-up ramp (JSON [{pct,reps}], whole-number percents)
+  // and the "Boring But Big" assistance set (JSON {pct,reps}). NULL = built-in defaults.
+  strengthWarmup    String?
+  strengthBbb       String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

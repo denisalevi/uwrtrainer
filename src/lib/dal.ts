@@ -25,6 +25,8 @@ export type CurrentUser = {
   restBbbSeconds: number;
   weightRounding: string;
   weightIncrement: number;
+  strengthWarmup: string | null;
+  strengthBbb: string | null;
 };
 
 /**
@@ -56,6 +58,8 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       restBbbSeconds: true,
       weightRounding: true,
       weightIncrement: true,
+      strengthWarmup: true,
+      strengthBbb: true,
     },
   });
   if (!user) return null;

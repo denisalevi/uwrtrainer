@@ -10,10 +10,6 @@ import {
   PRACTICE_TIERS,
   LEADERBOARD_VISIBILITY,
   SETTING_INCLUDE_PULL,
-  SETTING_WARMUP_SCHEME,
-  SETTING_BBB,
-  DEFAULT_WARMUP_SCHEME,
-  DEFAULT_BBB,
 } from "@/lib/constants";
 
 async function requireTrainerAction() {
@@ -81,6 +77,25 @@ export async function updateSlot(formData: FormData) {
   revalidatePath("/settings");
 }
 
+/**
+ * Delete a practice slot. Only allowed while nothing references it (no plan items, no logged
+ * sessions) — the UI hides the button otherwise; deactivating is the tool for retired slots.
+ */
+export async function deleteSlot(formData: FormData) {
+  const user = await requireTrainerAction();
+  const id = formData.get("slotId") as string;
+  if (!id) throw new Error("Invalid practice");
+  const slot = await prisma.practiceSlot.findFirst({
+    where: { id, teamId: user.activeTeamId ?? "" },
+    include: { _count: { select: { planItems: true, sessionLogs: true } } },
+  });
+  if (!slot) throw new Error("Invalid practice");
+  if (slot._count.planItems > 0 || slot._count.sessionLogs > 0)
+    throw new Error("Practice has history — deactivate it instead");
+  await prisma.practiceSlot.delete({ where: { id } });
+  revalidatePath("/settings");
+}
+
 export async function setSlotActive(formData: FormData) {
   const user = await requireTrainerAction();
   const id = formData.get("slotId") as string;
@@ -119,49 +134,6 @@ export async function updateStrengthIncludePull(formData: FormData) {
     where: { key: SETTING_INCLUDE_PULL },
     update: { value },
     create: { key: SETTING_INCLUDE_PULL, value },
-  });
-  revalidatePath("/settings");
-  revalidatePath("/strength");
-  redirect("/settings");
-}
-
-/** Clamp a form value to an integer in [min, max]; null if it isn't a finite number. */
-function clampInt(value: FormDataEntryValue | null, min: number, max: number): number | null {
-  const n = Math.round(Number(value));
-  if (!Number.isFinite(n)) return null;
-  return Math.max(min, Math.min(max, n));
-}
-
-/** Set the warm-up ramp (team-wide): up to 3 percent/reps steps shown before the working sets. */
-export async function updateStrengthWarmup(formData: FormData) {
-  await requireTrainerAction();
-  const steps: { pct: number; reps: number }[] = [];
-  for (let i = 1; i <= 3; i++) {
-    const pct = clampInt(formData.get(`warmupPct${i}`), 1, 100);
-    const reps = clampInt(formData.get(`warmupReps${i}`), 1, 50);
-    if (pct != null && reps != null) steps.push({ pct, reps });
-  }
-  const value = JSON.stringify(steps.length ? steps : DEFAULT_WARMUP_SCHEME);
-  await prisma.setting.upsert({
-    where: { key: SETTING_WARMUP_SCHEME },
-    update: { value },
-    create: { key: SETTING_WARMUP_SCHEME, value },
-  });
-  revalidatePath("/settings");
-  revalidatePath("/strength");
-  redirect("/settings");
-}
-
-/** Set the "Boring But Big" set the logger adds per click (team-wide): % of max and reps. */
-export async function updateStrengthBbb(formData: FormData) {
-  await requireTrainerAction();
-  const pct = clampInt(formData.get("bbbPct"), 1, 100) ?? DEFAULT_BBB.pct;
-  const reps = clampInt(formData.get("bbbReps"), 1, 50) ?? DEFAULT_BBB.reps;
-  const value = JSON.stringify({ pct, reps });
-  await prisma.setting.upsert({
-    where: { key: SETTING_BBB },
-    update: { value },
-    create: { key: SETTING_BBB, value },
   });
   revalidatePath("/settings");
   revalidatePath("/strength");

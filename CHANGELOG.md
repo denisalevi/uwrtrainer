@@ -11,6 +11,20 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-07-07
+
+### Added
+- **Practices can be deleted.** Inside a practice's edit fold there is now a Delete button — as
+  long as nothing references the practice yet. Once sessions were logged against it (or it sits
+  in a plan) the button gives way to a hint to deactivate instead, so no history is ever lost.
+
+### Changed
+- **Warm-up sets and Boring But Big are now personal settings.** They moved out of the trainer
+  section into your own settings and apply only to you (existing team values were carried over
+  for everyone). Settings now has a **Strength program** group bundling all four per-user
+  strength-logging prefs: rest timer, weight rounding, warm-up sets and Boring But Big. The
+  trainer section keeps only the team-wide pull-exercise default.
+
 ## [0.20.0] - 2026-07-07
 
 ### Added

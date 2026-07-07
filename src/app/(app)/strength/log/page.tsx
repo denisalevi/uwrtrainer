@@ -6,8 +6,6 @@ import type { DictKey } from "@/lib/i18n/dictionaries";
 import {
   SETTING_INCLUDE_PULL,
   DEFAULT_INCLUDE_PULL,
-  SETTING_WARMUP_SCHEME,
-  SETTING_BBB,
   parseWarmupScheme,
   parseBbbConfig,
   WEIGHTED_LAYOUTS,
@@ -51,23 +49,21 @@ export default async function StrengthLogPage({
   const user = await requireUser();
   const { t } = await getServerT();
 
-  const [program, pullSetting, warmupSetting, bbbSetting] = await Promise.all([
+  const [program, pullSetting] = await Promise.all([
     prisma.strengthProgram.findFirst({
       where: { userId: user.id, active: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.setting.findUnique({ where: { key: SETTING_INCLUDE_PULL } }),
-    prisma.setting.findUnique({ where: { key: SETTING_WARMUP_SCHEME } }),
-    prisma.setting.findUnique({ where: { key: SETTING_BBB } }),
   ]);
   const includePull = pullSetting ? pullSetting.value !== "false" : DEFAULT_INCLUDE_PULL;
-  // Warm-up + BBB are team settings; percentages are stored as whole numbers → convert to
+  // Warm-up + BBB are per-user settings; percentages are stored as whole numbers → convert to
   // the engine's fraction form. Warm-ups are skipped on the deload week (its sets are already light).
-  const warmupScheme = parseWarmupScheme(warmupSetting?.value).map((s) => ({
+  const warmupScheme = parseWarmupScheme(user.strengthWarmup).map((s) => ({
     pct: s.pct / 100,
     reps: s.reps,
   }));
-  const bbb = parseBbbConfig(bbbSetting?.value);
+  const bbb = parseBbbConfig(user.strengthBbb);
   // Per-user planned-weight rounding (default DOWN — Wendler's "round down to what you can load").
   const rounding: RoundingPref = {
     mode: isWeightRoundingMode(user.weightRounding) ? user.weightRounding : "DOWN",

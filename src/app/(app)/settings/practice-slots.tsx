@@ -1,6 +1,6 @@
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
-import { addSlot, setSlotActive, updateSlot } from "@/app/actions/trainer";
+import { addSlot, deleteSlot, setSlotActive, updateSlot } from "@/app/actions/trainer";
 import { PRACTICE_TIERS } from "@/lib/constants";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Button, Badge, Input, Label, Select, cn } from "@/components/ui";
@@ -24,6 +24,7 @@ export async function PracticeSlotsSettings({ teamId }: { teamId: string | null 
   const slots = await prisma.practiceSlot.findMany({
     where: { teamId: teamId ?? "" },
     orderBy: [{ active: "desc" }, { dayOfWeek: "asc" }],
+    include: { _count: { select: { planItems: true, sessionLogs: true } } },
   });
 
   return (
@@ -135,6 +136,16 @@ export async function PracticeSlotsSettings({ teamId }: { teamId: string | null 
                     {t("common.save")}
                   </Button>
                 </form>
+                {s._count.planItems === 0 && s._count.sessionLogs === 0 ? (
+                  <form action={deleteSlot} className="mt-2">
+                    <input type="hidden" name="slotId" value={s.id} />
+                    <Button type="submit" variant="danger" size="sm" className="w-full">
+                      {t("common.delete")}
+                    </Button>
+                  </form>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-400">{t("slots.deleteBlocked")}</p>
+                )}
               </details>
             </li>
           ))}

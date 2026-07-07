@@ -87,15 +87,14 @@ export const SETTING_INCLUDE_PULL = "strength.includePull";
 export const DEFAULT_INCLUDE_PULL = true;
 
 /**
- * Global (trainer) settings for the logger's auto-added volume. Both are stored as JSON strings
- * in a single `Setting.value` (same precedent as `StrengthProgram.days`/`movements`).
+ * Per-user settings for the logger's auto-added volume (User.strengthWarmup / User.strengthBbb).
+ * Both are stored as JSON strings (same precedent as `StrengthProgram.days`/`movements`).
  * Percentages are whole numbers (40 = 40% of the training max).
  */
 export type WarmupStep = { pct: number; reps: number };
 export type BbbConfig = { pct: number; reps: number };
 
 /** The warm-up ramp prepended before working sets on weighted lifts (Wendler classic default). */
-export const SETTING_WARMUP_SCHEME = "strength.warmupScheme";
 export const DEFAULT_WARMUP_SCHEME: WarmupStep[] = [
   { pct: 40, reps: 5 },
   { pct: 50, reps: 5 },
@@ -103,7 +102,6 @@ export const DEFAULT_WARMUP_SCHEME: WarmupStep[] = [
 ];
 
 /** The single "Boring But Big" set the logger adds per click (default 50% × 10). */
-export const SETTING_BBB = "strength.bbb";
 export const DEFAULT_BBB: BbbConfig = { pct: 50, reps: 10 };
 
 /** Parse the stored warm-up scheme, falling back to the default on anything malformed/empty. */

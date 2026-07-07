@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
-import { isLocale, DEFAULT_LOCALE, DEFAULT_TEAM_ID } from "@/lib/constants";
+import {
+  isLocale,
+  DEFAULT_LOCALE,
+  DEFAULT_TEAM_ID,
+  DEFAULT_WARMUP_SCHEME,
+  DEFAULT_BBB,
+} from "@/lib/constants";
 import {
   isWeightRoundingMode,
   DEFAULT_WEIGHT_ROUNDING,
@@ -70,6 +76,45 @@ export async function setWeightRounding(formData: FormData) {
 
   revalidatePath("/settings");
   revalidatePath("/strength");
+  revalidatePath("/strength/log");
+  redirect("/settings");
+}
+
+/** Clamp a form value to an integer in [min, max]; null if it isn't a finite number. */
+function clampInt(value: FormDataEntryValue | null, min: number, max: number): number | null {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return null;
+  return Math.max(min, Math.min(max, n));
+}
+
+/** Set the user's warm-up ramp: up to 3 percent/reps steps shown before the working sets. */
+export async function setStrengthWarmup(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  const steps: { pct: number; reps: number }[] = [];
+  for (let i = 1; i <= 3; i++) {
+    const pct = clampInt(formData.get(`warmupPct${i}`), 1, 100);
+    const reps = clampInt(formData.get(`warmupReps${i}`), 1, 50);
+    if (pct != null && reps != null) steps.push({ pct, reps });
+  }
+  const value = JSON.stringify(steps.length ? steps : DEFAULT_WARMUP_SCHEME);
+  await prisma.user.update({ where: { id: user.id }, data: { strengthWarmup: value } });
+  revalidatePath("/settings");
+  revalidatePath("/strength/log");
+  redirect("/settings");
+}
+
+/** Set the user's "Boring But Big" set the logger adds per click: % of max and reps. */
+export async function setStrengthBbb(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  const pct = clampInt(formData.get("bbbPct"), 1, 100) ?? DEFAULT_BBB.pct;
+  const reps = clampInt(formData.get("bbbReps"), 1, 50) ?? DEFAULT_BBB.reps;
+  const value = JSON.stringify({ pct, reps });
+  await prisma.user.update({ where: { id: user.id }, data: { strengthBbb: value } });
+  revalidatePath("/settings");
   revalidatePath("/strength/log");
   redirect("/settings");
 }
