@@ -11,6 +11,12 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.23.2] - 2026-07-08
+
+### Changed
+- **New app icon** — a muscular shark flexing over a ball, underwater. Replaces the old
+  placeholder PWA icons (home-screen icon on Android/iOS, favicon, maskable variant).
+
 ## [0.23.1] - 2026-07-07
 
 ### Changed
