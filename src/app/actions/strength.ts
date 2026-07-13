@@ -421,27 +421,6 @@ async function requireOwnProgram(userId: string, programId: string) {
   return program;
 }
 
-function readMovement(formData: FormData): MovementKey {
-  const m = String(formData.get("movement") ?? "");
-  if (!(MOVEMENTS as readonly string[]).includes(m)) throw new Error("Invalid movement");
-  return m as MovementKey;
-}
-
-/**
- * Manual "deload now" for ONE lift: the next session becomes its deload, and completing it restarts
- * the SAME cycle at week 1 with no training-max bump (a re-sync / back-off, available any time).
- */
-export async function deloadMovement(formData: FormData) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  const program = await requireOwnProgram(user!.id, String(formData.get("programId") ?? ""));
-  const m = readMovement(formData);
-  const state: ProgramState = JSON.parse(program.movements);
-  state[m] = deloadNowState(state[m] ?? {}, program.cycle);
-  await prisma.strengthProgram.update({ where: { id: program.id }, data: { movements: JSON.stringify(state) } });
-  revalidatePath("/strength");
-}
-
 const MovementWeekSchema = z.object({
   programId: z.string(),
   movement: z.string(),
@@ -449,9 +428,11 @@ const MovementWeekSchema = z.object({
 });
 
 /**
- * Manual week override for ONE lift (the "jump" escape hatch, shown behind a warning). Sets the
- * lift's wave position directly and clears any pending test / deload so the trajectory continues
- * cleanly from there.
+ * Manual week control for ONE lift (shown behind a warning). Weeks 1–3 set the wave position
+ * directly, clearing any pending test/deload so the trajectory continues cleanly from there.
+ * Week 4 IS the deload: it arms a "deload now" — the next session is the deload and completing it
+ * restarts the SAME cycle at week 1 with no training-max bump (a re-sync / back-off). Merging the
+ * two means "deload" is simply week 4 in the same selector, not a separate control.
  */
 export async function setMovementWeek(formData: FormData) {
   const user = await getCurrentUser();
@@ -460,9 +441,13 @@ export async function setMovementWeek(formData: FormData) {
   if (!parsed.success) throw new Error("Invalid week");
   if (!(MOVEMENTS as readonly string[]).includes(parsed.data.movement)) throw new Error("Invalid movement");
   const m = parsed.data.movement as MovementKey;
+  const week = normWeek(parsed.data.week);
   const program = await requireOwnProgram(user!.id, parsed.data.programId);
   const state: ProgramState = JSON.parse(program.movements);
-  state[m] = setMovementWeekState(state[m] ?? {}, normWeek(parsed.data.week), program.cycle);
+  state[m] =
+    week === 4
+      ? deloadNowState(state[m] ?? {}, program.cycle)
+      : setMovementWeekState(state[m] ?? {}, week, program.cycle);
   await prisma.strengthProgram.update({ where: { id: program.id }, data: { movements: JSON.stringify(state) } });
   revalidatePath("/strength");
 }

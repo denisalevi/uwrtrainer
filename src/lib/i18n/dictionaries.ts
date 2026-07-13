@@ -513,12 +513,11 @@ export const en = {
   "strength.stretch": "Stretching",
 
   // ── Per-lift auto-progression (each lift its own cycle/week) ──
-  "strength.progressionTitle": "Your lifts",
   "strength.progressionHint":
     "Each lift runs its own cycle and moves to the next week automatically when you log it — no picking a week.",
-  "strength.deloadNow": "Deload",
   "strength.deloadNowHint": "Do an easy week now, then restart this cycle at the same weights.",
   "strength.adjustWeek": "Change week",
+  "strength.weekDeload": "4 · Deload",
   "strength.adjustWarn": "This isn't the next step — it resets where this lift goes from here.",
   "strength.staleHint": "Not trained in a while — consider a deload or stepping back a week.",
 } as const;
@@ -1039,12 +1038,11 @@ export const de: Record<DictKey, string> = {
   "strength.stretch": "Dehnen",
 
   // ── Progression pro Übung (jede Übung eigener Zyklus/Woche) ──
-  "strength.progressionTitle": "Deine Übungen",
   "strength.progressionHint":
     "Jede Übung läuft in ihrem eigenen Zyklus und rückt beim Loggen automatisch eine Woche weiter — keine Wochenauswahl nötig.",
-  "strength.deloadNow": "Deload",
   "strength.deloadNowHint": "Jetzt eine leichte Woche, danach diesen Zyklus mit denselben Gewichten neu starten.",
   "strength.adjustWeek": "Woche ändern",
+  "strength.weekDeload": "4 · Deload",
   "strength.adjustWarn": "Das ist nicht der nächste Schritt — es setzt zurück, wie es mit dieser Übung weitergeht.",
   "strength.staleHint": "Länger nicht trainiert — überlege einen Deload oder eine Woche zurück.",
 };

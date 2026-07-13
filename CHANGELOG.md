@@ -11,6 +11,17 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-07-13
+
+### Changed
+- **`/strength` is now one list, grouped by session.** The separate per-lift overview and the
+  per-day plan are merged: each session card lists its lifts, and every lift shows its own
+  cycle/week + test/deload/stale status, its prescribed sets, and its week control in one place —
+  no more duplicated lists.
+- **Deload is now just week 4 in the week selector.** Removed the separate "Deload" button; the
+  per-lift control is `1 · 2 · 3 · 4 (Deload)`, and picking **4** does the deload and restarts
+  that lift's cycle at the same weights (same behaviour as before, one control instead of two).
+
 ## [0.24.0] - 2026-07-13
 
 ### Added
