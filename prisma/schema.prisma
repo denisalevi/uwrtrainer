@@ -147,6 +147,9 @@ model SessionLog {
   practiceSlot   PracticeSlot? @relation(fields: [practiceSlotId], references: [id])
   details        String? // JSON string
   auto           Boolean       @default(false) // true = auto-generated MISSED entry (see lib/missed.ts)
+  // true once this session has advanced its lifts' per-movement waves (finishStrengthWorkout).
+  // Guards against double-advancing when a finished workout is re-finished or edited.
+  progressionApplied Boolean   @default(false)
   createdAt      DateTime      @default(now())
 
   @@index([userId, date])
@@ -170,9 +173,11 @@ model Leaderboard {
 /// `movements` holds the per-movement state ({ trainingMax?, repMax?, levelIndex?, holds? })
 /// as a JSON string, shared across all slots/days. `days` is JSON
 /// [{ id, name, minutes, slots: [{ movement, exerciseId, mode, tool, custom? }] }].
-/// cycle/week track progress (week 1..4; week 4 is the deload). Short cycles are counted
-/// PER MOVEMENT in the movements JSON (`holds`); the consecutiveHolds column is legacy —
-/// no longer read, kept at 0. (mode is legacy too: written as "CUSTOM".)
+/// cycle/week are the LEGACY shared pointer — now a fallback seed only. Progression is
+/// PER MOVEMENT: each lift carries its own `week`/`cycle` (+ holds/pendingAmrap/deloadReset/
+/// lastTrainedAt) inside the movements JSON and advances on its own when logged. The program
+/// cycle/week are read only until a lift first advances. consecutiveHolds is legacy (kept 0);
+/// mode is legacy too (written as "CUSTOM").
 model StrengthProgram {
   id               String   @id @default(cuid())
   userId           String

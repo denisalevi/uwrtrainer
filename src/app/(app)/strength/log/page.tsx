@@ -100,6 +100,8 @@ export default async function StrengthLogPage({
         }));
         return {
           id: `slot-${i}`,
+          movement: e.movement,
+          week: e.week,
           label: exLabel(e),
           trainingMax: state[e.movement]?.trainingMax,
           sets,

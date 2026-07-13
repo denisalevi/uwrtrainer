@@ -48,6 +48,9 @@ export function LogForm({
   const today = new Date().toISOString().slice(0, 10);
 
   const [note, setNote] = useState<string>(existing?.note ?? "");
+  // Controlled so the chosen date can be forwarded to the strength logger (the strength link
+  // navigates away from this form, so the value must be readable at click time, not just on submit).
+  const [date, setDate] = useState<string>(existing?.date ?? defaultDate ?? today);
 
   return (
     <>
@@ -110,7 +113,8 @@ export function LogForm({
                 id="date"
                 name="date"
                 type="date"
-                defaultValue={existing?.date ?? defaultDate ?? today}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
                 required
               />
             </div>
@@ -139,7 +143,7 @@ export function LogForm({
 
             {status === "DONE" && category === "STRENGTH" && (
               <a
-                href="/strength/log"
+                href={`/strength/log?date=${date}`}
                 className="flex items-center justify-between rounded-xl border border-teal-600 bg-teal-50 px-3 py-3 text-sm font-medium text-teal-800"
               >
                 <span>

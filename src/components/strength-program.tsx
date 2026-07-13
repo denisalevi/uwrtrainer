@@ -1,21 +1,24 @@
 import Link from "next/link";
 import { getServerT } from "@/lib/i18n/server";
 import type { DictKey } from "@/lib/i18n/dictionaries";
-import { Badge, Button, Card, CardBody, Input, Label, SectionTitle } from "@/components/ui";
+import { Badge, Button, Card, CardBody, SectionTitle } from "@/components/ui";
 import {
-  setStrengthWeek,
-  setStrengthCycle,
-  finishStrengthCycle,
+  deloadMovement,
+  setMovementWeek,
   updateStrengthSettings,
   resetStrengthProgram,
 } from "@/app/actions/strength";
-import { MOVEMENTS, PROGRAM_EQUIPMENT, WEIGHTED_LAYOUTS, type ProgramEquipment, type WeightedLayout, type PullPrefs } from "@/lib/constants";
+import { PROGRAM_EQUIPMENT, WEIGHTED_LAYOUTS, type ProgramEquipment, type WeightedLayout, type PullPrefs } from "@/lib/constants";
 import {
   buildSchedule,
   CUSTOM_EXERCISE_ID,
   programCycleWeeks,
   rotationWaveWeek,
   waveWeek,
+  effectiveWeek,
+  effectiveCycle,
+  isStale,
+  programSlotMovements,
   type ProgramState,
   type DayPlan,
   type PlannedExercise,
@@ -47,12 +50,10 @@ function setLine(set: WorkoutSet): string {
 export async function StrengthProgramView({
   program,
   pulls,
-  previewWeek,
   rounding,
 }: {
   program: Program;
   pulls: PullPrefs;
-  previewWeek?: number;
   rounding?: RoundingPref;
 }) {
   const { t } = await getServerT();
@@ -64,94 +65,104 @@ export async function StrengthProgramView({
   const layout: WeightedLayout = (WEIGHTED_LAYOUTS as readonly string[]).includes(program.weightedLayout)
     ? (program.weightedLayout as WeightedLayout)
     : "ROTATE";
-  // A single rotating weighted day cycles over 8 program weeks (each pair walks its own
-  // 4-week wave); everything else over 4. The status badge reflects the WEIGHTED lifts' wave
-  // (test/deload), which for a rotating program is the training pair's own wave week.
-  const cycleWeeks = programCycleWeeks(days, layout);
-  const activeWeek = program.week;
-  const viewWeek = previewWeek != null && previewWeek <= cycleWeeks ? previewWeek : activeWeek;
-  const wave = waveWeek(cycleWeeks === 8 ? rotationWaveWeek(activeWeek) : activeWeek);
-  const schedule = buildSchedule(days, state, { pulls, layout, week: viewWeek, rounding });
+  // Fallback wave position for a lift that hasn't advanced on its own yet: a single rotating
+  // weighted day walks the rotation's wave; every other layout uses the raw program week. Once a
+  // lift is logged it carries its OWN per-movement week and this fallback no longer applies to it.
+  const rotating = programCycleWeeks(days, layout) === 8;
+  const fallbackWeek = rotating ? rotationWaveWeek(program.week) : program.week;
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const schedule = buildSchedule(days, state, { pulls, layout, week: program.week, rounding });
   const exLabel = (e: PlannedExercise): string =>
     e.exerciseId === CUSTOM_EXERCISE_ID ? e.custom || t("strength.exerciseName") : t(e.labelKey as DictKey);
+  // Lifts this program trains, in order (cores, then the user's enabled pulls).
+  const lifts = programSlotMovements(pulls);
 
   return (
     <div className="space-y-4">
-      {/* Status line — always shows the ACTIVE state */}
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge tone="teal">
-            {t("strength.cycle")} {program.cycle}
-          </Badge>
-          <Badge tone={wave.deload ? "amber" : "slate"}>{t("strength.activeWeek", { n: activeWeek })}</Badge>
-          {wave.deload ? (
-            <span className="text-sm text-amber-700">{t("strength.deload")}</span>
-          ) : wave.week === 3 ? (
-            <span className="text-sm text-teal-700">{t("strength.testWeek")}</span>
-          ) : null}
-          {viewWeek !== activeWeek ? (
-            <span className="text-sm font-medium text-slate-500">{t("strength.previewing", { n: viewWeek })}</span>
-          ) : null}
-        </div>
-
-        {/* Editable cycle number (for a mid-program joiner) */}
-        <form action={setStrengthCycle} className="flex items-center gap-2">
-          <input type="hidden" name="programId" value={program.id} />
-          <Label htmlFor="cycle" className="text-xs text-slate-500">
-            {t("strength.cycle")}
-          </Label>
-          <Input
-            id="cycle"
-            name="cycle"
-            type="number"
-            min={1}
-            max={99}
-            inputMode="numeric"
-            defaultValue={program.cycle}
-            className="w-20"
-          />
-          <Button type="submit" variant="secondary" className="px-3 py-1.5 text-sm">
-            {t("strength.setCycle")}
-          </Button>
-        </form>
-      </div>
-
       <Link href="/strength/log" className="block">
         <Button className="w-full">➕ {t("strength.logWorkout")}</Button>
       </Link>
 
-      {/* Week selector — preview-only navigation, does NOT activate */}
+      {/* Per-lift progression — each lift on its own cycle/week, advanced automatically on log. */}
       <div className="space-y-2">
-        <p className="text-xs text-slate-500">{t("strength.weekPreviewHint")}</p>
-        <div className="grid grid-cols-4 gap-2">
-          {Array.from({ length: cycleWeeks }, (_, i) => i + 1).map((w) => (
-            <Link
-              key={w}
-              href={`/strength?week=${w}`}
-              scroll={false}
-              className={
-                "block w-full rounded-xl border px-2 py-2 text-center text-sm font-medium " +
-                (viewWeek === w
-                  ? "border-teal-600 bg-teal-50 text-teal-800"
-                  : "border-slate-200 bg-white text-slate-600")
-              }
-            >
-              {t("strength.weekN", { n: w })}
-            </Link>
-          ))}
-        </div>
-        {viewWeek !== activeWeek ? (
-          <form action={setStrengthWeek}>
-            <input type="hidden" name="programId" value={program.id} />
-            <input type="hidden" name="week" value={viewWeek} />
-            <Button type="submit" className="w-full">
-              {t("strength.setActiveWeek", { n: viewWeek })}
-            </Button>
-          </form>
-        ) : null}
+        <SectionTitle>{t("strength.progressionTitle")}</SectionTitle>
+        <p className="text-xs text-slate-500">{t("strength.progressionHint")}</p>
+        {lifts.map((m) => {
+          const cur = state[m];
+          const wk = effectiveWeek(cur, fallbackWeek);
+          const cyc = effectiveCycle(cur, program.cycle);
+          const wave = waveWeek(wk);
+          const tm = cur?.trainingMax;
+          const stale = isStale(cur, today);
+          return (
+            <Card key={m}>
+              <CardBody className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-900">{t(`mv.${m}` as DictKey)}</p>
+                    {tm != null && tm > 0 && (
+                      <p className="text-xs text-slate-400 tabular-nums">
+                        {t("strength.tmShort")} {tm} kg
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <Badge tone="teal">
+                      {t("strength.cycle")} {cyc}
+                    </Badge>
+                    <Badge tone={wave.deload ? "amber" : "slate"}>{t("strength.weekN", { n: wk })}</Badge>
+                    {wave.deload ? (
+                      <span className="text-xs text-amber-700">{t("strength.deload")}</span>
+                    ) : wave.week === 3 ? (
+                      <span className="text-xs text-teal-700">{t("strength.testWeek")}</span>
+                    ) : null}
+                  </div>
+                </div>
+
+                {stale && <p className="text-xs text-amber-700">⏳ {t("strength.staleHint")}</p>}
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <form action={deloadMovement}>
+                    <input type="hidden" name="programId" value={program.id} />
+                    <input type="hidden" name="movement" value={m} />
+                    <Button type="submit" variant="secondary" size="sm" title={t("strength.deloadNowHint")}>
+                      {t("strength.deloadNow")}
+                    </Button>
+                  </form>
+                  <details className="min-w-0">
+                    <summary className="cursor-pointer select-none text-xs font-medium text-slate-500">
+                      {t("strength.adjustWeek")}
+                    </summary>
+                    <div className="mt-2 space-y-1.5">
+                      <p className="text-xs text-amber-700">⚠ {t("strength.adjustWarn")}</p>
+                      <form action={setMovementWeek} className="flex gap-1.5">
+                        <input type="hidden" name="programId" value={program.id} />
+                        <input type="hidden" name="movement" value={m} />
+                        {[1, 2, 3, 4].map((w) => (
+                          <Button
+                            key={w}
+                            type="submit"
+                            name="week"
+                            value={w}
+                            size="sm"
+                            variant={w === wk ? "primary" : "secondary"}
+                            className="w-11 px-0"
+                          >
+                            {w}
+                          </Button>
+                        ))}
+                      </form>
+                    </div>
+                  </details>
+                </div>
+              </CardBody>
+            </Card>
+          );
+        })}
       </div>
 
-      {/* Per-day exercises for the current week (auto-laid-out) */}
+      {/* Per-day exercises — each lift shown at its OWN current week (auto-laid-out) */}
       {schedule.map((day) => (
         <Card key={day.id}>
           <CardBody className="space-y-2">
@@ -203,36 +214,6 @@ export async function StrengthProgramView({
           </CardBody>
         </Card>
       )}
-
-      {/* Finish cycle */}
-      <Card>
-        <CardBody>
-          <SectionTitle>{t("strength.finishCycle")}</SectionTitle>
-          <p className="mt-1 text-sm text-slate-500">{t("strength.finishHint")}</p>
-          <form action={finishStrengthCycle} className="mt-3 space-y-3">
-            <input type="hidden" name="programId" value={program.id} />
-            {MOVEMENTS.map((m) => (
-              <div key={m} className="flex items-center justify-between gap-3">
-                <Label className="flex-1" htmlFor={`amrap_${m}`}>
-                  {t(`mv.${m}` as DictKey)}
-                </Label>
-                <Input
-                  id={`amrap_${m}`}
-                  name={`amrap_${m}`}
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  className="w-24"
-                  placeholder={t("strength.amrapSet")}
-                />
-              </div>
-            ))}
-            <Button type="submit" className="w-full">
-              {t("strength.finishApply")}
-            </Button>
-          </form>
-        </CardBody>
-      </Card>
 
       {/* Settings */}
       <details className="rounded-2xl border border-slate-200 bg-white p-4">

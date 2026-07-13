@@ -11,6 +11,33 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-07-13
+
+### Added
+- **Each lift progresses on its own automatic wave.** Every core lift (squat, deadlift, bench,
+  overhead — plus your enabled pulls) now runs its OWN 4-week cycle and moves to the next week
+  **automatically when you log it** — no more hand-picking an "active week". Lifts you train
+  together advance together; a lift you skip just waits where it is (5/3/1-style per-lift
+  progression). The training-max bump at the end of a cycle is applied automatically from the
+  week-3 AMRAP you already log — the manual "Finish cycle" step is gone.
+- **A per-lift overview on `/strength`.** See each lift's current cycle + week at a glance, with
+  its test-week / deload / "not trained in a while" status.
+- **"Deload" any lift, any time.** A per-lift button gives you an easy (deload) week and then
+  restarts that cycle at the same weights (no bump) — a re-sync / back-off tool, e.g. to line a
+  lift back up with the others.
+- **Manual week override, behind a warning.** You can still set a lift to a specific week; it
+  warns that it resets where the lift goes from there.
+- **Stale-return hint.** A lift you haven't trained in a while suggests stepping back (deload or
+  a week back) instead of silently serving up the next heavy week.
+
+### Changed
+- **The strength logger now has its own date field.** You can see and change the session date
+  right in the logger — on both new sessions (the date you picked in `/log` is carried through,
+  no longer thrown away) and when editing an existing strength session (previously the date was
+  invisible and uneditable there).
+- Removed the global "active week" selector and the manual "Finish cycle" card — both are
+  superseded by the automatic per-lift progression above.
+
 ## [0.23.2] - 2026-07-08
 
 ### Changed

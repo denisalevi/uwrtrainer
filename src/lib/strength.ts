@@ -420,7 +420,153 @@ export function advanceMovementState(
   };
 }
 
-// ───────────────────────────────────────────── Equipment → mode, and templates ──
+// ─────────────────────────────── Per-movement auto-progression (each lift its own wave) ──
+//
+// Each lift carries its OWN wave position (`week` 1..4) and `cycle`, and advances only when ITS
+// session is logged done — so lifts drift independently (miss a day, that lift just waits). This
+// replaces hand-picking a shared "active week". The deload is per-lift; a lift in its deload while
+// another is mid-cycle is fine — the deload manages THAT lift's fatigue, not a whole-body event.
+
+/** Normalise any week number into the 1..4 wave position (mirrors waveWeek's mod-4). */
+export function normWeek(week: number): 1 | 2 | 3 | 4 {
+  return ((((Math.round(week) - 1) % 4) + 4) % 4 + 1) as 1 | 2 | 3 | 4;
+}
+
+/** The lift's current wave position — its own per-movement week, else the program's global week. */
+export function effectiveWeek(cur: MovementState | undefined, fallbackWeek: number): number {
+  return cur?.week ?? fallbackWeek;
+}
+
+/** The lift's current cycle — its own per-movement cycle, else the program's global cycle. */
+export function effectiveCycle(cur: MovementState | undefined, fallbackCycle: number): number {
+  return cur?.cycle ?? fallbackCycle;
+}
+
+export type ProgressEvent = "advanced" | "cycleFinished" | "deloadReset";
+
+/**
+ * Advance ONE lift's progression after a logged session at `loggedWeek` completes:
+ *   • weeks 1→2→3 step the wave (week 3 captures the AMRAP result for the eventual bump);
+ *   • week 4 (deload): a manual "deload now" (deloadReset) restarts the SAME cycle at week 1 with
+ *     no bump; otherwise the cycle closes — the adjustment rule runs on the captured week-3 AMRAP
+ *     (blank/absent ⇒ successful test), stepping the maxima and starting the next cycle at week 1.
+ * `date` (the session's ISO date) is stamped for stale-return detection.
+ */
+export function advanceAfterSession(
+  movement: MovementKey,
+  cur: MovementState,
+  loggedWeek: number,
+  amrapReps: number,
+  prescribedReps: number,
+  opts: { rounding?: number; date?: string } = {},
+): { next: MovementState; event: ProgressEvent } {
+  const from = normWeek(loggedWeek);
+  const cycle = cur.cycle ?? 1;
+  const stamp: Partial<MovementState> = opts.date ? { lastTrainedAt: opts.date } : {};
+  const pendingAmrap = from === 3 ? amrapReps : cur.pendingAmrap;
+
+  if (from < 4) {
+    return { next: { ...cur, week: from + 1, cycle, pendingAmrap, ...stamp }, event: "advanced" };
+  }
+
+  // from === 4 — the deload week just finished.
+  if (cur.deloadReset) {
+    const next: MovementState = { ...cur, week: 1, cycle, ...stamp };
+    delete next.deloadReset;
+    delete next.pendingAmrap;
+    return { next, event: "deloadReset" };
+  }
+
+  // Normal cycle close: judge the captured week-3 AMRAP (blank/0 ⇒ successful test → INCREASE).
+  const eff = pendingAmrap != null && pendingAmrap > 0 ? pendingAmrap : prescribedReps;
+  const advanced = advanceMovementState(movement, cur, eff, prescribedReps, { rounding: opts.rounding });
+  const next: MovementState = { ...advanced, week: 1, cycle: cycle + 1, ...stamp };
+  delete next.pendingAmrap;
+  delete next.deloadReset;
+  return { next, event: "cycleFinished" };
+}
+
+/** The minimal shape of a logged exercise the finish flow reads to advance progression. */
+export type LoggedSet = { amrap?: boolean; reps?: number | null };
+export type LoggedExercise = { movement?: MovementKey; week?: number; done?: boolean; sets?: LoggedSet[] };
+
+/**
+ * Advance a whole program's per-movement state from ONE finished session's logged exercises. For
+ * each exercise marked done that carries a movement + the week it was logged at, step that lift's
+ * own wave (advanceAfterSession), reading the AMRAP reps from its logged set. Deduped per movement.
+ * Pure: returns a new state + the list of lifts advanced (never mutates the input). The caller
+ * guards single-application (progressionApplied) and handles the rotating-day session pointer.
+ */
+export function advanceStateAfterSession(
+  state: ProgramState,
+  exercises: LoggedExercise[],
+  opts: { rounding?: number; fallbackCycle: number; dayEquipment: ProgramEquipment; date?: string },
+): { state: ProgramState; advanced: MovementKey[] } {
+  const next: ProgramState = { ...state };
+  const advanced: MovementKey[] = [];
+  const seen = new Set<MovementKey>();
+  for (const ex of exercises) {
+    if (!ex || ex.done !== true) continue;
+    const m = ex.movement;
+    if (!m || !(MOVEMENTS as readonly string[]).includes(m) || seen.has(m)) continue;
+    const loggedWeek = Number(ex.week);
+    if (!Number.isFinite(loggedWeek)) continue;
+    const seeded: MovementState = { ...(next[m] ?? {}), cycle: next[m]?.cycle ?? opts.fallbackCycle };
+    const resolved = resolveExercise(m, opts.dayEquipment, next);
+    const prescribed = prescribedTestReps(resolved.mode, seeded);
+    const amrapSet = (ex.sets ?? []).find((s) => s && s.amrap === true);
+    const amrapReps = amrapSet && Number.isFinite(Number(amrapSet.reps)) ? Number(amrapSet.reps) : 0;
+    const res = advanceAfterSession(m, seeded, loggedWeek, amrapReps, prescribed, {
+      rounding: opts.rounding,
+      date: opts.date,
+    });
+    next[m] = res.next;
+    seen.add(m);
+    advanced.push(m);
+  }
+  return { state: next, advanced };
+}
+
+/**
+ * Put a lift into a manual "deload now": the next session becomes the deload (week 4), and
+ * completing it restarts the SAME cycle at week 1 with no training-max bump. A re-sync / back-off
+ * tool the athlete can reach for any lift at any time.
+ */
+export function deloadNowState(cur: MovementState, fallbackCycle: number): MovementState {
+  const next: MovementState = { ...cur, week: 4, cycle: cur.cycle ?? fallbackCycle, deloadReset: true };
+  delete next.pendingAmrap;
+  return next;
+}
+
+/**
+ * Manually set a lift's wave position (the "jump" escape hatch, shown behind a warning). Clears any
+ * pending week-3 test and deload flag so the trajectory continues cleanly from the chosen week.
+ */
+export function setMovementWeekState(cur: MovementState, week: number, fallbackCycle: number): MovementState {
+  const next: MovementState = { ...cur, week: normWeek(week), cycle: cur.cycle ?? fallbackCycle };
+  delete next.pendingAmrap;
+  delete next.deloadReset;
+  return next;
+}
+
+/** Whole days between two yyyy-mm-dd dates (UTC midnight, so DST can't skew the count). */
+export function daysBetween(fromISO: string, toISO: string): number {
+  const a = Date.parse(`${fromISO}T00:00:00Z`);
+  const b = Date.parse(`${toISO}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b)) return 0;
+  return Math.round((b - a) / 86_400_000);
+}
+
+/** Days without training this lift → suggest stepping back on return (repeat / drop a week / deload). */
+export const STALE_DAYS = 16;
+
+/** True when a lift hasn't been trained for a while and the app should suggest going backwards. */
+export function isStale(cur: MovementState | undefined, todayISO: string, thresholdDays = STALE_DAYS): boolean {
+  if (!cur?.lastTrainedAt) return false;
+  return daysBetween(cur.lastTrainedAt, todayISO) >= thresholdDays;
+}
+
+// ─────────────────────────────────────────────  Equipment → mode, and templates ──
 
 /** Map what the athlete has to the progression mode. Nothing at all is fully supported. */
 export function modeForEquipment(equipment: EquipmentLevel): StrengthMode {
@@ -511,6 +657,19 @@ export type MovementState = {
    * REDUCE — per lift, so one stalling lift never drags the others down. Absent = 0 (also
    * covers rows written before this field existed; the old program-level counter is ignored). */
   holds?: number;
+  /** Per-movement wave position (1..4; 4 = deload). Each lift runs its OWN 4-week wave and only
+   * advances when its session is logged, so lifts drift independently. Absent = fall back to the
+   * program's global `week` (so untouched lifts read the legacy shared pointer until first advance). */
+  week?: number;
+  /** Per-movement cycle number. Absent = fall back to the program's global `cycle`. */
+  cycle?: number;
+  /** Week-3 AMRAP reps captured, awaiting the cycle-close bump when the deload (week 4) completes. */
+  pendingAmrap?: number;
+  /** Set by a manual "deload now": completing the deload restarts the SAME cycle at week 1 with NO
+   * training-max bump (a re-sync tool), instead of closing the cycle and stepping up. */
+  deloadReset?: boolean;
+  /** ISO date (yyyy-mm-dd) of the last logged session that advanced this lift — for stale-return. */
+  lastTrainedAt?: string;
   /** First-cycle setup: the weight × clean reps the user entered to estimate the training max.
    * Stored so the onboarding form can show them again (and so we know the TM came from an estimate
    * rather than a direct entry). Absent when the user typed a training max in directly. */
@@ -803,6 +962,10 @@ export type PlannedExercise = {
   custom?: string;
   labelKey: string; // "" when custom
   tool: SlotTool;
+  /** The wave week (1..4) these sets were built from — the lift's OWN per-movement week when it
+   * has one, else the schedule's fallback week. Recorded with the logged session so completing it
+   * can advance exactly this lift from exactly this week. */
+  week: number;
   sets: WorkoutSet[];
 };
 export type PlannedDay = {
@@ -917,8 +1080,11 @@ function plannedExercise(
   rounding?: RoundingPref,
 ): PlannedExercise {
   const ex = resolveExercise(movement, dayEquipment, state);
-  const sets = workoutForSlot({ movement, mode: ex.mode, exerciseId: ex.exerciseId, tool: ex.tool }, state, week, { rounding }).sets;
-  return { movement, mode: ex.mode, exerciseId: ex.exerciseId, custom: ex.custom, labelKey: ex.labelKey, tool: ex.tool, sets };
+  // The lift's OWN per-movement week wins when set; otherwise use the schedule's fallback week
+  // (the raw program week, or the rotation's wave week for a single rotating weighted day).
+  const wk = state[movement]?.week ?? week;
+  const sets = workoutForSlot({ movement, mode: ex.mode, exerciseId: ex.exerciseId, tool: ex.tool }, state, wk, { rounding }).sets;
+  return { movement, mode: ex.mode, exerciseId: ex.exerciseId, custom: ex.custom, labelKey: ex.labelKey, tool: ex.tool, week: wk, sets };
 }
 
 /**

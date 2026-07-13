@@ -6,23 +6,9 @@ import { StrengthWizard } from "@/components/strength-wizard";
 import { isWeightRoundingMode, type RoundingPref } from "@/lib/strength";
 import { StrengthProgramView } from "@/components/strength-program";
 
-export default async function StrengthPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+export default async function StrengthPage() {
   const user = await requireUser();
   const { t } = await getServerT();
-
-  const { week: weekParam } = await searchParams;
-  const rawWeek = Array.isArray(weekParam) ? weekParam[0] : weekParam;
-  // Up to 8: a single rotating weighted day cycles over 8 program weeks (the program view
-  // ignores previews beyond its own cycle length).
-  const parsedWeek = Math.trunc(Number(rawWeek));
-  const previewWeek =
-    rawWeek != null && Number.isFinite(parsedWeek) && parsedWeek >= 1 && parsedWeek <= 8
-      ? parsedWeek
-      : undefined;
 
   const program = await prisma.strengthProgram.findFirst({
     where: { userId: user.id, active: true },
@@ -52,7 +38,7 @@ export default async function StrengthPage({
         )}
       </header>
       {program && program.days && program.days !== "[]" ? (
-        <StrengthProgramView program={program} pulls={pulls} previewWeek={previewWeek} rounding={rounding} />
+        <StrengthProgramView program={program} pulls={pulls} rounding={rounding} />
       ) : (
         <StrengthWizard pulls={pulls} />
       )}

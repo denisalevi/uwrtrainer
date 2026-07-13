@@ -28,9 +28,19 @@ import {
   buildSchedule,
   rotationWaveWeek,
   programCycleWeeks,
+  normWeek,
+  effectiveWeek,
+  effectiveCycle,
+  advanceAfterSession,
+  advanceStateAfterSession,
+  deloadNowState,
+  setMovementWeekState,
+  daysBetween,
+  isStale,
   WAVE,
   type ProgramState,
   type DayPlan,
+  type MovementState,
 } from "./strength";
 import { MOVEMENTS } from "./constants";
 
@@ -624,6 +634,142 @@ describe("ROTATE runs an 8-week super-cycle (each pair walks its own 4-week wave
     expect(programCycleWeeks(days, "ALL_IN_ONE")).toBe(4);
     expect(programCycleWeeks([...days, { id: "w2", name: "w2", equipment: "WEIGHTS", minutes: 60 }], "ROTATE")).toBe(4);
     expect(programCycleWeeks([{ id: "b", name: "b", equipment: "BODYWEIGHT", minutes: 45 }], "ROTATE")).toBe(4);
+  });
+});
+
+describe("per-movement auto-progression (each lift its own wave)", () => {
+  it("normWeek folds any number into the 1..4 wave position", () => {
+    expect([1, 2, 3, 4, 5, 8, 0, -1].map(normWeek)).toEqual([1, 2, 3, 4, 1, 4, 4, 3]);
+  });
+
+  it("effective week/cycle prefer the lift's own values, else fall back to the program's", () => {
+    expect(effectiveWeek({ week: 3 }, 1)).toBe(3);
+    expect(effectiveWeek({}, 2)).toBe(2); // untouched lift reads the global pointer
+    expect(effectiveWeek(undefined, 2)).toBe(2);
+    expect(effectiveCycle({ cycle: 5 }, 1)).toBe(5);
+    expect(effectiveCycle({}, 2)).toBe(2);
+  });
+
+  it("weeks 1→2→3 just step the wave (no bump, cycle unchanged)", () => {
+    const { next, event } = advanceAfterSession("SQUAT", { trainingMax: 100, week: 1, cycle: 2 }, 1, 5, 1, {
+      rounding: 2.5,
+    });
+    expect(event).toBe("advanced");
+    expect(next.week).toBe(2);
+    expect(next.cycle).toBe(2);
+    expect(next.trainingMax).toBe(100); // no bump mid-cycle
+  });
+
+  it("week 3 captures the AMRAP and moves to the deload; the bump lands after week 4", () => {
+    const afterW3 = advanceAfterSession("SQUAT", { trainingMax: 100, week: 3, cycle: 1 }, 3, 6, 1, {
+      rounding: 2.5,
+    });
+    expect(afterW3.next.week).toBe(4);
+    expect(afterW3.next.cycle).toBe(1); // still the same cycle for the deload
+    expect(afterW3.next.trainingMax).toBe(100); // not yet
+    expect(afterW3.next.pendingAmrap).toBe(6);
+
+    const afterW4 = advanceAfterSession("SQUAT", afterW3.next, 4, 0, 1, { rounding: 2.5 });
+    expect(afterW4.event).toBe("cycleFinished");
+    expect(afterW4.next.week).toBe(1);
+    expect(afterW4.next.cycle).toBe(2); // new cycle
+    expect(afterW4.next.trainingMax).toBe(105); // INCREASE by the lower-body increment (5 kg)
+    expect(afterW4.next.pendingAmrap).toBeUndefined();
+  });
+
+  it("a blank/absent week-3 AMRAP closes the cycle as a successful test (increase)", () => {
+    // No pendingAmrap and 0 reps at week 4 ⇒ treat as a pass, not a failure.
+    const { next, event } = advanceAfterSession("PUSH", { trainingMax: 100, week: 4, cycle: 1 }, 4, 0, 1, {
+      rounding: 2.5,
+    });
+    expect(event).toBe("cycleFinished");
+    expect(next.trainingMax).toBe(102.5); // upper-body increment, not a HOLD
+  });
+
+  it("manual 'deload now' → do the deload, then restart the SAME cycle at week 1, no bump", () => {
+    const armed = deloadNowState({ trainingMax: 120, week: 3, cycle: 4 }, 4);
+    expect(armed.week).toBe(4);
+    expect(armed.deloadReset).toBe(true);
+    const { next, event } = advanceAfterSession("SQUAT", armed, 4, 0, 1, { rounding: 2.5 });
+    expect(event).toBe("deloadReset");
+    expect(next.week).toBe(1);
+    expect(next.cycle).toBe(4); // SAME cycle
+    expect(next.trainingMax).toBe(120); // NO bump — repeats the same weights
+    expect(next.deloadReset).toBeUndefined();
+  });
+
+  it("stamps the session date and detects staleness on return", () => {
+    const { next } = advanceAfterSession("SQUAT", { trainingMax: 100, week: 1 }, 1, 5, 1, {
+      date: "2026-07-01",
+    });
+    expect(next.lastTrainedAt).toBe("2026-07-01");
+    expect(daysBetween("2026-07-01", "2026-07-13")).toBe(12);
+    expect(isStale(next, "2026-07-13")).toBe(false); // 12 < 16
+    expect(isStale(next, "2026-07-20")).toBe(true); // 19 ≥ 16
+    expect(isStale({}, "2026-07-20")).toBe(false); // never trained ⇒ not "stale"
+  });
+
+  it("manual week override clears any pending test / deload flag", () => {
+    const cur: MovementState = { trainingMax: 100, week: 3, cycle: 2, pendingAmrap: 5, deloadReset: true };
+    const next = setMovementWeekState(cur, 1, 2);
+    expect(next.week).toBe(1);
+    expect(next.cycle).toBe(2);
+    expect(next.pendingAmrap).toBeUndefined();
+    expect(next.deloadReset).toBeUndefined();
+  });
+
+  it("advanceStateAfterSession advances only the DONE, movement-tagged lifts (the 2-day case)", () => {
+    // Main-user shape: Session 1 = squat+bench, both at week 1, logged done. Deadlift/press aren't
+    // in this session, so they must NOT move. A custom (no-movement) line is ignored.
+    const state: ProgramState = {
+      SQUAT: { trainingMax: 120, week: 1, cycle: 1 },
+      PUSH: { trainingMax: 100, week: 1, cycle: 1 },
+      HINGE: { trainingMax: 140, week: 1, cycle: 1 },
+      PRESS: { trainingMax: 60, week: 1, cycle: 1 },
+    };
+    const exercises = [
+      { movement: "SQUAT" as const, week: 1, done: true, sets: [{ reps: 5 }, { reps: 5 }, { amrap: true, reps: 8 }] },
+      { movement: "PUSH" as const, week: 1, done: true, sets: [{ amrap: true, reps: 10 }] },
+      { movement: undefined, week: undefined, done: true, sets: [{ reps: 12 }] }, // custom line → ignored
+    ];
+    const { state: next, advanced } = advanceStateAfterSession(state, exercises, {
+      rounding: 2.5, fallbackCycle: 1, dayEquipment: "WEIGHTS",
+    });
+    expect(advanced.sort()).toEqual(["PUSH", "SQUAT"]);
+    expect(next.SQUAT?.week).toBe(2); // stepped
+    expect(next.PUSH?.week).toBe(2);
+    expect(next.HINGE?.week).toBe(1); // untouched — different day
+    expect(next.PRESS?.week).toBe(1);
+    expect(next.SQUAT?.trainingMax).toBe(120); // no bump mid-cycle
+  });
+
+  it("advanceStateAfterSession skips lifts not marked done, and dedupes a repeated movement", () => {
+    const state: ProgramState = { SQUAT: { trainingMax: 120, week: 2, cycle: 1 } };
+    const { state: next, advanced } = advanceStateAfterSession(
+      state,
+      [
+        { movement: "SQUAT" as const, week: 2, done: false, sets: [] }, // not done → skip
+        { movement: "SQUAT" as const, week: 2, done: true, sets: [{ amrap: true, reps: 3 }] },
+        { movement: "SQUAT" as const, week: 2, done: true, sets: [{ amrap: true, reps: 3 }] }, // dup → ignored
+      ],
+      { rounding: 2.5, fallbackCycle: 1, dayEquipment: "WEIGHTS" },
+    );
+    expect(advanced).toEqual(["SQUAT"]);
+    expect(next.SQUAT?.week).toBe(3); // advanced exactly once (2→3)
+  });
+
+  it("buildSchedule builds each lift's sets from ITS OWN week when present", () => {
+    // SQUAT at its own week 3 (test week), PUSH falling back to the schedule week 1.
+    const state: ProgramState = { SQUAT: { trainingMax: 120, week: 3 }, PUSH: { trainingMax: 100 } };
+    const plan = buildSchedule([{ id: "a", name: "a", equipment: "WEIGHTS", minutes: 60 }], state, {
+      pulls: { pullups: false, rows: false }, layout: "ALL_IN_ONE", week: 1,
+    });
+    const squat = plan[0].exercises.find((e) => e.movement === "SQUAT")!;
+    const push = plan[0].exercises.find((e) => e.movement === "PUSH")!;
+    expect(squat.week).toBe(3);
+    expect(squat.sets.map((s) => s.pct)).toEqual([0.75, 0.85, 0.95]); // wave week 3
+    expect(push.week).toBe(1);
+    expect(push.sets.map((s) => s.pct)).toEqual([0.65, 0.75, 0.85]); // wave week 1 (fallback)
   });
 });
 

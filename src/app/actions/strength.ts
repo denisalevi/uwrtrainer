@@ -20,16 +20,18 @@ import {
   estimateOneRepMax,
   trainingMaxFromOneRepMax,
   defaultFullState,
-  advanceMovementState,
-  prescribedTestReps,
-  resolveExercise,
+  advanceStateAfterSession,
+  deloadNowState,
+  setMovementWeekState,
   catalogEntry,
   defaultExerciseId,
   CUSTOM_EXERCISE_ID,
+  normWeek,
   suggestedMinutes,
   type ProgramState,
   type MovementState,
   type DayPlan,
+  type LoggedExercise,
 } from "@/lib/strength";
 
 // ───────────────────────────────────────────────────────────────── helpers ──
@@ -228,134 +230,63 @@ export async function resetStrengthProgram(formData: FormData) {
   redirect("/strength");
 }
 
-// Max 8: a single rotating weighted day cycles over 8 program weeks (others use 1..4; the
-// UI only offers valid weeks, and the engine tolerates any week via mod-4 anyway).
-const WeekSchema = z.object({ programId: z.string(), week: z.coerce.number().int().min(1).max(8) });
+// NOTE: the old global setStrengthWeek / setStrengthCycle / finishStrengthCycle actions were
+// removed — progression is now per-movement and automatic (see finishStrengthWorkout +
+// deloadMovement + setMovementWeek below). The manual "active week" and "finish cycle" UI is gone.
 
-export async function setStrengthWeek(formData: FormData) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  const parsed = WeekSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) throw new Error("Invalid week");
-  await prisma.strengthProgram.updateMany({
-    where: { id: parsed.data.programId, userId: user.id },
-    data: { week: parsed.data.week },
-  });
-  revalidatePath("/strength");
-}
-
-const CycleSchema = z.object({ programId: z.string(), cycle: z.coerce.number().int().min(1).max(99) });
-
-export async function setStrengthCycle(formData: FormData) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  const parsed = CycleSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) throw new Error("Invalid cycle");
-  await prisma.strengthProgram.updateMany({
-    where: { id: parsed.data.programId, userId: user.id },
-    data: { cycle: parsed.data.cycle },
-  });
-  revalidatePath("/strength");
-}
+type StrengthWorkoutInput = {
+  logId?: string;
+  date: string;
+  durationMin?: number;
+  details: string; // JSON: { kind:"strengthWorkout", ... }
+};
 
 /**
- * Close out a cycle: apply the adjustment rule (increase / hold / reduce) to every movement's
- * maxima (both the weighted training max and the bodyweight rep/level), advance the cycle,
- * reset to week 1. Blank inputs default to a successful test (increase). A cycle is 4 program
- * weeks — or 8 for a single rotating weighted day, where each pair meets its week-3 test on
- * its own schedule (pair A on program week 5, pair B on week 6); either way the reset to
- * week 1 starts the next cycle at pair A's wave week 1.
+ * Validate a strength-workout payload (shared by save + finish). The details must actually be a
+ * strength-workout document (this action family must not be usable to overwrite a session with
+ * arbitrary JSON), and the date must parse and not be in the future (whole-day granularity).
+ * Returns the parsed date, the details string, and the parsed details object.
  */
-export async function finishStrengthCycle(formData: FormData) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  const programId = String(formData.get("programId") ?? "");
-
-  const program = await prisma.strengthProgram.findFirst({
-    where: { id: programId, userId: user.id },
-  });
-  if (!program) throw new Error("Program not found");
-
-  const state: ProgramState = JSON.parse(program.movements);
-  const days = parseDays(program.days);
-  const hasWeightedDay = days.some((d) => d.equipment === "WEIGHTS");
-
-  for (const m of MOVEMENTS) {
-    // Judge each lift against the prescription of the mode it actually resolves to: a lift
-    // swapped to a bodyweight exercise (even on a weighted day, e.g. pull-ups for the row)
-    // tests against ~95 % of its rep max, not against the weighted top set's single rep.
-    const ex = resolveExercise(m, hasWeightedDay ? "WEIGHTS" : "BODYWEIGHT", state);
-    const cur: MovementState = state[m] ?? {};
-    const prescribed = prescribedTestReps(ex.mode, cur);
-    const raw = formData.get(`amrap_${m}`);
-    const amrap = raw == null || String(raw).trim() === "" ? prescribed : Number(raw);
-    // Advance only the progression fields — the chosen exercise variants etc. are preserved.
-    // Short cycles are counted per lift in each movement's `holds` (see advanceMovementState).
-    state[m] = advanceMovementState(m, cur, amrap, prescribed, { rounding: program.rounding });
+function validateStrengthInput(input: StrengthWorkoutInput): {
+  date: Date;
+  details: string;
+  parsed: Record<string, unknown>;
+} {
+  if (typeof input.details !== "string" || input.details.length > 20000) throw new Error("Invalid workout");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(input.details);
+  } catch {
+    throw new Error("Invalid workout");
   }
+  if (!parsed || typeof parsed !== "object" || (parsed as { kind?: unknown }).kind !== "strengthWorkout") {
+    throw new Error("Invalid workout");
+  }
+  const date = new Date(input.date);
+  if (typeof input.date !== "string" || Number.isNaN(date.getTime())) throw new Error("Invalid date");
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+  if (date > todayEnd) throw new Error("Date cannot be in the future");
+  return { date, details: input.details, parsed: parsed as Record<string, unknown> };
+}
 
-  await prisma.strengthProgram.update({
-    where: { id: program.id },
-    data: {
-      movements: JSON.stringify(state),
-      cycle: program.cycle + 1,
-      week: 1,
-      // Legacy program-level counter, superseded by the per-movement `holds`; keep it retired
-      // at 0 so old rows can't influence anything if code ever reads it again.
-      consecutiveHolds: 0,
-    },
-  });
-  revalidatePath("/strength");
-  redirect("/strength");
+function normDuration(v: number | undefined): number | null {
+  return v && v > 0 ? Math.min(v, 1000) : null;
 }
 
 /**
  * Auto-save a whole strength workout (one logged session holding every exercise/set you did
  * that day). Called repeatedly while you type (debounced on the client). Creates the
  * SessionLog on first save and updates it thereafter — pass back the returned id.
+ *
+ * Autosave NEVER advances progression — that only happens on the explicit "Done" (see
+ * finishStrengthWorkout), so an abandoned draft doesn't step your waves.
  */
-export async function saveStrengthWorkout(input: {
-  logId?: string;
-  date: string;
-  durationMin?: number;
-  details: string; // JSON: { kind:"strengthWorkout", ... }
-}): Promise<{ id: string }> {
+export async function saveStrengthWorkout(input: StrengthWorkoutInput): Promise<{ id: string }> {
   const user = await getCurrentUser();
   if (!user) throw new Error("Not signed in");
-  if (typeof input.details !== "string" || input.details.length > 20000) {
-    throw new Error("Invalid workout");
-  }
-
-  // The details payload must actually be a strength-workout document — this action must not be
-  // usable to overwrite a session with arbitrary JSON.
-  let parsedDetails: unknown;
-  try {
-    parsedDetails = JSON.parse(input.details);
-  } catch {
-    throw new Error("Invalid workout");
-  }
-  if (
-    !parsedDetails ||
-    typeof parsedDetails !== "object" ||
-    (parsedDetails as { kind?: unknown }).kind !== "strengthWorkout"
-  ) {
-    throw new Error("Invalid workout");
-  }
-
-  // Validate the date: must parse, and must not be in the future (whole-day granularity).
-  const date = new Date(input.date);
-  if (typeof input.date !== "string" || Number.isNaN(date.getTime())) {
-    throw new Error("Invalid date");
-  }
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
-  if (date > todayEnd) throw new Error("Date cannot be in the future");
-
-  const data = {
-    date,
-    durationMin: input.durationMin && input.durationMin > 0 ? Math.min(input.durationMin, 1000) : null,
-    details: input.details,
-  };
+  const { date, details } = validateStrengthInput(input);
+  const data = { date, durationMin: normDuration(input.durationMin), details };
 
   if (input.logId) {
     const existing = await prisma.sessionLog.findUnique({
@@ -384,4 +315,154 @@ export async function saveStrengthWorkout(input: {
   await selfHealCountWeek(user.id, data.date);
   revalidatePath("/dashboard");
   return { id: created.id };
+}
+
+/**
+ * Advance each logged lift's own wave, once, from the session the athlete just finished. For every
+ * exercise marked done that carries a movement + the week it was logged at, step that lift's
+ * per-movement progression (see advanceAfterSession) — reading the AMRAP reps straight from the
+ * logged week-3 test set. A single rotating weighted day also nudges the program's session pointer
+ * so the training pair alternates. Idempotency is guaranteed by the caller's progressionApplied
+ * guard, so this is only ever run once per session.
+ */
+async function applyProgression(userId: string, logDate: Date, details: Record<string, unknown>): Promise<void> {
+  const program = await prisma.strengthProgram.findFirst({
+    where: { userId, active: true },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!program) return;
+
+  let state: ProgramState;
+  try {
+    state = JSON.parse(program.movements);
+  } catch {
+    return;
+  }
+  const days = parseDays(program.days);
+  const dayId = typeof details.dayId === "string" ? details.dayId : "";
+  const day = days.find((d) => d.id === dayId);
+  const dayEquipment: ProgramEquipment = day?.equipment ?? "WEIGHTS";
+  const dateISO = logDate.toISOString().slice(0, 10);
+  const exercises = Array.isArray(details.exercises) ? (details.exercises as LoggedExercise[]) : [];
+
+  const { state: nextState, advanced } = advanceStateAfterSession(state, exercises, {
+    rounding: program.rounding,
+    fallbackCycle: program.cycle,
+    dayEquipment,
+    date: dateISO,
+  });
+  if (advanced.length === 0) return;
+
+  // A single rotating weighted day picks its training pair by the program-week parity — advance it
+  // so the next session trains the other pair. (Multi-day / all-in-one layouts don't rotate.)
+  const weightedDays = days.filter((d) => d.equipment === "WEIGHTS").length;
+  const layout: WeightedLayout = (WEIGHTED_LAYOUTS as readonly string[]).includes(program.weightedLayout)
+    ? (program.weightedLayout as WeightedLayout)
+    : "ROTATE";
+  const rotating = weightedDays === 1 && layout === "ROTATE";
+
+  await prisma.strengthProgram.update({
+    where: { id: program.id },
+    data: {
+      movements: JSON.stringify(nextState),
+      ...(rotating ? { week: program.week + 1 } : {}),
+    },
+  });
+}
+
+/**
+ * The explicit "Done" for a strength session: save it (like saveStrengthWorkout) AND advance each
+ * logged lift's own wave — exactly once. The progressionApplied flag on the row guards against
+ * double-advancing if a finished session is re-finished or edited later.
+ */
+export async function finishStrengthWorkout(input: StrengthWorkoutInput): Promise<{ id: string }> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Not signed in");
+  const { date, details, parsed } = validateStrengthInput(input);
+  const data = { date, durationMin: normDuration(input.durationMin), details };
+
+  let logId = input.logId;
+  let alreadyApplied = false;
+
+  if (logId) {
+    const existing = await prisma.sessionLog.findUnique({
+      where: { id: logId },
+      select: { userId: true, date: true, category: true, status: true, auto: true, progressionApplied: true },
+    });
+    if (!existing || existing.userId !== user.id) throw new Error("Not authorized");
+    if (existing.category !== "STRENGTH" || existing.status !== "DONE" || existing.auto) {
+      throw new Error("Not a strength workout");
+    }
+    alreadyApplied = existing.progressionApplied;
+    await prisma.sessionLog.update({ where: { id: logId }, data: { ...data, progressionApplied: true } });
+    await selfHealCountWeek(user.id, existing.date);
+    if (date.getTime() !== existing.date.getTime()) await selfHealCountWeek(user.id, date);
+  } else {
+    const created = await prisma.sessionLog.create({
+      data: { userId: user.id, category: "STRENGTH", status: "DONE", progressionApplied: true, ...data },
+    });
+    logId = created.id;
+    await selfHealCountWeek(user.id, date);
+  }
+
+  if (!alreadyApplied) await applyProgression(user.id, date, parsed);
+
+  revalidatePath("/dashboard");
+  revalidatePath("/strength");
+  return { id: logId };
+}
+
+// ─────────────────────────────────── Per-movement manual controls ──
+
+/** Load the caller's own program (throws if missing / not theirs). */
+async function requireOwnProgram(userId: string, programId: string) {
+  const program = await prisma.strengthProgram.findFirst({ where: { id: programId, userId } });
+  if (!program) throw new Error("Program not found");
+  return program;
+}
+
+function readMovement(formData: FormData): MovementKey {
+  const m = String(formData.get("movement") ?? "");
+  if (!(MOVEMENTS as readonly string[]).includes(m)) throw new Error("Invalid movement");
+  return m as MovementKey;
+}
+
+/**
+ * Manual "deload now" for ONE lift: the next session becomes its deload, and completing it restarts
+ * the SAME cycle at week 1 with no training-max bump (a re-sync / back-off, available any time).
+ */
+export async function deloadMovement(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  const program = await requireOwnProgram(user!.id, String(formData.get("programId") ?? ""));
+  const m = readMovement(formData);
+  const state: ProgramState = JSON.parse(program.movements);
+  state[m] = deloadNowState(state[m] ?? {}, program.cycle);
+  await prisma.strengthProgram.update({ where: { id: program.id }, data: { movements: JSON.stringify(state) } });
+  revalidatePath("/strength");
+}
+
+const MovementWeekSchema = z.object({
+  programId: z.string(),
+  movement: z.string(),
+  week: z.coerce.number().int().min(1).max(4),
+});
+
+/**
+ * Manual week override for ONE lift (the "jump" escape hatch, shown behind a warning). Sets the
+ * lift's wave position directly and clears any pending test / deload so the trajectory continues
+ * cleanly from there.
+ */
+export async function setMovementWeek(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  const parsed = MovementWeekSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) throw new Error("Invalid week");
+  if (!(MOVEMENTS as readonly string[]).includes(parsed.data.movement)) throw new Error("Invalid movement");
+  const m = parsed.data.movement as MovementKey;
+  const program = await requireOwnProgram(user!.id, parsed.data.programId);
+  const state: ProgramState = JSON.parse(program.movements);
+  state[m] = setMovementWeekState(state[m] ?? {}, normWeek(parsed.data.week), program.cycle);
+  await prisma.strengthProgram.update({ where: { id: program.id }, data: { movements: JSON.stringify(state) } });
+  revalidatePath("/strength");
 }

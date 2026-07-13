@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/i18n-provider";
-import { saveStrengthWorkout } from "@/app/actions/strength";
+import { saveStrengthWorkout, finishStrengthWorkout } from "@/app/actions/strength";
 import { deleteSession } from "@/app/actions/training";
+import type { MovementKey } from "@/lib/constants";
 import { Button, Card, CardBody, Input, Label, Select, cn } from "@/components/ui";
 import { useRestTimer, RestTimerBar, type RestTimerSettings } from "@/components/rest-timer";
 
@@ -12,6 +13,10 @@ type SetKind = "warmup" | "main" | "bbb";
 type SetTarget = { reps: number; weight: number | null; amrap: boolean; kind?: SetKind; pct?: number | null };
 type Suggestion = {
   id: string;
+  /** Which movement pattern this preloads (drives per-lift progression on finish). */
+  movement?: MovementKey;
+  /** The lift's own wave week these sets were built from — recorded so finishing advances it. */
+  week?: number;
   label: string;
   trainingMax?: number;
   sets: SetTarget[];
@@ -28,6 +33,9 @@ type Line = {
   sets: SetVal[];
   done?: boolean;
   trainingMax?: number;
+  /** Movement + logged week, carried so finishing the session advances the right lift's wave. */
+  movement?: MovementKey;
+  week?: number;
 };
 
 let uid = 0;
@@ -115,6 +123,8 @@ function seedLines(day: LoggerDay | undefined): Line[] {
     exerciseId: sug.id,
     name: sug.label,
     trainingMax: sug.trainingMax,
+    movement: sug.movement,
+    week: sug.week,
     sets: seedSets(sug),
   }));
 }
@@ -156,6 +166,17 @@ export function StrengthWorkoutLogger({
       ? (restored!.dayId as string)
       : days[0]?.id ?? "";
   const [dayId, setDayId] = useState<string>(initialDayId);
+  // Session date — first-class here so it's visible AND editable on create and edit (the old flow
+  // dropped it: the /log strength link threw it away, and editing bypassed the date picker
+  // entirely). `today` is just the initial value (from ?date= / the edited log / today).
+  const [date, setDate] = useState<string>(today);
+  // Cap the picker at the client's today (no future logs — the server also rejects them). Computed
+  // after mount so SSR (server "today") and hydration (client "today") can't mismatch.
+  const [maxDate, setMaxDate] = useState<string>("");
+  useEffect(() => {
+    const d = new Date();
+    setMaxDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+  }, []);
   const [lines, setLines] = useState<Line[]>(
     restored ? restoreLines(restored) : seedLines(days.find((d) => d.id === initialDayId) ?? days[0]),
   );
@@ -185,6 +206,8 @@ export function StrengthWorkoutLogger({
         name: l.name,
         done: !!l.done,
         trainingMax: l.trainingMax,
+        movement: l.movement,
+        week: l.week,
         sets: l.sets.map((s) => ({
           weight: s.weight ? Number(s.weight) : null,
           reps: s.reps ? Number(s.reps) : null,
@@ -209,7 +232,7 @@ export function StrengthWorkoutLogger({
     try {
       const res = await saveStrengthWorkout({
         logId,
-        date: today,
+        date,
         durationMin: dur ? Number(dur) : undefined,
         details: buildDetails(),
       });
@@ -236,7 +259,7 @@ export function StrengthWorkoutLogger({
   function addExercise() {
     const sug = day?.suggestions[0];
     const line: Line = sug
-      ? { key: nextKey(), exerciseId: sug.id, name: sug.label, trainingMax: sug.trainingMax, sets: seedSets(sug) }
+      ? { key: nextKey(), exerciseId: sug.id, name: sug.label, trainingMax: sug.trainingMax, movement: sug.movement, week: sug.week, sets: seedSets(sug) }
       : { key: nextKey(), exerciseId: "custom", name: "", sets: [{ weight: "", reps: "", kind: "main" }] };
     mutate((ls) => [...ls, line]);
   }
@@ -245,11 +268,12 @@ export function StrengthWorkoutLogger({
     mutate((ls) =>
       ls.map((l) => {
         if (l.key !== key) return l;
+        // A custom (typed) exercise has no movement → it won't drive progression.
         if (exerciseId === "custom")
-          return { ...l, exerciseId, name: "", sets: [{ weight: "", reps: "", kind: "main" }] };
+          return { ...l, exerciseId, name: "", movement: undefined, week: undefined, sets: [{ weight: "", reps: "", kind: "main" }] };
         const sug = day?.suggestions.find((s) => s.id === exerciseId);
         if (!sug) return { ...l, exerciseId };
-        return { ...l, exerciseId, name: sug.label, trainingMax: sug.trainingMax, sets: seedSets(sug) };
+        return { ...l, exerciseId, name: sug.label, trainingMax: sug.trainingMax, movement: sug.movement, week: sug.week, sets: seedSets(sug) };
       }),
     );
   }
@@ -310,15 +334,26 @@ export function StrengthWorkoutLogger({
     // Prime/unlock audio on the first tap so the end-of-rest beep is allowed by the
     // browser's autoplay policy when it later fires from a timer tick.
     <div className="space-y-4" onPointerDownCapture={rest.primeAudio}>
+      {/* Session date — editable here (was previously fixed/invisible in this logger). */}
+      <div>
+        <Label htmlFor="sw-date">{t("log.date")}</Label>
+        <Input
+          id="sw-date"
+          type="date"
+          value={date}
+          max={maxDate || undefined}
+          onChange={(e) => {
+            markStarted();
+            setDate(e.target.value);
+            scheduleSave();
+          }}
+        />
+      </div>
+
       {/* Day selector — pick a day from your plan to preload it, or start empty. */}
       {days.length >= 1 && (
         <div>
-          <div className="flex items-center justify-between">
-            <Label>{t("strength.chooseDay")}</Label>
-            <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-medium text-teal-700">
-              {t("strength.weekN", { n: week })}
-            </span>
-          </div>
+          <Label>{t("strength.chooseDay")}</Label>
           <div className="mt-2 grid grid-cols-2 gap-2">
             {days.map((d) => (
               <button
@@ -611,7 +646,20 @@ export function StrengthWorkoutLogger({
               dur = String(elapsedMinutes(startedAtRef.current));
               setDurationMin(dur);
             }
-            await save(dur);
+            // Finishing (unlike autosave) advances each logged lift's own wave — exactly once.
+            setStatus("saving");
+            try {
+              const res = await finishStrengthWorkout({
+                logId,
+                date,
+                durationMin: dur ? Number(dur) : undefined,
+                details: buildDetails(),
+              });
+              setLogId(res.id);
+            } catch {
+              setStatus("idle");
+              return;
+            }
             router.push("/dashboard");
           }}
         >
@@ -701,12 +749,15 @@ function safeParse(s: string): Record<string, unknown> | null {
 
 function restoreLines(details: Record<string, unknown>): Line[] {
   const ex = Array.isArray(details.exercises) ? details.exercises : [];
-  return (ex as Array<{ name?: string; done?: boolean; trainingMax?: number; sets?: Array<Record<string, unknown>> }>).map((e) => ({
+  return (ex as Array<{ name?: string; done?: boolean; trainingMax?: number; movement?: MovementKey; week?: number; sets?: Array<Record<string, unknown>> }>).map((e) => ({
     key: nextKey(),
     exerciseId: "custom",
     name: String(e.name ?? ""),
     done: !!e.done,
     trainingMax: typeof e.trainingMax === "number" ? e.trainingMax : undefined,
+    // Preserve the movement + logged week so re-finishing an edited session advances the right lift.
+    movement: e.movement,
+    week: typeof e.week === "number" ? e.week : undefined,
     sets: (e.sets ?? []).map((s) => ({
       weight: s.weight != null ? String(s.weight) : "",
       reps: s.reps != null ? String(s.reps) : "",
