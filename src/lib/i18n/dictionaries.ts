@@ -504,7 +504,7 @@ export const en = {
   "strength.previewHint": "What each day looks like — updates as you change things.",
   "strength.rotationWeek": "week",
   "strength.notesLabel": "Notes for your trainer",
-  "strength.notesPlaceholder": "e.g. no barbell at home, bad shoulder, can't make Tuesdays…",
+  "strength.notesPlaceholder": "e.g. how much time you want to spend per session, no barbell at home, bad shoulder, can't make Tuesdays…",
   "strength.slotWeightedDay": "Weights day",
   "strength.slotBodyweightDay": "Bodyweight day",
   "strength.logCardHint": "Pick a day from your plan, or start empty.",
@@ -520,6 +520,15 @@ export const en = {
   "strength.weekDeload": "4 · Deload",
   "strength.adjustWarn": "This isn't the next step — it resets where this lift goes from here.",
   "strength.staleHint": "Not trained in a while — consider a deload or stepping back a week.",
+
+  // ── Custom lifts-per-session layout ──
+  "strength.liftsPerSession": "Lifts per session",
+  "strength.autoLayoutHint": "Lifts are spread across your sessions automatically. Take over to place them yourself.",
+  "strength.customize": "Choose lifts myself",
+  "strength.customLayoutHint": "Pick which lifts go on each session, and reorder them with ▲▼. A lift can be on one session, several, or none.",
+  "strength.addLift": "Add lift",
+  "strength.noLiftsYet": "No lifts on this session yet.",
+  "strength.resetAuto": "Reset to automatic layout",
 } as const;
 
 export type Dict = typeof en;
@@ -1029,7 +1038,7 @@ export const de: Record<DictKey, string> = {
   "strength.previewHint": "So sieht jeder Tag aus — aktualisiert sich, während du Änderungen machst.",
   "strength.rotationWeek": "Woche",
   "strength.notesLabel": "Notizen für deinen Trainer",
-  "strength.notesPlaceholder": "z. B. keine Langhantel zu Hause, Schulter angeschlagen, dienstags keine Zeit…",
+  "strength.notesPlaceholder": "z. B. wie viel Zeit du pro Einheit investieren willst, keine Langhantel zu Hause, Schulter angeschlagen, dienstags keine Zeit…",
   "strength.slotWeightedDay": "Gewichts-Tag",
   "strength.slotBodyweightDay": "Körpergewicht-Tag",
   "strength.logCardHint": "Wähle einen Tag aus deinem Plan oder starte leer.",
@@ -1045,6 +1054,15 @@ export const de: Record<DictKey, string> = {
   "strength.weekDeload": "4 · Deload",
   "strength.adjustWarn": "Das ist nicht der nächste Schritt — es setzt zurück, wie es mit dieser Übung weitergeht.",
   "strength.staleHint": "Länger nicht trainiert — überlege einen Deload oder eine Woche zurück.",
+
+  // ── Übungen pro Einheit (eigene Aufteilung) ──
+  "strength.liftsPerSession": "Übungen pro Einheit",
+  "strength.autoLayoutHint": "Übungen werden automatisch auf deine Einheiten verteilt. Übernimm die Aufteilung, um sie selbst festzulegen.",
+  "strength.customize": "Selbst festlegen",
+  "strength.customLayoutHint": "Lege fest, welche Übungen in welche Einheit gehören, und sortiere mit ▲▼. Eine Übung kann in einer, mehreren oder keiner Einheit sein.",
+  "strength.addLift": "Übung hinzufügen",
+  "strength.noLiftsYet": "Noch keine Übungen in dieser Einheit.",
+  "strength.resetAuto": "Zurück zur automatischen Aufteilung",
 };
 
 export const dictionaries = { en, de } as const;

@@ -952,8 +952,12 @@ export const CORE_MOVEMENTS: MovementKey[] = ["SQUAT", "HINGE", "PUSH", "PRESS"]
 const PAIR_A: MovementKey[] = ["SQUAT", "PUSH"]; // lower + bench (spreadsheet "Mon")
 const PAIR_B: MovementKey[] = ["HINGE", "PRESS"]; // deadlift + overhead (spreadsheet "Thu")
 
-/** One training day the player sets up: a name, its equipment, and session length. */
-export type DayPlan = { id: string; name: string; equipment: ProgramEquipment; minutes: number };
+/**
+ * One training day the player sets up: a name, its equipment, and session length. `movements` is
+ * an OPTIONAL explicit lift assignment — when present (on any day), the whole schedule switches to
+ * that custom layout instead of the automatic split; when absent everywhere, the auto-layout applies.
+ */
+export type DayPlan = { id: string; name: string; equipment: ProgramEquipment; minutes: number; movements?: MovementKey[] };
 
 export type PlannedExercise = {
   movement: MovementKey;
@@ -1098,6 +1102,31 @@ export function buildSchedule(
   opts: { pulls: PullPrefs; layout: WeightedLayout; week: number; rounding?: RoundingPref },
 ): PlannedDay[] {
   const { pulls, layout, week, rounding } = opts;
+
+  // Custom layout: if ANY day carries an explicit movement list, honour each day's list verbatim
+  // (deduped, valid movements only, in the user's order) instead of the automatic split. It's
+  // all-or-nothing — the editor seeds every day from the auto layout when you switch to custom, so
+  // there's no half-custom state; each lift's sets still come off its own per-movement week.
+  if (days.some((d) => Array.isArray(d.movements))) {
+    return days.map((day) => {
+      const seen = new Set<MovementKey>();
+      const movements: MovementKey[] = [];
+      for (const m of day.movements ?? []) {
+        if ((MOVEMENTS as readonly string[]).includes(m) && !seen.has(m)) {
+          seen.add(m);
+          movements.push(m);
+        }
+      }
+      return {
+        id: day.id,
+        name: day.name,
+        equipment: day.equipment,
+        minutes: day.minutes,
+        exercises: movements.map((m) => plannedExercise(m, day.equipment, state, week, rounding)),
+      };
+    });
+  }
+
   const weightedDays = days.filter((d) => d.equipment === "WEIGHTS");
   const assignment = weightedAssignment(weightedDays.length, layout, week);
   // Each enabled pull rides its own pressing day where possible (vertical on the lightest).

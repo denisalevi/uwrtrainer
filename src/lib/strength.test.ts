@@ -564,6 +564,42 @@ describe("buildSchedule", () => {
   });
 });
 
+describe("custom layout (explicit per-day movement lists override the auto split)", () => {
+  const state: ProgramState = {
+    SQUAT: { trainingMax: 120 }, HINGE: { trainingMax: 140 },
+    PUSH: { trainingMax: 100 }, PRESS: { trainingMax: 60 },
+  };
+  it("uses each day's movements verbatim, in order, when any day defines them", () => {
+    const days: DayPlan[] = [
+      { id: "a", name: "A", equipment: "WEIGHTS", minutes: 60, movements: ["HINGE", "SQUAT"] },
+      { id: "b", name: "B", equipment: "WEIGHTS", minutes: 60, movements: ["PRESS", "PUSH"] },
+    ];
+    const plan = buildSchedule(days, state, { pulls: { pullups: false, rows: false }, layout: "ROTATE", week: 1 });
+    expect(plan[0].exercises.map((e) => e.movement)).toEqual(["HINGE", "SQUAT"]); // custom order, not auto
+    expect(plan[1].exercises.map((e) => e.movement)).toEqual(["PRESS", "PUSH"]);
+  });
+  it("dedupes within a day and tolerates an empty day; a lift may sit on several days", () => {
+    const days: DayPlan[] = [
+      { id: "a", name: "A", equipment: "WEIGHTS", minutes: 60, movements: ["SQUAT", "SQUAT", "PUSH"] },
+      { id: "b", name: "B", equipment: "WEIGHTS", minutes: 60, movements: ["SQUAT"] }, // same lift, another day
+      { id: "c", name: "C", equipment: "WEIGHTS", minutes: 60, movements: [] }, // empty day → no lifts
+    ];
+    const plan = buildSchedule(days, state, { pulls: { pullups: false, rows: false }, layout: "ROTATE", week: 1 });
+    expect(plan[0].exercises.map((e) => e.movement)).toEqual(["SQUAT", "PUSH"]); // deduped
+    expect(plan[1].exercises.map((e) => e.movement)).toEqual(["SQUAT"]);
+    expect(plan[2].exercises).toEqual([]);
+  });
+  it("falls back to the auto split when NO day defines movements (unchanged default)", () => {
+    const days: DayPlan[] = [
+      { id: "a", name: "A", equipment: "WEIGHTS", minutes: 60 },
+      { id: "b", name: "B", equipment: "WEIGHTS", minutes: 60 },
+    ];
+    const plan = buildSchedule(days, state, { pulls: { pullups: false, rows: false }, layout: "ROTATE", week: 1 });
+    expect(plan[0].exercises.map((e) => e.movement)).toEqual(["SQUAT", "PUSH"]); // auto pairing
+    expect(plan[1].exercises.map((e) => e.movement)).toEqual(["HINGE", "PRESS"]);
+  });
+});
+
 describe("ROTATE runs an 8-week super-cycle (each pair walks its own 4-week wave)", () => {
   const state: ProgramState = {
     SQUAT: { trainingMax: 120 },

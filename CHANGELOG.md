@@ -11,6 +11,21 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-07-14
+
+### Added
+- **Customize which lifts go on each session.** The auto-layout (which spreads your lifts across
+  your sessions) is still the default, but in ⚙️ Program settings you can now take over: pick which
+  lifts belong to each session, reorder them, and put a lift on one session, several, or none. A
+  "Reset to automatic layout" button restores the default. Renaming sessions works as before.
+
+### Changed
+- **Removed the per-session time (the "60 min").** It's gone from onboarding, the session cards,
+  the logger and the plan preview — it was arbitrary and just noise. You still **log actual
+  duration** when you train (the useful part). The number of sessions is unchanged.
+- **Trainer notes hint** now suggests you can jot down how much time you want to spend per session
+  (handy when a trainer builds your plan) — replacing the removed structured time field.
+
 ## [0.24.1] - 2026-07-13
 
 ### Changed

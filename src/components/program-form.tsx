@@ -5,7 +5,6 @@ import { useT } from "@/components/i18n-provider";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import {
   MOVEMENTS,
-  SESSION_TIME_OPTIONS,
   PROGRAM_EQUIPMENT,
   WEIGHTED_LAYOUTS,
   type MovementKey,
@@ -181,12 +180,35 @@ export function ProgramForm({
   }
   const preview = buildSchedule(days, previewState, { pulls, layout, week: 1 });
 
+  // ── Custom lift-per-session layout (optional; auto by default) ──
+  const custom = days.some((d) => Array.isArray(d.movements));
+  // Switch to custom: seed each day from the current auto layout so nothing jumps.
+  const enableCustom = () =>
+    setDays((ds) => ds.map((d, i) => ({ ...d, movements: (preview[i]?.exercises ?? []).map((e) => e.movement) })));
+  const disableCustom = () => setDays((ds) => ds.map(({ movements: _drop, ...rest }) => rest));
+  const addLift = (i: number, m: MovementKey) =>
+    setDays((ds) => ds.map((d, j) => (j === i ? { ...d, movements: [...(d.movements ?? []), m] } : d)));
+  const removeLift = (i: number, idx: number) =>
+    setDays((ds) => ds.map((d, j) => (j === i ? { ...d, movements: (d.movements ?? []).filter((_, k) => k !== idx) } : d)));
+  const moveLift = (i: number, idx: number, dir: -1 | 1) =>
+    setDays((ds) =>
+      ds.map((d, j) => {
+        if (j !== i) return d;
+        const arr = [...(d.movements ?? [])];
+        const ni = idx + dir;
+        if (ni < 0 || ni >= arr.length) return d;
+        [arr[idx], arr[ni]] = [arr[ni], arr[idx]];
+        return { ...d, movements: arr };
+      }),
+    );
+
   const daysPayload = JSON.stringify(
     days.map((d, i) => ({
       id: d.id,
       name: d.name.trim() || `${t("strength.session")} ${i + 1}`,
       equipment: d.equipment,
       minutes: d.minutes,
+      ...(Array.isArray(d.movements) ? { movements: d.movements } : {}),
     })),
   );
 
@@ -266,23 +288,12 @@ export function ProgramForm({
                 </button>
               ))}
             </div>
-            <div>
-              <Label>{t("strength.minutes")}</Label>
-              <Select value={String(d.minutes)} onChange={(e) => updateDay(i, { minutes: Number(e.target.value) })}>
-                {SESSION_TIME_OPTIONS.map((mm) => (
-                  <option key={mm} value={mm}>
-                    {mm} {t("common.minutes")}
-                  </option>
-                ))}
-              </Select>
-            </div>
           </CardBody>
         </Card>
       ))}
       <Button type="button" variant="secondary" onClick={addDay} className="w-full">
         + {t("strength.addDay")}
       </Button>
-      <p className="text-xs text-slate-400">{t("strength.minutesAssistHint")}</p>
 
       {/* Single-weighted-day layout */}
       {weightedDays === 1 && (
@@ -306,6 +317,80 @@ export function ProgramForm({
           </div>
         </div>
       )}
+
+      {/* Lifts per session — automatic by default; take over to place lifts yourself. */}
+      <div>
+        <SectionTitle>{t("strength.liftsPerSession")}</SectionTitle>
+        {!custom ? (
+          <div className="mt-1 space-y-2">
+            <p className="text-xs text-slate-500">{t("strength.autoLayoutHint")}</p>
+            <Button type="button" variant="secondary" onClick={enableCustom}>
+              {t("strength.customize")}
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-1 space-y-3">
+            <p className="text-xs text-slate-500">{t("strength.customLayoutHint")}</p>
+            {days.map((d, i) => {
+              const assigned = d.movements ?? [];
+              const available = movements.filter((m) => !assigned.includes(m));
+              return (
+                <Card key={d.id}>
+                  <CardBody className="space-y-2">
+                    <p className="text-sm font-medium text-slate-800">
+                      {d.name.trim() || `${t("strength.session")} ${i + 1}`}
+                    </p>
+                    {assigned.length === 0 ? (
+                      <p className="text-xs text-slate-400">{t("strength.noLiftsYet")}</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {assigned.map((m, idx) => (
+                          <li
+                            key={`${m}_${idx}`}
+                            className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1 text-sm"
+                          >
+                            <span className="text-slate-700">{t(`mv.${m}` as DictKey)}</span>
+                            <span className="flex items-center gap-0.5">
+                              <Button type="button" variant="ghost" size="sm" aria-label="up" disabled={idx === 0} onClick={() => moveLift(i, idx, -1)}>
+                                ▲
+                              </Button>
+                              <Button type="button" variant="ghost" size="sm" aria-label="down" disabled={idx === assigned.length - 1} onClick={() => moveLift(i, idx, 1)}>
+                                ▼
+                              </Button>
+                              <Button type="button" variant="ghost" size="sm" aria-label="remove" onClick={() => removeLift(i, idx)}>
+                                ✕
+                              </Button>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {available.length > 0 && (
+                      <Select
+                        value=""
+                        onChange={(e) => {
+                          const v = e.target.value as MovementKey;
+                          if (v) addLift(i, v);
+                        }}
+                      >
+                        <option value="">+ {t("strength.addLift")}</option>
+                        {available.map((m) => (
+                          <option key={m} value={m}>
+                            {t(`mv.${m}` as DictKey)}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  </CardBody>
+                </Card>
+              );
+            })}
+            <Button type="button" variant="ghost" onClick={disableCustom} className="text-slate-500">
+              {t("strength.resetAuto")}
+            </Button>
+          </div>
+        )}
+      </div>
 
       {/* Per-movement exercise choices + maxima */}
       <SectionTitle>{t("strength.lifts")}</SectionTitle>
@@ -404,7 +489,6 @@ export function ProgramForm({
                   {day.rotation ? ` · ${t("strength.rotationWeek")} ${day.rotation}` : ""})
                 </span>
               </p>
-              <span className="text-xs text-slate-500">{day.minutes} {t("common.minutes")}</span>
             </div>
             <ul className="flex flex-wrap gap-1">
               {day.exercises.map((e, j) => (

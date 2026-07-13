@@ -62,11 +62,22 @@ function parseDays(raw: unknown): DayPlan[] {
         const equipment = (EQUIPMENT_SET.includes(String(o.equipment))
           ? o.equipment
           : "WEIGHTS") as ProgramEquipment;
+        // Optional explicit lift assignment (custom layout). Present (even empty) ⇒ this day is
+        // custom; keep only valid movement keys, deduped, in order. Absent ⇒ auto-layout.
+        let movements: MovementKey[] | undefined;
+        if (Array.isArray(o.movements)) {
+          const seen = new Set<string>();
+          movements = (o.movements as unknown[]).filter(
+            (m): m is MovementKey =>
+              typeof m === "string" && (MOVEMENTS as readonly string[]).includes(m) && !seen.has(m) && (seen.add(m), true),
+          );
+        }
         return {
           id: typeof o.id === "string" && o.id ? o.id : `d${i}_${Math.random().toString(36).slice(2, 8)}`,
           name: String(o.name ?? `Day ${i + 1}`).slice(0, 40),
           equipment,
           minutes: clampMinutes(o.minutes),
+          ...(movements ? { movements } : {}),
         };
       })
     : [];
