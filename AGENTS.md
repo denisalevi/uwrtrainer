@@ -60,6 +60,12 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
   **never set `NODE_ENV`** (cookies work over http in dev).
 - **DB setup**: `npx prisma generate` → `npx prisma migrate deploy` → `npm run db:seed` (tsx; demo
   users, password `password123`). Prefix with the proxy env vars above for `generate`/`seed`.
+  With `DATABASE_URL=file:./dev.db` the database lands at the **repo root** (relative to the
+  process cwd), NOT `prisma/dev.db` — point standalone tsx scripts at the root file.
+- **Playwright in scripts**: the project has no playwright dep; import the global one **by path**
+  (`import { chromium } from "/opt/node22/lib/node_modules/playwright/index.mjs"`) — a bare
+  `import "playwright"` won't resolve. Standalone tsx/mjs scripts must live in the repo root
+  (not `/tmp`) for `node_modules` resolution; name them `*.local.*` and delete before committing.
 - **Dev server**: `npx next dev -H 127.0.0.1 -p 3000` (Turbopack). `npm test` (vitest) and
   `npm run build` (webpack) need no network once deps are installed.
 - **There is NO public URL the user can reach** — this container is isolated and ephemeral. To show

@@ -11,6 +11,22 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+### Fixed
+- **Switching an exercise in the strength logger no longer wipes what you typed.** Each line now
+  remembers the rows you entered per picker choice: switching to "Custom exercise" carries your
+  current sets (and the exercise name) along, and switching back restores exactly what you had —
+  in both directions, as often as you like.
+- **Resuming/editing a strength session keeps the exercise picker and the %-of-max display.**
+  Saved sessions now record which plan exercise each line was on, so reopening a draft no longer
+  degrades every line to "Custom exercise" with the percentages gone.
+- **The debounced autosave saved stale state.** The save fired with the state from one render
+  earlier, so the last change before leaving the page (a final rep, an exercise switch) was
+  silently never persisted. It now always saves the latest state, and a pending save is flushed
+  immediately when the app goes to the background (phone locked, app switched).
+- **Day switching no longer silently discards entered sets.** Re-picking the already-selected day
+  is a no-op, and switching to another day (or "Empty session") asks for confirmation first when
+  you've already entered something.
+
 ## [0.24.1] - 2026-07-13
 
 ### Changed
