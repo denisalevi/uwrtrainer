@@ -27,6 +27,46 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
   is a no-op, and switching to another day (or "Empty session") asks for confirmation first when
   you've already entered something.
 
+## [0.25.3] - 2026-07-14
+
+### Fixed
+- **Saving Program settings no longer resets your weeks.** Editing the plan (a session name, a
+  training max, the day layout, …) rebuilt each lift's state from the form and dropped its live
+  progression, snapping every lift back to the default week. Settings edits now preserve each
+  lift's own week/cycle (and its wave bookkeeping) — only the maxima/exercises/days you changed are
+  updated.
+
+## [0.25.2] - 2026-07-14
+
+### Changed
+- Trimmed the per-lift week-change note to just "Resets where this lift goes from here." (dropped
+  the confusing "This isn't the next step —" lead-in).
+
+## [0.25.1] - 2026-07-14
+
+### Fixed
+- **Half-kilo weights are accepted again.** Weight and training-max inputs no longer force whole
+  numbers — you can enter 37.5, 42.5, etc. (they were rejecting decimals with "the two nearest
+  valid values are 37 and 38").
+- **Lifts use their real names in the settings/session editor.** The session lift editor and the
+  per-lift setup now say "Deadlift", "Bench press", "Overhead press", "Back squat" (matching the
+  plan) instead of the internal pattern names "Hinge", "Push", etc.
+
+## [0.25.0] - 2026-07-14
+
+### Added
+- **Customize which lifts go on each session.** The auto-layout (which spreads your lifts across
+  your sessions) is still the default, but in ⚙️ Program settings you can now take over: pick which
+  lifts belong to each session, reorder them, and put a lift on one session, several, or none. A
+  "Reset to automatic layout" button restores the default. Renaming sessions works as before.
+
+### Changed
+- **Removed the per-session time (the "60 min").** It's gone from onboarding, the session cards,
+  the logger and the plan preview — it was arbitrary and just noise. You still **log actual
+  duration** when you train (the useful part). The number of sessions is unchanged.
+- **Trainer notes hint** now suggests you can jot down how much time you want to spend per session
+  (handy when a trainer builds your plan) — replacing the removed structured time field.
+
 ## [0.24.1] - 2026-07-13
 
 ### Changed

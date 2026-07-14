@@ -21,6 +21,7 @@ import {
   trainingMaxFromOneRepMax,
   defaultFullState,
   advanceStateAfterSession,
+  carryProgression,
   deloadNowState,
   setMovementWeekState,
   catalogEntry,
@@ -62,11 +63,22 @@ function parseDays(raw: unknown): DayPlan[] {
         const equipment = (EQUIPMENT_SET.includes(String(o.equipment))
           ? o.equipment
           : "WEIGHTS") as ProgramEquipment;
+        // Optional explicit lift assignment (custom layout). Present (even empty) ⇒ this day is
+        // custom; keep only valid movement keys, deduped, in order. Absent ⇒ auto-layout.
+        let movements: MovementKey[] | undefined;
+        if (Array.isArray(o.movements)) {
+          const seen = new Set<string>();
+          movements = (o.movements as unknown[]).filter(
+            (m): m is MovementKey =>
+              typeof m === "string" && (MOVEMENTS as readonly string[]).includes(m) && !seen.has(m) && (seen.add(m), true),
+          );
+        }
         return {
           id: typeof o.id === "string" && o.id ? o.id : `d${i}_${Math.random().toString(36).slice(2, 8)}`,
           name: String(o.name ?? `Day ${i + 1}`).slice(0, 40),
           equipment,
           minutes: clampMinutes(o.minutes),
+          ...(movements ? { movements } : {}),
         };
       })
     : [];
@@ -196,7 +208,15 @@ export async function updateStrengthSettings(formData: FormData) {
   const equipment = readEquipment(formData);
   const weightedLayout = readLayout(formData);
   const days = parseDays(formData.get("days"));
-  const state = readMaxima(formData, tmPct, rounding);
+  // Rebuild the maxima/exercise choices from the form, but CARRY OVER each lift's live progression
+  // (per-movement week/cycle + wave state) — a settings edit must never reset where your lifts are.
+  let prevState: ProgramState = {};
+  try {
+    prevState = JSON.parse(program.movements);
+  } catch {
+    prevState = {};
+  }
+  const state = carryProgression(prevState, readMaxima(formData, tmPct, rounding));
   const notes = String(formData.get("notes") ?? "").slice(0, 1000).trim() || null;
 
   await prisma.strengthProgram.update({

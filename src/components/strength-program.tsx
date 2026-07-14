@@ -87,9 +87,6 @@ export async function StrengthProgramView({
                   {day.rotation ? ` · ${t("strength.rotationWeek")} ${day.rotation}` : ""})
                 </span>
               </p>
-              <span className="text-xs text-slate-500">
-                {day.minutes} {t("common.minutes")}
-              </span>
             </div>
 
             <ul className="space-y-2">

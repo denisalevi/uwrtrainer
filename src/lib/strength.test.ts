@@ -33,6 +33,7 @@ import {
   effectiveCycle,
   advanceAfterSession,
   advanceStateAfterSession,
+  carryProgression,
   deloadNowState,
   setMovementWeekState,
   daysBetween,
@@ -564,6 +565,42 @@ describe("buildSchedule", () => {
   });
 });
 
+describe("custom layout (explicit per-day movement lists override the auto split)", () => {
+  const state: ProgramState = {
+    SQUAT: { trainingMax: 120 }, HINGE: { trainingMax: 140 },
+    PUSH: { trainingMax: 100 }, PRESS: { trainingMax: 60 },
+  };
+  it("uses each day's movements verbatim, in order, when any day defines them", () => {
+    const days: DayPlan[] = [
+      { id: "a", name: "A", equipment: "WEIGHTS", minutes: 60, movements: ["HINGE", "SQUAT"] },
+      { id: "b", name: "B", equipment: "WEIGHTS", minutes: 60, movements: ["PRESS", "PUSH"] },
+    ];
+    const plan = buildSchedule(days, state, { pulls: { pullups: false, rows: false }, layout: "ROTATE", week: 1 });
+    expect(plan[0].exercises.map((e) => e.movement)).toEqual(["HINGE", "SQUAT"]); // custom order, not auto
+    expect(plan[1].exercises.map((e) => e.movement)).toEqual(["PRESS", "PUSH"]);
+  });
+  it("dedupes within a day and tolerates an empty day; a lift may sit on several days", () => {
+    const days: DayPlan[] = [
+      { id: "a", name: "A", equipment: "WEIGHTS", minutes: 60, movements: ["SQUAT", "SQUAT", "PUSH"] },
+      { id: "b", name: "B", equipment: "WEIGHTS", minutes: 60, movements: ["SQUAT"] }, // same lift, another day
+      { id: "c", name: "C", equipment: "WEIGHTS", minutes: 60, movements: [] }, // empty day → no lifts
+    ];
+    const plan = buildSchedule(days, state, { pulls: { pullups: false, rows: false }, layout: "ROTATE", week: 1 });
+    expect(plan[0].exercises.map((e) => e.movement)).toEqual(["SQUAT", "PUSH"]); // deduped
+    expect(plan[1].exercises.map((e) => e.movement)).toEqual(["SQUAT"]);
+    expect(plan[2].exercises).toEqual([]);
+  });
+  it("falls back to the auto split when NO day defines movements (unchanged default)", () => {
+    const days: DayPlan[] = [
+      { id: "a", name: "A", equipment: "WEIGHTS", minutes: 60 },
+      { id: "b", name: "B", equipment: "WEIGHTS", minutes: 60 },
+    ];
+    const plan = buildSchedule(days, state, { pulls: { pullups: false, rows: false }, layout: "ROTATE", week: 1 });
+    expect(plan[0].exercises.map((e) => e.movement)).toEqual(["SQUAT", "PUSH"]); // auto pairing
+    expect(plan[1].exercises.map((e) => e.movement)).toEqual(["HINGE", "PRESS"]);
+  });
+});
+
 describe("ROTATE runs an 8-week super-cycle (each pair walks its own 4-week wave)", () => {
   const state: ProgramState = {
     SQUAT: { trainingMax: 120 },
@@ -756,6 +793,31 @@ describe("per-movement auto-progression (each lift its own wave)", () => {
     );
     expect(advanced).toEqual(["SQUAT"]);
     expect(next.SQUAT?.week).toBe(3); // advanced exactly once (2→3)
+  });
+
+  it("carryProgression keeps each lift's week/cycle across a settings rebuild (the reset bug)", () => {
+    // `prev` = live state (mid-progression). `next` = freshly rebuilt from the settings form
+    // (readMaxima) — has the new maxima/exercises but NO progression fields.
+    const prev: ProgramState = {
+      SQUAT: { trainingMax: 120, week: 3, cycle: 2, holds: 1, lastTrainedAt: "2026-07-10" },
+      PUSH: { trainingMax: 100, week: 4, cycle: 2, pendingAmrap: 6, deloadReset: true },
+    };
+    const next: ProgramState = {
+      SQUAT: { trainingMax: 125, weightedExerciseId: "SQUAT_DB" }, // edited TM + exercise, no week
+      PUSH: { trainingMax: 100 },
+    };
+    const merged = carryProgression(prev, next);
+    // Progression carried over…
+    expect(merged.SQUAT).toMatchObject({ week: 3, cycle: 2, holds: 1, lastTrainedAt: "2026-07-10" });
+    expect(merged.PUSH).toMatchObject({ week: 4, cycle: 2, pendingAmrap: 6, deloadReset: true });
+    // …while the edited maxima/exercise from the form win.
+    expect(merged.SQUAT?.trainingMax).toBe(125);
+    expect(merged.SQUAT?.weightedExerciseId).toBe("SQUAT_DB");
+  });
+
+  it("carryProgression leaves a lift alone when prev has no progression for it", () => {
+    const merged = carryProgression({ SQUAT: {} }, { SQUAT: { trainingMax: 100 } });
+    expect(merged.SQUAT).toEqual({ trainingMax: 100 });
   });
 
   it("buildSchedule builds each lift's sets from ITS OWN week when present", () => {
