@@ -7,7 +7,19 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
 import { isTrainer, CATEGORIES, SESSION_STATUSES } from "@/lib/constants";
 import { reconcileRugbyMissed, selfHealCountWeek } from "@/lib/missed";
+import { isSlotAvailableOn } from "@/lib/practice-window";
 import { planItemsEqual } from "@/lib/plan-version";
+
+/** Reject a slot-tied log whose date falls outside the practice's season (or the slot is paused).
+ *  The UI already filters these out; this guards the public server actions against stale forms. */
+async function assertSlotInSeason(practiceSlotId: string, date: Date) {
+  const slot = await prisma.practiceSlot.findUnique({
+    where: { id: practiceSlotId },
+    select: { active: true, validFrom: true, validTo: true },
+  });
+  if (!slot) throw new Error("Practice not found");
+  if (!isSlotAvailableOn(slot, date)) throw new Error("Practice is not offered on this date");
+}
 
 const LogSchema = z.object({
   category: z.enum(CATEGORIES),
@@ -51,6 +63,7 @@ export async function logSession(formData: FormData) {
   if (!parsed.success) throw new Error("Invalid session data");
 
   const fields = sessionFields(parsed.data);
+  if (fields.practiceSlotId) await assertSlotInSeason(fields.practiceSlotId, fields.date);
   await prisma.sessionLog.create({
     data: { userId: user.id, ...fields },
   });
@@ -88,6 +101,14 @@ export async function updateSession(formData: FormData) {
   if (!parsed.success) throw new Error("Invalid session data");
 
   const fields = sessionFields(parsed.data);
+  // Only newly slot-tied/moved edits need the season check — an unchanged slot+date stays valid.
+  if (
+    fields.practiceSlotId &&
+    (fields.practiceSlotId !== existing.practiceSlotId ||
+      fields.date.getTime() !== existing.date.getTime())
+  ) {
+    await assertSlotInSeason(fields.practiceSlotId, fields.date);
+  }
   await prisma.sessionLog.update({ where: { id }, data: fields });
 
   // Rugby practice dedup: reconcile every practice this edit touched — the old slot+date (the
@@ -204,7 +225,7 @@ export async function logPracticeAttendance(formData: FormData) {
 
   const slot = await prisma.practiceSlot.findUnique({
     where: { id: practiceSlotId },
-    select: { id: true, dayOfWeek: true, teamId: true },
+    select: { id: true, dayOfWeek: true, teamId: true, active: true, validFrom: true, validTo: true },
   });
   if (!slot) throw new Error("Practice not found");
   // Only members of the slot's team may record its attendance.
@@ -228,6 +249,9 @@ export async function logPracticeAttendance(formData: FormData) {
   if (date.getDay() !== slot.dayOfWeek) {
     throw new Error("Date does not match the practice's weekday");
   }
+  // Season guard: a paused or out-of-window practice can't take attendance (mirrors the UI filter;
+  // stops stale forms from minting DONE rows — and thus auto-missed penalties — out of season).
+  if (!isSlotAvailableOn(slot, date)) throw new Error("Practice is not offered on this date");
 
   const dayEnd = new Date(date);
   dayEnd.setDate(dayEnd.getDate() + 1);
