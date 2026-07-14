@@ -518,7 +518,7 @@ export const en = {
   "strength.deloadNowHint": "Do an easy week now, then restart this cycle at the same weights.",
   "strength.adjustWeek": "Change week",
   "strength.weekDeload": "4 · Deload",
-  "strength.adjustWarn": "This isn't the next step — it resets where this lift goes from here.",
+  "strength.adjustWarn": "Resets where this lift goes from here.",
   "strength.staleHint": "Not trained in a while — consider a deload or stepping back a week.",
 
   // ── Custom lifts-per-session layout ──
@@ -1052,7 +1052,7 @@ export const de: Record<DictKey, string> = {
   "strength.deloadNowHint": "Jetzt eine leichte Woche, danach diesen Zyklus mit denselben Gewichten neu starten.",
   "strength.adjustWeek": "Woche ändern",
   "strength.weekDeload": "4 · Deload",
-  "strength.adjustWarn": "Das ist nicht der nächste Schritt — es setzt zurück, wie es mit dieser Übung weitergeht.",
+  "strength.adjustWarn": "Setzt zurück, wie es mit dieser Übung weitergeht.",
   "strength.staleHint": "Länger nicht trainiert — überlege einen Deload oder eine Woche zurück.",
 
   // ── Übungen pro Einheit (eigene Aufteilung) ──

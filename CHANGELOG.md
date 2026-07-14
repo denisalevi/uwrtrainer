@@ -11,6 +11,12 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.25.2] - 2026-07-14
+
+### Changed
+- Trimmed the per-lift week-change note to just "Resets where this lift goes from here." (dropped
+  the confusing "This isn't the next step —" lead-in).
+
 ## [0.25.1] - 2026-07-14
 
 ### Fixed
