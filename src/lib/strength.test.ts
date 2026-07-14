@@ -33,6 +33,7 @@ import {
   effectiveCycle,
   advanceAfterSession,
   advanceStateAfterSession,
+  carryProgression,
   deloadNowState,
   setMovementWeekState,
   daysBetween,
@@ -792,6 +793,31 @@ describe("per-movement auto-progression (each lift its own wave)", () => {
     );
     expect(advanced).toEqual(["SQUAT"]);
     expect(next.SQUAT?.week).toBe(3); // advanced exactly once (2→3)
+  });
+
+  it("carryProgression keeps each lift's week/cycle across a settings rebuild (the reset bug)", () => {
+    // `prev` = live state (mid-progression). `next` = freshly rebuilt from the settings form
+    // (readMaxima) — has the new maxima/exercises but NO progression fields.
+    const prev: ProgramState = {
+      SQUAT: { trainingMax: 120, week: 3, cycle: 2, holds: 1, lastTrainedAt: "2026-07-10" },
+      PUSH: { trainingMax: 100, week: 4, cycle: 2, pendingAmrap: 6, deloadReset: true },
+    };
+    const next: ProgramState = {
+      SQUAT: { trainingMax: 125, weightedExerciseId: "SQUAT_DB" }, // edited TM + exercise, no week
+      PUSH: { trainingMax: 100 },
+    };
+    const merged = carryProgression(prev, next);
+    // Progression carried over…
+    expect(merged.SQUAT).toMatchObject({ week: 3, cycle: 2, holds: 1, lastTrainedAt: "2026-07-10" });
+    expect(merged.PUSH).toMatchObject({ week: 4, cycle: 2, pendingAmrap: 6, deloadReset: true });
+    // …while the edited maxima/exercise from the form win.
+    expect(merged.SQUAT?.trainingMax).toBe(125);
+    expect(merged.SQUAT?.weightedExerciseId).toBe("SQUAT_DB");
+  });
+
+  it("carryProgression leaves a lift alone when prev has no progression for it", () => {
+    const merged = carryProgression({ SQUAT: {} }, { SQUAT: { trainingMax: 100 } });
+    expect(merged.SQUAT).toEqual({ trainingMax: 100 });
   });
 
   it("buildSchedule builds each lift's sets from ITS OWN week when present", () => {

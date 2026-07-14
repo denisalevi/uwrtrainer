@@ -11,6 +11,15 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.25.3] - 2026-07-14
+
+### Fixed
+- **Saving Program settings no longer resets your weeks.** Editing the plan (a session name, a
+  training max, the day layout, …) rebuilt each lift's state from the form and dropped its live
+  progression, snapping every lift back to the default week. Settings edits now preserve each
+  lift's own week/cycle (and its wave bookkeeping) — only the maxima/exercises/days you changed are
+  updated.
+
 ## [0.25.2] - 2026-07-14
 
 ### Changed
