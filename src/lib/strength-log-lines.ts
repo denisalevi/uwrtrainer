@@ -15,6 +15,9 @@ export type Suggestion = {
   movement?: MovementKey;
   /** The lift's own wave week these sets were built from — recorded so finishing advances it. */
   week?: number;
+  /** The lift's own cycle when the sets were built — recorded so the saved session shows the
+   * true per-lift position (issue #32), not the program's legacy shared pointer. */
+  cycle?: number;
   label: string;
   trainingMax?: number;
   sets: SetTarget[];
@@ -32,6 +35,7 @@ type Snapshot = {
   trainingMax?: number;
   movement?: MovementKey;
   week?: number;
+  cycle?: number;
 };
 export type Line = Snapshot & {
   key: string;
@@ -72,6 +76,7 @@ export function seedLines(day: LoggerDay | undefined): Line[] {
     trainingMax: sug.trainingMax,
     movement: sug.movement,
     week: sug.week,
+    cycle: sug.cycle,
     sets: seedSets(sug),
   }));
 }
@@ -106,6 +111,7 @@ export function switchExercise(l: Line, exerciseId: string, suggestions: Suggest
       trainingMax: l.trainingMax,
       movement: l.movement,
       week: l.week,
+      cycle: l.cycle,
     },
   };
   const kept = l.stash?.[exerciseId];
@@ -116,6 +122,7 @@ export function switchExercise(l: Line, exerciseId: string, suggestions: Suggest
       exerciseId,
       movement: undefined,
       week: undefined,
+      cycle: undefined,
       trainingMax: undefined,
       sets: l.sets.length > 0 ? l.sets : [{ weight: "", reps: "", kind: "main" }],
       stash,
@@ -130,6 +137,7 @@ export function switchExercise(l: Line, exerciseId: string, suggestions: Suggest
     trainingMax: sug.trainingMax,
     movement: sug.movement,
     week: sug.week,
+    cycle: sug.cycle,
     done: false,
     sets: seedSets(sug),
     stash,
@@ -152,6 +160,7 @@ export function restoreLines(details: Record<string, unknown>, day: LoggerDay | 
       trainingMax?: number;
       movement?: MovementKey;
       week?: number;
+      cycle?: number;
       sets?: Array<Record<string, unknown>>;
     }>
   ).map((e) => {
@@ -170,9 +179,11 @@ export function restoreLines(details: Record<string, unknown>, day: LoggerDay | 
       name,
       done: !!e.done,
       trainingMax: typeof e.trainingMax === "number" ? e.trainingMax : undefined,
-      // Preserve the movement + logged week so re-finishing an edited session advances the right lift.
+      // Preserve the movement + logged week/cycle so re-finishing an edited session advances the
+      // right lift and the saved details keep showing the true per-lift position.
       movement: e.movement,
       week: typeof e.week === "number" ? e.week : undefined,
+      cycle: typeof e.cycle === "number" ? e.cycle : undefined,
       sets: (e.sets ?? []).map((s) => ({
         weight: s.weight != null ? String(s.weight) : "",
         reps: s.reps != null ? String(s.reps) : "",

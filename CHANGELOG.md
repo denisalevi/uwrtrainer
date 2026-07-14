@@ -11,7 +11,32 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+### Added
+- **Tournament / league game logging (#31).** New entry on the Log page: tick off who played,
+  like practice attendance (anyone can submit, editable from the feed), with an optional event
+  label and a free date — upcoming games can be pre-logged. Tournaments don't count as rugby
+  practices anywhere; instead they **pause the selected players' weekly goals**: no auto-missed
+  entries, full base points, streak kept. How much is paused is a team setting (⚙️ → Tournaments):
+  the week leading up to the game (default), that week + the week after, or nothing.
+- **Per-lift progression history (#30).** Whenever a lift's maxima are overwritten — a cycle
+  closing or a manual edit in Program settings — the old and new state are recorded (including
+  the increase/hold/reset decision), shown under "Progression history" on the Strength page and
+  stored for later analysis/plotting.
+- **Workout in progress follows you (#33).** Leaving the strength logger no longer hides a
+  running session: a persistent bar (on every page) shows the session clock and the rest
+  countdown and taps back into the exact session; returning picks the rest timer up mid-count.
+  The Log page also offers "Continue today's workout" while an unfinished draft exists.
+
+### Changed
+- **Leaderboards: tied scores share the medal (#29).** Everyone with the same points gets the
+  same rank — three tied at the top are all gold, the next distinct score is rank 4.
+- **Logged strength sessions show each lift's own cycle/week (#32)** (e.g. "C3 · W2" per lift)
+  instead of the program's old session-level pointer, in the feed, dashboard and team views.
+
 ### Fixed
+- **Out-of-season practices are rejected server-side too (#28).** The season window was already
+  enforced in the UI, auto-missed generation and scoring; now stale/crafted submissions can't
+  log or take attendance for a practice outside its window either.
 - **Switching an exercise in the strength logger no longer wipes what you typed.** Each line now
   remembers the rows you entered per picker choice: switching to "Custom exercise" carries your
   current sets (and the exercise name) along, and switching back restores exactly what you had —

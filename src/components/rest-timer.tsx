@@ -23,6 +23,9 @@ export type RestTimerController = {
   finished: boolean;
   /** Start (or restart) the countdown for a given set kind. */
   startForKind: (kind: SetKind) => void;
+  /** Resume a countdown with a known number of seconds left (e.g. from the persisted
+   *  wall-clock deadline after navigating back to the logger mid-rest). */
+  startWithSeconds: (secs: number) => void;
   pause: () => void;
   resume: () => void;
   reset: () => void;
@@ -146,6 +149,17 @@ export function useRestTimer(settings: RestTimerSettings): RestTimerController {
     [primeAudio],
   );
 
+  const startWithSeconds = useCallback((secs: number) => {
+    if (secs <= 0) return;
+    // No primeAudio here — this runs from an effect, not a gesture; the first tap on the page
+    // unlocks audio as usual, and vibrate works regardless.
+    deadlineRef.current = Date.now() + secs * 1000;
+    setTotal(secs);
+    setRemaining(secs);
+    setFinished(false);
+    setRunning(true);
+  }, []);
+
   const pause = useCallback(() => {
     const dl = deadlineRef.current;
     if (dl != null) setRemaining(Math.max(0, Math.ceil((dl - Date.now()) / 1000)));
@@ -183,6 +197,7 @@ export function useRestTimer(settings: RestTimerSettings): RestTimerController {
     running,
     finished,
     startForKind,
+    startWithSeconds,
     pause,
     resume,
     reset,

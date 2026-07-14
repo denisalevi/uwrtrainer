@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
 import { getLeaderboard } from "@/lib/stats";
+import { competitionRanks } from "@/lib/rank";
 import { isTrainer, type LeaderboardMetric } from "@/lib/constants";
 import type { Period } from "@/lib/dates";
 import type { DictKey } from "@/lib/i18n/dictionaries";
@@ -58,6 +59,8 @@ export default async function LeaderboardsPage({
         <p className="text-sm text-slate-500">{t(trainer ? "lb.noneTrainer" : "lb.none")}</p>
       ) : (
         boards.map(({ board, ranked }) => {
+          // Competition ranking: everyone tied on points shares the same rank/medal.
+          const ranks = competitionRanks(ranked.map((r) => r.value));
           return (
             <section key={board.id} className="space-y-2">
               <div className="flex items-center justify-between">
@@ -80,7 +83,7 @@ export default async function LeaderboardsPage({
                         )}
                       >
                         <span className="w-6 text-center font-semibold text-slate-400">
-                          {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
+                          {ranks[i] === 1 ? "🥇" : ranks[i] === 2 ? "🥈" : ranks[i] === 3 ? "🥉" : ranks[i]}
                         </span>
                         <span className="flex-1 font-medium text-slate-800">{row.name}</span>
                         <span className="font-bold text-teal-700">

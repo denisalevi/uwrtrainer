@@ -10,6 +10,7 @@ import {
   PRACTICE_TIERS,
   LEADERBOARD_VISIBILITY,
 } from "@/lib/constants";
+import { TOURNAMENT_EXEMPTION_KEY, isTournamentExemption } from "@/lib/tournament";
 
 async function requireTrainerAction() {
   const user = await getCurrentUser();
@@ -120,6 +121,25 @@ export async function updateLeaderboards(formData: FormData) {
     }),
   );
   revalidatePath("/settings");
+  revalidatePath("/leaderboards");
+  redirect("/settings");
+}
+
+/**
+ * Team-wide tournament exemption (#31): how much a logged tournament / league game pauses the
+ * selected players' weekly goals — nothing, the week of the game, or that week plus the next.
+ */
+export async function setTournamentExemption(formData: FormData) {
+  await requireTrainerAction();
+  const v = String(formData.get("tournamentExemption") ?? "");
+  if (!isTournamentExemption(v)) throw new Error("Invalid setting");
+  await prisma.setting.upsert({
+    where: { key: TOURNAMENT_EXEMPTION_KEY },
+    create: { key: TOURNAMENT_EXEMPTION_KEY, value: v },
+    update: { value: v },
+  });
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
   revalidatePath("/leaderboards");
   redirect("/settings");
 }

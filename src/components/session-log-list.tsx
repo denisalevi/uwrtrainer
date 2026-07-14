@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { getServerT } from "@/lib/i18n/server";
 import { startOfWeek, addDays } from "@/lib/dates";
-import { getWeekItemsForWeeks, type WeekPlanItem } from "@/lib/stats";
+import { getWeekItemsForWeeks, getExemptWeekSet } from "@/lib/stats";
+import { TOURNAMENT_CATEGORY, tournamentLabel } from "@/lib/tournament";
 import { StrengthWorkoutView } from "@/components/strength-workout-view";
 import { MissedActions } from "@/components/missed-actions";
 import { weeklySummaryLabel, missedResolveAction } from "@/lib/missed-label";
@@ -89,6 +90,10 @@ export async function SessionLogList({
   const weekItems = planUserId
     ? await getWeekItemsForWeeks(planUserId, weekKeys.map((k) => new Date(k)))
     : null;
+  // Tournament-exempt weeks (#31): goals are paused, the header says so instead of judging.
+  const exemptWeeks = planUserId
+    ? await getExemptWeekSet(planUserId, weekKeys.map((k) => new Date(k)))
+    : null;
 
   const dateFmt = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString(undefined, opts);
 
@@ -122,8 +127,10 @@ export async function SessionLogList({
         // Cap per item so overshooting one category can't mask a miss in another.
         const done = items?.reduce((s, i) => s + Math.min(i.done, i.target), 0) ?? 0;
         const excusedAll = autos.length > 0 && autos.every((a) => a.missReason);
+        const exempt = exemptWeeks?.has(wk) ?? false;
         let tone: WeekTone;
-        if (!items || total === 0) tone = "neutral";
+        if (exempt) tone = "green"; // tournament week — counts as fully adherent
+        else if (!items || total === 0) tone = "neutral";
         else if (done >= total) tone = "green";
         else if (wk === currentWeekKey) tone = "neutral"; // week still open — don't judge it yet
         else tone = excusedAll ? "grey" : "red";
@@ -134,11 +141,15 @@ export async function SessionLogList({
           <>
             <span className="text-sm font-semibold">{weekLabel}</span>
             <span className={`flex shrink-0 items-center gap-1.5 text-xs font-medium ${s.count}`}>
-              {hasBreakdown && (
-                <span>
-                  {tone === "green" && "✓ "}
-                  {t("week.sessionsDone", { done, total })}
-                </span>
+              {exempt ? (
+                <span>🏆 {t("week.goalsPaused")}</span>
+              ) : (
+                hasBreakdown && (
+                  <span>
+                    {tone === "green" && "✓ "}
+                    {t("week.sessionsDone", { done, total })}
+                  </span>
+                )
               )}
               {hasBreakdown && (
                 <span className="text-slate-400 transition-transform group-open:rotate-90">›</span>
@@ -260,14 +271,22 @@ async function SessionRow({
       extras = {};
     }
   }
-  const title = summaryLabel ?? log.practiceSlot?.label ?? t(`cat.${log.category}` as DictKey);
+  const isTournament = log.category === TOURNAMENT_CATEGORY;
+  const title =
+    summaryLabel ??
+    log.practiceSlot?.label ??
+    (isTournament ? tournamentLabel(log.details) ?? t("cat.TOURNAMENT") : null) ??
+    t(`cat.${log.category}` as DictKey);
   // A rugby session tied to a practice slot IS a team-practice attendance tick — edit it in the
-  // group attendance dialogue (add/remove people), not the detached personal log form.
+  // group attendance dialogue (add/remove people), not the detached personal log form. Same for
+  // tournaments (they're group events keyed by date).
   const editHref = isStrength
     ? `/strength/log?id=${log.id}`
     : log.category === "RUGBY" && log.practiceSlotId
       ? `/attendance?slot=${log.practiceSlotId}&date=${localDayKey(log.date)}&edit=1`
-      : `/log/${log.id}`;
+      : isTournament
+        ? `/attendance?mode=tournament&date=${localDayKey(log.date)}&edit=1`
+        : `/log/${log.id}`;
   const showEdit = editable && !log.auto;
 
   const subtitle = [

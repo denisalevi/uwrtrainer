@@ -90,6 +90,27 @@ export function scoreWeek(
 }
 
 /**
+ * A tournament-exempt week (issue #31) counts as fully adherent for the players who played:
+ * full base points and a kept streak, so a game weekend never costs ground on the month/year
+ * leaderboards. The actual score still wins when it was BETTER (full adherence + overshoot
+ * bonus). Weeks without a plan stay untouched — there is nothing to exempt.
+ */
+export function applyWeekExemption(
+  score: WeekScore,
+  config: ScoringConfig = DEFAULT_SCORING,
+): WeekScore {
+  if (!score.hasPlan) return score;
+  const basePoints = Math.max(score.basePoints, config.basePoints);
+  return {
+    adherencePct: Math.max(score.adherencePct, 1),
+    basePoints,
+    overshootBonus: score.overshootBonus,
+    points: Math.max(score.points, basePoints + score.overshootBonus),
+    hasPlan: true,
+  };
+}
+
+/**
  * Trailing streak of consecutive "full adherence" weeks.
  * `weeklyPcts` is chronological (oldest first); the last entry is the most
  * recent completed week.
