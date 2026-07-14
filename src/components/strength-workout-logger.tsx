@@ -7,6 +7,12 @@ import { saveStrengthWorkout, finishStrengthWorkout } from "@/app/actions/streng
 import { deleteSession } from "@/app/actions/training";
 import { Button, Card, CardBody, Input, Label, Select, cn } from "@/components/ui";
 import { useRestTimer, RestTimerBar, type RestTimerSettings } from "@/components/rest-timer";
+import {
+  ACTIVE_WORKOUT_MAX_AGE_MS,
+  clearActiveWorkout,
+  readActiveWorkout,
+  writeActiveWorkout,
+} from "@/lib/active-workout";
 // Line/set state logic is pure and unit-tested (switching exercises must never lose input).
 import {
   CUSTOM_LINE_ID,
@@ -190,12 +196,35 @@ export function StrengthWorkoutLogger({
     });
   }
 
+  /**
+   * Keep the global "workout in progress" marker (issue #33) in sync while this session is
+   * live, so the app-shell bar can show the timers on every page. Only a RECENT session start
+   * counts as live — editing last week's workout must not resurrect the bar.
+   */
+  function syncActiveMarker() {
+    const sa = startedAtRef.current;
+    if (sa == null || Date.now() - sa > ACTIVE_WORKOUT_MAX_AGE_MS) return;
+    writeActiveWorkout({
+      startedAt: sa,
+      date: dateRef.current,
+      dayName: day?.name,
+      logId: logIdRef.current,
+    });
+  }
+  // A live session resumed after navigating away re-arms the marker on mount (and refreshes
+  // its logId/dayName as they become known).
+  useEffect(() => {
+    syncActiveMarker();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayId]);
+
   /** Start the session clock on the first real interaction (day pick / first set edit). */
   function markStarted() {
     if (startedAtRef.current == null) {
       startedAtRef.current = Date.now();
       setStartedAt(startedAtRef.current);
     }
+    syncActiveMarker();
   }
 
   async function save() {
@@ -210,6 +239,7 @@ export function StrengthWorkoutLogger({
       });
       logIdRef.current = res.id;
       setStatus("saved");
+      syncActiveMarker(); // the resume link gets precise once the draft row exists
     } catch {
       setStatus("idle");
     }
@@ -237,6 +267,32 @@ export function StrengthWorkoutLogger({
     // save() reads everything through refs, so the first-render closure is safe here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Coming back to the logger mid-rest: pick the countdown back up from the persisted
+  // wall-clock deadline, so the in-page bar shows exactly what the global bar was showing.
+  useEffect(() => {
+    const endsAt = readActiveWorkout()?.rest?.endsAt;
+    if (rest.enabled && endsAt != null && endsAt > Date.now()) {
+      rest.startWithSeconds(Math.ceil((endsAt - Date.now()) / 1000));
+    }
+    // Mount-only: restoring once is the point; rest state changes must not re-trigger it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mirror the rest countdown into the global marker (wall-clock deadline), so the app-shell
+  // bar keeps counting it down after navigating away. Cleared on pause/dismiss/finish.
+  useEffect(() => {
+    if (startedAtRef.current == null) return;
+    if (rest.running) {
+      writeActiveWorkout({
+        rest: { endsAt: Date.now() + rest.remaining * 1000, vibrate: restTimer.vibrate },
+      });
+    } else {
+      writeActiveWorkout({ rest: null });
+    }
+    // rest.remaining is read once at flip time (the deadline); ticking must not re-run this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rest.running]);
 
   function mutate(fn: (ls: Line[]) => Line[]) {
     setLines((ls) => fn(ls));
@@ -647,6 +703,7 @@ export function StrengthWorkoutLogger({
               setStatus("idle");
               return;
             }
+            clearActiveWorkout(); // the session is finished — drop the global timer bar
             router.push("/dashboard");
           }}
         >
@@ -660,6 +717,7 @@ export function StrengthWorkoutLogger({
           action={deleteSession}
           onSubmit={(e) => {
             if (!confirm(t("log.delete"))) e.preventDefault();
+            else clearActiveWorkout();
           }}
         >
           <input type="hidden" name="id" value={resume.id} />

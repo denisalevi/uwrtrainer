@@ -120,6 +120,9 @@ export const en = {
   "feed.editAttendance": "Edit attendance",
   "log.teamPractice": "Record a team practice (who came)",
   "log.ownTraining": "No practice — on my own",
+  "log.resumeWorkout": "Continue today's workout",
+  "active.workoutInProgress": "Workout in progress",
+  "active.continue": "Continue",
 
   // ── Auto-missed badge (Part C) ──
   "missed.autoBadge": "auto",
@@ -685,6 +688,9 @@ export const de: Record<DictKey, string> = {
   "feed.editAttendance": "Anwesenheit bearbeiten",
   "log.teamPractice": "Team-Training erfassen (wer war da)",
   "log.ownTraining": "Kein Training — auf eigene Faust",
+  "log.resumeWorkout": "Heutiges Workout fortsetzen",
+  "active.workoutInProgress": "Workout läuft",
+  "active.continue": "Weiter",
 
   // ── Auto-Verpasst-Badge (Teil C) ──
   "missed.autoBadge": "auto",
