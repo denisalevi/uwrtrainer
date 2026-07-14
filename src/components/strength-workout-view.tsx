@@ -18,6 +18,7 @@ type ViewDetails = {
   week?: number;
   warmup?: boolean;
   stretch?: boolean;
+  notes?: string;
   exercises?: ViewExercise[];
 };
 
@@ -70,9 +71,21 @@ export async function StrengthWorkoutView({
   const { t } = await getServerT();
   const data = parse(details);
   const exercises = Array.isArray(data?.exercises) ? data!.exercises : [];
+  const notes = typeof data?.notes === "string" ? data.notes.trim() : "";
 
-  if (!data || exercises.length === 0) {
+  if (!data || (exercises.length === 0 && !notes)) {
     return <p className="text-sm text-slate-500">{t("team.noWorkoutDetail")}</p>;
+  }
+
+  // A notes-only session (started empty, described in text) still deserves a card.
+  if (exercises.length === 0) {
+    return (
+      <Card>
+        <CardBody>
+          <p className="whitespace-pre-wrap text-sm text-slate-600">{notes}</p>
+        </CardBody>
+      </Card>
+    );
   }
 
   // Which kinds / AMRAP actually appear — drives the legend.
@@ -171,6 +184,11 @@ export async function StrengthWorkoutView({
                 </span>
               ))}
             </div>
+          )}
+          {notes && (
+            <p className="whitespace-pre-wrap border-t border-slate-100 pt-2 text-xs text-slate-600">
+              {notes}
+            </p>
           )}
           {(data.warmup || data.stretch) && (
             <div className="flex gap-3 pt-1 text-xs text-slate-500">

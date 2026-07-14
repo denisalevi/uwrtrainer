@@ -388,6 +388,8 @@ export const en = {
   "strength.saving": "Saving…",
   "strength.saved": "Saved",
   "strength.autosaveHint": "Saved automatically as you type.",
+  "strength.sessionNotes": "Notes",
+  "strength.sessionNotesPlaceholder": "Anything else about this session — exercises without numbers, how it felt…",
   "strength.exactNote":
     "Weights are exact percentages of your training max — round down to what you can load; below the empty bar (~20 kg), just use the bar.",
   "strength.elapsed": "Elapsed",
@@ -959,6 +961,8 @@ export const de: Record<DictKey, string> = {
   "strength.saving": "Speichern…",
   "strength.saved": "Gespeichert",
   "strength.autosaveHint": "Wird beim Tippen automatisch gespeichert.",
+  "strength.sessionNotes": "Notizen",
+  "strength.sessionNotesPlaceholder": "Alles Weitere zu dieser Einheit — Übungen ohne Zahlen, wie es lief…",
   "strength.exactNote":
     "Die Gewichte sind exakte Prozente deines Training Max — runde ab auf das, was du auflegen kannst; unterhalb der leeren Stange (~20 kg) nimm einfach die Stange.",
   "strength.elapsed": "Verstrichen",

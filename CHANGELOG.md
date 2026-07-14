@@ -9,6 +9,20 @@ uses [Semantic Versioning](https://semver.org/). While we're pre-1.0, a new **mi
 Release process: `npm version <patch|minor>` (bumps `package.json` and creates the
 `vX.Y.Z` git tag), then `git push --follow-tags`.
 
+## [Unreleased]
+
+### Added
+- **Session notes on strength workouts.** Every strength session (including an empty one) has a
+  free-text notes field at the bottom — describe exercises the structured fields can't capture, or
+  just write down what you did. Notes autosave with the session and show on the workout card in
+  the feed, dashboard and team views; a notes-only session renders its text instead of "no detail".
+
+### Changed
+- **The bodyweight program variant is hidden.** New programs can no longer pick "Bodyweight only"
+  days (nobody uses them; a routine-based replacement is planned — see
+  `docs/plans/custom-routines.md`). Existing programs with bodyweight days keep working and still
+  show the equipment switch so they can be moved back to weights.
+
 ## [0.27.0] - 2026-07-14
 
 ### Added
