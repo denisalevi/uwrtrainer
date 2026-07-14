@@ -191,5 +191,6 @@ bonus. All weights are tunable in `DEFAULT_SCORING`.
 
 ## Roadmap (not yet built)
 
-Offline logging + background sync · goals & countdowns (tournament dates, weeks-until) ·
-activity feed / notifications · Postgres option + multi-team support. (Also mirrored in README.)
+Custom workout routines (per-user + trainer-published + copy-from-teammate; design in
+`docs/plans/custom-routines.md`) · offline logging + background sync · goals & countdowns
+(tournament dates, weeks-until) · notifications · Postgres option. (Also mirrored in README.)

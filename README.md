@@ -19,12 +19,20 @@ from a single Docker Compose stack.
   (everyone), one **aim-to-attend**, and **optional** extras.
 - **Plans** — each player commits to which practices they'll attend plus weekly targets for
   strength / cardio / mobility. Players set their own, or a trainer sets it with them.
-- **Logging** — quick session logging (rugby attendance, strength sets/reps/weight, cardio
-  heart-rate zone), including logging a *missed* session with a reason.
-- **Strength program** — a guided Wendler 5/3/1-style plan that grows with you and works even
-  with **no equipment at all** (bodyweight progressions). Picks weights/reps for you, adapts
-  to how many days and minutes you can train, and explains itself in-app. Full model in
-  [`TRAINING.md`](TRAINING.md).
+- **Logging** — quick session logging (rugby attendance, whole strength workouts, cardio
+  heart-rate zone, free-text session notes), including logging a *missed* session with a
+  reason. Missed plan sessions are flagged automatically at the end of the week.
+- **Group attendance & games** — tick off who came to a practice, and log tournament /
+  league games (which pause the selected players' weekly goals instead of counting
+  against them).
+- **Activity feed** — everything the team logged, newest first, with practice attendance
+  editable in place.
+- **Strength program** — a guided Wendler 5/3/1-style plan: it picks weights/reps for you,
+  every lift progresses on its own automatic 4-week wave as you log it, and it explains
+  itself in-app. Sessions are logged in a workout logger with autosave, rest timer, session
+  clock and per-lift history. Full model in [`TRAINING.md`](TRAINING.md).
+- **Multi-team** — several teams in one instance, with join codes, an account-less roster
+  (claim your entry when you sign up), and per-team feeds/leaderboards.
 - **Adherence scoring** — full adherence is worth a fixed weekly base regardless of plan
   size; missing a mandatory practice hurts more than an optional one; overshoot earns a small
   capped bonus. All tunable in [`src/lib/scoring.ts`](src/lib/scoring.ts).
@@ -139,10 +147,13 @@ With Node installed locally you can instead use `npm run dev`, `npm test`, `npm 
 
 ## Roadmap (not yet built)
 
+- Custom workout routines — per-user and trainer-published, copyable from teammates, with
+  reps/seconds/tempo prescriptions (design in
+  [`docs/plans/custom-routines.md`](docs/plans/custom-routines.md)).
 - Offline logging + background sync (log at the pool with no signal).
 - Goals & countdowns (e.g. tournament dates, weeks-until timers).
-- Activity feed / notifications ("who did what when") for peer motivation.
-- Postgres option + multi-team support.
+- Notifications for peer motivation.
+- Postgres option.
 
 ## Project layout
 

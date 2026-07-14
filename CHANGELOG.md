@@ -9,7 +9,7 @@ uses [Semantic Versioning](https://semver.org/). While we're pre-1.0, a new **mi
 Release process: `npm version <patch|minor>` (bumps `package.json` and creates the
 `vX.Y.Z` git tag), then `git push --follow-tags`.
 
-## [Unreleased]
+## [0.28.0] - 2026-07-14
 
 ### Added
 - **Session notes on strength workouts.** Every strength session (including an empty one) has a
@@ -22,6 +22,12 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
   days (nobody uses them; a routine-based replacement is planned — see
   `docs/plans/custom-routines.md`). Existing programs with bodyweight days keep working and still
   show the equipment switch so they can be moved back to weights.
+- **Descriptions brought up to date.** The strength intro, onboarding text, settings hint and the
+  "How this works" explainer no longer mention the hidden bodyweight variant, the removed
+  per-session time, or the old automatic Boring-But-Big rule (it's the one-tap opt-in with
+  per-user settings). README and TRAINING.md refreshed to match what the app actually offers
+  (feed, group attendance, tournaments, multi-team, per-lift progression), and the roadmap
+  pruned to what's genuinely not built yet.
 
 ## [0.27.0] - 2026-07-14
 

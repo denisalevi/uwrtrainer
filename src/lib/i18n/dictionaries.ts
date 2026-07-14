@@ -311,12 +311,12 @@ export const en = {
   "day.6": "Saturday",
 
   "strength.title": "Strength program",
-  "strength.intro": "A guided plan that grows with you — works even with no equipment.",
+  "strength.intro": "A guided plan that grows with you — every lift steps up automatically as you log it.",
   "strength.open": "Open my strength program",
   "strength.noProgram": "You don't have a strength program yet.",
   "strength.setup": "Set up my program",
   "strength.wizardIntro":
-    "Tell us what you have and how often you can train. You can start with nothing at all and refine later.",
+    "Set up your training sessions and a starting weight per lift — a recent set is enough, we estimate the rest. Everything can be changed later.",
   "strength.equipment": "What do you have?",
   "strength.eq.NONE": "Nothing — bodyweight only",
   "strength.eq.PULLUP_BAR": "A pull-up bar",
@@ -374,7 +374,7 @@ export const en = {
   "strength.session": "Session",
   "strength.backToPlan": "Back to plan",
   "strength.programSettings": "Program settings",
-  "strength.settingsHint": "Change equipment, days or session length. Changing equipment restarts the program.",
+  "strength.settingsHint": "Rename sessions, change days, lifts and maxima. Your lifts keep their progress.",
   "strength.updateSettings": "Save settings",
   "strength.maxima": "Your maxima",
   "strength.tmPct": "Training max %",
@@ -473,9 +473,9 @@ export const en = {
   "strength.explainStart":
     "Where to start: enter a recent set and we estimate your numbers, or just start light. Better too easy than too hard.",
   "strength.explainSessions":
-    "Days & time decide the schedule: 4 short days, or 2 longer sessions, or one minimal full-body day — your call.",
+    "Your sessions per week decide the schedule: the lifts are spread across them automatically — or take over in the settings and lay them out yourself.",
   "strength.explainAssistance":
-    "Extra volume (Boring But Big): on 60+ minute sessions we add 5×10 at about 50% to build muscle. Short on time? It's dropped automatically — the main 5/3/1 sets are what matter.",
+    "Extra volume (Boring But Big): one tap in the logger adds light high-rep sets (default 10 reps at ~50%, adjustable in Settings) to build muscle. Optional — the main 5/3/1 sets are what matter.",
   "strength.explain1rm":
     "1RM = one-rep max: the most you could lift once. We never train at it — we estimate it from a set you can actually do, then base everything on a percentage below it.",
   "strength.explainTmAcronym":
@@ -884,12 +884,12 @@ export const de: Record<DictKey, string> = {
   "day.6": "Samstag",
 
   "strength.title": "Kraftprogramm",
-  "strength.intro": "Ein geführter Plan, der mit dir mitwächst — funktioniert auch ganz ohne Ausrüstung.",
+  "strength.intro": "Ein geführter Plan, der mit dir mitwächst — jede Übung steigert sich automatisch, wenn du sie loggst.",
   "strength.open": "Mein Kraftprogramm öffnen",
   "strength.noProgram": "Du hast noch kein Kraftprogramm.",
   "strength.setup": "Programm einrichten",
   "strength.wizardIntro":
-    "Sag uns, was du hast und wie oft du trainieren kannst. Du kannst mit gar nichts starten und später verfeinern.",
+    "Richte deine Trainingseinheiten ein und gib pro Übung ein Startgewicht an — ein kürzlicher Satz reicht, den Rest schätzen wir. Alles lässt sich später ändern.",
   "strength.equipment": "Was hast du?",
   "strength.eq.NONE": "Nichts — nur Körpergewicht",
   "strength.eq.PULLUP_BAR": "Eine Klimmzugstange",
@@ -947,7 +947,7 @@ export const de: Record<DictKey, string> = {
   "strength.session": "Einheit",
   "strength.backToPlan": "Zurück zum Plan",
   "strength.programSettings": "Programm-Einstellungen",
-  "strength.settingsHint": "Ausrüstung, Tage oder Dauer ändern. Bei Ausrüstungswechsel startet das Programm neu.",
+  "strength.settingsHint": "Einheiten umbenennen, Tage, Übungen und Maxima anpassen. Deine Übungen behalten ihren Fortschritt.",
   "strength.updateSettings": "Einstellungen speichern",
   "strength.maxima": "Deine Maxima",
   "strength.tmPct": "Trainingsmaximum %",
@@ -1046,9 +1046,9 @@ export const de: Record<DictKey, string> = {
   "strength.explainStart":
     "Wo starten: einen kürzlichen Satz eingeben — wir schätzen deine Werte — oder einfach leicht beginnen. Lieber zu leicht als zu schwer.",
   "strength.explainSessions":
-    "Tage & Zeit bestimmen den Plan: 4 kurze Tage, oder 2 längere Einheiten, oder ein minimaler Ganzkörper-Tag — deine Wahl.",
+    "Deine Einheiten pro Woche bestimmen den Plan: Die Übungen werden automatisch darauf verteilt — oder du übernimmst die Aufteilung in den Einstellungen selbst.",
   "strength.explainAssistance":
-    "Zusatzvolumen (Boring But Big): bei Einheiten ab 60 Min ergänzen wir 5×10 mit etwa 50 % für mehr Muskelaufbau. Wenig Zeit? Wird automatisch weggelassen — die 5/3/1-Hauptsätze zählen.",
+    "Zusatzvolumen (Boring But Big): Ein Tipp im Logger ergänzt leichte Sätze mit vielen Wiederholungen (Standard 10 Wdh. mit ~50 %, einstellbar in den Einstellungen) für mehr Muskelaufbau. Optional — die 5/3/1-Hauptsätze zählen.",
   "strength.explain1rm":
     "1RM = Einer-Maximum: das Höchste, das du einmal heben könntest. Wir trainieren nie damit — wir schätzen es aus einem Satz, den du wirklich schaffst, und rechnen dann mit einem Prozentsatz darunter.",
   "strength.explainTmAcronym":
