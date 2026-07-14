@@ -21,6 +21,7 @@ import {
   trainingMaxFromOneRepMax,
   defaultFullState,
   advanceStateAfterSession,
+  inferCycleDecision,
   carryProgression,
   deloadNowState,
   setMovementWeekState,
@@ -219,20 +220,44 @@ export async function updateStrengthSettings(formData: FormData) {
   const state = carryProgression(prevState, readMaxima(formData, tmPct, rounding));
   const notes = String(formData.get("notes") ?? "").slice(0, 1000).trim() || null;
 
-  await prisma.strengthProgram.update({
-    where: { id: program.id },
-    data: {
-      equipment,
-      weightedLayout,
-      notes,
-      daysPerWeek: days.length,
-      minutesPerSession: days[0]?.minutes ?? program.minutesPerSession,
-      trainingMaxPct: tmPct,
-      rounding,
-      movements: JSON.stringify(state),
-      days: JSON.stringify(days),
-    },
-  });
+  // History (#30): a settings edit can overwrite a lift's maxima by hand — keep the old values.
+  const historyRows = MOVEMENTS.filter((m) => {
+    const prev = prevState[m] ?? {};
+    const next = state[m] ?? {};
+    return (
+      (prev.trainingMax ?? 0) !== (next.trainingMax ?? 0) ||
+      (prev.repMax ?? 0) !== (next.repMax ?? 0) ||
+      (prev.levelIndex ?? 0) !== (next.levelIndex ?? 0)
+    );
+  }).map((m) => ({
+    userId: user!.id,
+    programId: program.id,
+    movement: m,
+    source: "SETTINGS",
+    cycle: state[m]?.cycle ?? program.cycle,
+    before: JSON.stringify(prevState[m] ?? {}),
+    after: JSON.stringify(state[m] ?? {}),
+  }));
+
+  await prisma.$transaction([
+    prisma.strengthProgram.update({
+      where: { id: program.id },
+      data: {
+        equipment,
+        weightedLayout,
+        notes,
+        daysPerWeek: days.length,
+        minutesPerSession: days[0]?.minutes ?? program.minutesPerSession,
+        trainingMaxPct: tmPct,
+        rounding,
+        movements: JSON.stringify(state),
+        days: JSON.stringify(days),
+      },
+    }),
+    ...(historyRows.length > 0
+      ? [prisma.strengthProgressionEvent.createMany({ data: historyRows })]
+      : []),
+  ]);
   revalidatePath("/strength");
   redirect("/strength");
 }
@@ -345,7 +370,12 @@ export async function saveStrengthWorkout(input: StrengthWorkoutInput): Promise<
  * so the training pair alternates. Idempotency is guaranteed by the caller's progressionApplied
  * guard, so this is only ever run once per session.
  */
-async function applyProgression(userId: string, logDate: Date, details: Record<string, unknown>): Promise<void> {
+async function applyProgression(
+  userId: string,
+  logDate: Date,
+  details: Record<string, unknown>,
+  sessionLogId: string,
+): Promise<void> {
   const program = await prisma.strengthProgram.findFirst({
     where: { userId, active: true },
     orderBy: { createdAt: "desc" },
@@ -365,13 +395,29 @@ async function applyProgression(userId: string, logDate: Date, details: Record<s
   const dateISO = logDate.toISOString().slice(0, 10);
   const exercises = Array.isArray(details.exercises) ? (details.exercises as LoggedExercise[]) : [];
 
-  const { state: nextState, advanced } = advanceStateAfterSession(state, exercises, {
+  const { state: nextState, advanced, transitions } = advanceStateAfterSession(state, exercises, {
     rounding: program.rounding,
     fallbackCycle: program.cycle,
     dayEquipment,
     date: dateISO,
   });
   if (advanced.length === 0) return;
+
+  // History (#30): a closing cycle OVERWRITES the lift's maxima — snapshot before/after so the
+  // development stays reviewable/plottable. Week steps and deload resets change nothing final.
+  const historyRows = transitions
+    .filter((tr) => tr.event === "cycleFinished")
+    .map((tr) => ({
+      userId,
+      programId: program.id,
+      movement: tr.movement,
+      source: "CYCLE",
+      decision: inferCycleDecision(tr.before, tr.after),
+      cycle: tr.before.cycle ?? program.cycle,
+      before: JSON.stringify(tr.before),
+      after: JSON.stringify(tr.after),
+      sessionLogId,
+    }));
 
   // A single rotating weighted day picks its training pair by the program-week parity — advance it
   // so the next session trains the other pair. (Multi-day / all-in-one layouts don't rotate.)
@@ -381,13 +427,18 @@ async function applyProgression(userId: string, logDate: Date, details: Record<s
     : "ROTATE";
   const rotating = weightedDays === 1 && layout === "ROTATE";
 
-  await prisma.strengthProgram.update({
-    where: { id: program.id },
-    data: {
-      movements: JSON.stringify(nextState),
-      ...(rotating ? { week: program.week + 1 } : {}),
-    },
-  });
+  await prisma.$transaction([
+    prisma.strengthProgram.update({
+      where: { id: program.id },
+      data: {
+        movements: JSON.stringify(nextState),
+        ...(rotating ? { week: program.week + 1 } : {}),
+      },
+    }),
+    ...(historyRows.length > 0
+      ? [prisma.strengthProgressionEvent.createMany({ data: historyRows })]
+      : []),
+  ]);
 }
 
 /**
@@ -425,7 +476,7 @@ export async function finishStrengthWorkout(input: StrengthWorkoutInput): Promis
     await selfHealCountWeek(user.id, date);
   }
 
-  if (!alreadyApplied) await applyProgression(user.id, date, parsed);
+  if (!alreadyApplied) await applyProgression(user.id, date, parsed, logId);
 
   revalidatePath("/dashboard");
   revalidatePath("/strength");

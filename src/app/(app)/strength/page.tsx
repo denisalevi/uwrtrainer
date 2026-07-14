@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { StrengthWizard } from "@/components/strength-wizard";
 import { isWeightRoundingMode, type RoundingPref } from "@/lib/strength";
 import { StrengthProgramView } from "@/components/strength-program";
+import { StrengthHistory } from "@/components/strength-history";
 
 export default async function StrengthPage() {
   const user = await requireUser();
@@ -38,7 +39,10 @@ export default async function StrengthPage() {
         )}
       </header>
       {program && program.days && program.days !== "[]" ? (
-        <StrengthProgramView program={program} pulls={pulls} rounding={rounding} />
+        <>
+          <StrengthProgramView program={program} pulls={pulls} rounding={rounding} />
+          <StrengthHistory userId={user.id} />
+        </>
       ) : (
         <StrengthWizard pulls={pulls} />
       )}
