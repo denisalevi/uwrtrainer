@@ -3,7 +3,14 @@ import { Card, CardBody } from "@/components/ui";
 
 type SetKind = "warmup" | "main" | "bbb";
 type ViewSet = { weight: number | null; reps: number | null; amrap?: boolean; kind?: SetKind };
-type ViewExercise = { name?: string; done?: boolean; trainingMax?: number; sets?: ViewSet[] };
+type ViewExercise = {
+  name?: string;
+  done?: boolean;
+  trainingMax?: number;
+  week?: number;
+  cycle?: number;
+  sets?: ViewSet[];
+};
 type ViewDetails = {
   kind?: string;
   dayName?: string;
@@ -86,12 +93,25 @@ export async function StrengthWorkoutView({
   if (hasAmrap) legend.push({ cls: AMRAP_CHIP, label: t("strength.amrapShort") });
   const showLegend = kindsPresent.size > 1 || hasAmrap;
 
-  const cycleWeek = [
-    data.cycle != null ? `${t("strength.cycle")} ${data.cycle}` : null,
-    data.week != null ? t("strength.weekN", { n: data.week }) : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  // Progression is per lift, so each exercise shows its OWN cycle/week (issue #32). The
+  // session-level cycle/week (the legacy shared pointer) is only shown for old logs whose
+  // exercises carry no per-lift position.
+  const liftPos = (ex: ViewExercise): string | null => {
+    const parts = [
+      ex.cycle != null ? `${t("strength.cycleShort")}${ex.cycle}` : null,
+      ex.week != null ? `${t("strength.weekShort")}${ex.week}` : null,
+    ].filter(Boolean);
+    return parts.length ? parts.join(" · ") : null;
+  };
+  const hasPerLift = exercises.some((ex) => liftPos(ex) != null);
+  const cycleWeek = hasPerLift
+    ? ""
+    : [
+        data.cycle != null ? `${t("strength.cycle")} ${data.cycle}` : null,
+        data.week != null ? t("strength.weekN", { n: data.week }) : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
 
   return (
     <div className="space-y-2">
@@ -113,6 +133,11 @@ export async function StrengthWorkoutView({
                   <span className="text-sm font-medium text-slate-800">
                     {ex.name || t("strength.exerciseName")}
                   </span>
+                  {liftPos(ex) && (
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-slate-500">
+                      {liftPos(ex)}
+                    </span>
+                  )}
                   {ex.trainingMax != null && (
                     <span className="text-xs text-slate-400 tabular-nums">
                       {t("strength.tmShort")} {ex.trainingMax} kg

@@ -179,6 +179,7 @@ export function StrengthWorkoutLogger({
         trainingMax: l.trainingMax,
         movement: l.movement,
         week: l.week,
+        cycle: l.cycle,
         sets: l.sets.map((s) => ({
           weight: s.weight ? Number(s.weight) : null,
           reps: s.reps ? Number(s.reps) : null,
@@ -245,7 +246,7 @@ export function StrengthWorkoutLogger({
   function addExercise() {
     const sug = day?.suggestions[0];
     const line: Line = sug
-      ? { key: nextKey(), exerciseId: sug.id, name: sug.label, trainingMax: sug.trainingMax, movement: sug.movement, week: sug.week, sets: seedSets(sug) }
+      ? { key: nextKey(), exerciseId: sug.id, name: sug.label, trainingMax: sug.trainingMax, movement: sug.movement, week: sug.week, cycle: sug.cycle, sets: seedSets(sug) }
       : { key: nextKey(), exerciseId: CUSTOM_LINE_ID, name: "", sets: [{ weight: "", reps: "", kind: "main" }] };
     mutate((ls) => [...ls, line]);
   }
