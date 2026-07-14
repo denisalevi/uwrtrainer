@@ -50,6 +50,13 @@ export default async function LogPage({
         <span>🏉 {t("log.teamPractice")}</span>
         <span>›</span>
       </Link>
+      <Link
+        href="/attendance?mode=tournament"
+        className="flex items-center justify-between rounded-xl border border-amber-500 bg-amber-50 px-3 py-3 text-sm font-medium text-amber-800"
+      >
+        <span>🏆 {t("log.tournament")}</span>
+        <span>›</span>
+      </Link>
       <LogForm slots={slots} defaultCategory={defaultCategory} defaultDate={defaultDate} />
     </div>
   );

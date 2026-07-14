@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
 import { isTrainer, type Category, type SessionStatus } from "@/lib/constants";
+import { TOURNAMENT_CATEGORY } from "@/lib/tournament";
 import { LogForm, type ExistingSession } from "@/components/log-form";
 
 export default async function EditLogPage({ params }: { params: Promise<{ id: string }> }) {
@@ -20,11 +21,16 @@ export default async function EditLogPage({ params }: { params: Promise<{ id: st
 
   // A rugby session tied to a practice slot is a team-practice attendance tick — edit it in the
   // group attendance dialogue (where people can be added/removed), not the personal log form.
-  if (log.category === "RUGBY" && log.practiceSlotId) {
+  // Tournaments are group events too, edited the same way (keyed by date).
+  if ((log.category === "RUGBY" && log.practiceSlotId) || log.category === TOURNAMENT_CATEGORY) {
     const y = log.date.getFullYear();
     const m = String(log.date.getMonth() + 1).padStart(2, "0");
     const d = String(log.date.getDate()).padStart(2, "0");
-    redirect(`/attendance?slot=${log.practiceSlotId}&date=${y}-${m}-${d}&edit=1`);
+    redirect(
+      log.category === TOURNAMENT_CATEGORY
+        ? `/attendance?mode=tournament&date=${y}-${m}-${d}&edit=1`
+        : `/attendance?slot=${log.practiceSlotId}&date=${y}-${m}-${d}&edit=1`,
+    );
   }
 
   // Auto rows (auto-MISSED penalties) are system-owned and not editable — resolve them from the

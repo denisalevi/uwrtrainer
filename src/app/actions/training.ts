@@ -9,6 +9,30 @@ import { isTrainer, CATEGORIES, SESSION_STATUSES } from "@/lib/constants";
 import { reconcileRugbyMissed, selfHealCountWeek } from "@/lib/missed";
 import { isSlotAvailableOn } from "@/lib/practice-window";
 import { planItemsEqual } from "@/lib/plan-version";
+import { TOURNAMENT_CATEGORY, exemptWeekStarts } from "@/lib/tournament";
+import { getTournamentExemptionMode } from "@/lib/exempt-weeks";
+import { addWeeks } from "@/lib/dates";
+
+/**
+ * A tournament exemption just went away for `userIds` in the weeks starting at `weekStarts` —
+ * restore what should exist: re-reconcile every ticked practice in those weeks (bucket-1
+ * auto-MISSED rows return) and self-heal the weekly count summaries (bucket 2).
+ */
+async function restorePenaltiesForWeeks(userIds: string[], weekStarts: Date[]) {
+  for (const ws of weekStarts) {
+    const events = await prisma.sessionLog.findMany({
+      where: {
+        category: "RUGBY",
+        NOT: { practiceSlotId: null },
+        date: { gte: ws, lt: addWeeks(ws, 1) },
+      },
+      select: { practiceSlotId: true, date: true },
+      distinct: ["practiceSlotId", "date"],
+    });
+    for (const ev of events) await reconcileRugbyMissed(ev.practiceSlotId!, ev.date);
+    for (const userId of userIds) await selfHealCountWeek(userId, ws);
+  }
+}
 
 /** Reject a slot-tied log whose date falls outside the practice's season (or the slot is paused).
  *  The UI already filters these out; this guards the public server actions against stale forms. */
@@ -145,7 +169,7 @@ export async function deleteSession(formData: FormData) {
 
   const existing = await prisma.sessionLog.findUnique({
     where: { id },
-    select: { userId: true, date: true, status: true, auto: true, practiceSlotId: true },
+    select: { userId: true, date: true, status: true, auto: true, practiceSlotId: true, category: true },
   });
   if (!existing) throw new Error("Session not found");
   if (existing.userId !== user.id && !isTrainer(user.role)) throw new Error("Not authorized");
@@ -166,6 +190,14 @@ export async function deleteSession(formData: FormData) {
 
   // Self-heal: deleting a DONE log in a reconciled past week may re-open a shortfall.
   if (existing.status === "DONE") await selfHealCountWeek(existing.userId, existing.date);
+
+  // Deleting a tournament revokes its goal exemption — restore that player's penalties in the
+  // weeks it had exempted (unless another tournament still covers them; the reconcilers re-check).
+  if (existing.category === TOURNAMENT_CATEGORY && existing.status === "DONE") {
+    const mode = await getTournamentExemptionMode();
+    const weekStarts = Array.from(exemptWeekStarts([existing.date], mode)).map((ms) => new Date(ms));
+    if (weekStarts.length > 0) await restorePenaltiesForWeeks([existing.userId], weekStarts);
+  }
 
   revalidatePath("/dashboard");
   revalidatePath("/leaderboards");
@@ -357,6 +389,120 @@ export async function logPracticeAttendance(formData: FormData) {
   revalidatePath("/leaderboards");
   for (const userId of touchedUserIds) revalidatePath(`/team/${userId}`);
 
+  redirect("/feed");
+}
+
+/**
+ * Record a tournament / league game (#31): tick off who played, like practice attendance but
+ * with no practice slot. One `{ category: TOURNAMENT, status: DONE }` row per selected player
+ * (details: { kind:"tournament", label? }). Tournaments count as NO practice anywhere — their
+ * effect is the goal EXEMPTION: per the team's tournament setting, the selected players' week
+ * (and optionally the next) owes no goals. Any team member may submit; future dates are allowed
+ * (a known upcoming game already pauses the running week's goals).
+ *
+ * Form: date (yyyy-mm-dd), optional label, `present_<userId>` checkboxes, optional editMode
+ * (the checkbox list becomes authoritative for that date — unticked players lose their row).
+ */
+export async function logTournament(formData: FormData) {
+  const me = await getCurrentUser();
+  if (!me) redirect("/login");
+
+  const teamId = me.activeTeamId;
+  if (!teamId) throw new Error("No active team");
+  const membership = await prisma.teamMembership.findUnique({
+    where: { userId_teamId: { userId: me.id, teamId } },
+  });
+  if (!membership) throw new Error("Not authorized");
+
+  const dateStr = String(formData.get("date") ?? "");
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  const date = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(NaN);
+  if (Number.isNaN(date.getTime())) throw new Error("Invalid date");
+  // Sanity horizon (± ~1 year): tournaments may be logged in advance, but not absurdly so.
+  const now = new Date();
+  if (Math.abs(date.getTime() - now.getTime()) > 370 * 86400000) throw new Error("Invalid date");
+
+  const label = String(formData.get("label") ?? "").trim().slice(0, 80);
+  const dayEnd = new Date(date);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
+  const checkedIds = new Set<string>();
+  for (const [key, value] of formData.entries()) {
+    const pm = /^present_(.+)$/.exec(key);
+    if (pm && value) checkedIds.add(pm[1]);
+  }
+
+  const validUsers = await prisma.user.findMany({
+    where: { id: { in: Array.from(checkedIds) }, memberships: { some: { teamId } } },
+    select: { id: true },
+  });
+  const validIds = validUsers.map((u) => u.id);
+
+  const existing = await prisma.sessionLog.findMany({
+    where: {
+      category: TOURNAMENT_CATEGORY,
+      status: "DONE",
+      user: { memberships: { some: { teamId } } },
+      date: { gte: date, lt: dayEnd },
+    },
+    select: { id: true, userId: true },
+  });
+  const existingByUser = new Map(existing.map((l) => [l.userId, l.id]));
+
+  const toCreate = validIds.filter((id) => !existingByUser.has(id));
+  if (toCreate.length > 0) {
+    await prisma.sessionLog.createMany({
+      data: toCreate.map((userId) => ({
+        userId,
+        category: TOURNAMENT_CATEGORY,
+        status: "DONE",
+        date,
+        details: JSON.stringify({ kind: "tournament", ...(label ? { label } : {}) }),
+      })),
+    });
+  }
+
+  // Edit mode: unticked players lose their row for this date (mirrors attendance editing).
+  const removedUserIds: string[] = [];
+  if (String(formData.get("editMode") ?? "") === "1") {
+    const toRemove = existing.filter((l) => !checkedIds.has(l.userId));
+    if (toRemove.length > 0) {
+      await prisma.sessionLog.deleteMany({ where: { id: { in: toRemove.map((l) => l.id) } } });
+      removedUserIds.push(...toRemove.map((l) => l.userId));
+    }
+  }
+
+  // The exemption just changed — clean up / restore auto-MISSED rows in the affected weeks.
+  const mode = await getTournamentExemptionMode();
+  const weekStarts = Array.from(exemptWeekStarts([date], mode)).map((ms) => new Date(ms));
+  // Newly exempt players: their auto-MISSED rows (both buckets) in the exempt weeks are void.
+  if (validIds.length > 0 && weekStarts.length > 0) {
+    await prisma.sessionLog.deleteMany({
+      where: {
+        userId: { in: validIds },
+        status: "MISSED",
+        auto: true,
+        OR: weekStarts.map((ws) => ({ date: { gte: ws, lt: addWeeks(ws, 1) } })),
+      },
+    });
+  }
+  // Players removed in an edit lose the exemption again: restore what should exist (ticked
+  // practices re-reconcile; the weekly count summaries self-heal).
+  if (removedUserIds.length > 0 && weekStarts.length > 0) {
+    await restorePenaltiesForWeeks(removedUserIds, weekStarts);
+  }
+  // Weekly summaries in already-reconciled weeks self-heal for the newly exempt too (the
+  // exemption check inside reconcileWeekForUser clears them).
+  for (const userId of validIds) {
+    for (const ws of weekStarts) await selfHealCountWeek(userId, ws);
+  }
+
+  revalidatePath("/feed");
+  revalidatePath("/dashboard");
+  revalidatePath("/leaderboards");
+  for (const userId of new Set([...validIds, ...removedUserIds])) {
+    revalidatePath(`/team/${userId}`);
+  }
   redirect("/feed");
 }
 

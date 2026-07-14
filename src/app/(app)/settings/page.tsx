@@ -10,7 +10,8 @@ import {
   setStrengthBbb,
   setStrengthPulls,
 } from "@/app/actions/settings";
-import { createTeam, updateLeaderboards } from "@/app/actions/trainer";
+import { createTeam, updateLeaderboards, setTournamentExemption } from "@/app/actions/trainer";
+import { getTournamentExemptionMode } from "@/lib/exempt-weeks";
 import { logout } from "@/app/actions/auth";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Badge, Button, Collapsible, Input, Label, Select, SectionTitle, cn } from "@/components/ui";
@@ -62,6 +63,7 @@ export default async function SettingsPage({
   const boards = trainer
     ? await prisma.leaderboard.findMany({ orderBy: { sortOrder: "asc" } })
     : [];
+  const tournamentExemption = trainer ? await getTournamentExemptionMode() : null;
   // Pad the parsed scheme to a fixed 3 rows for the form (blank rows are dropped on save).
   const warmup = parseWarmupScheme(user.strengthWarmup);
   const warmupRows = Array.from({ length: 3 }, (_, i) => warmup[i] ?? null);
@@ -357,6 +359,26 @@ export default async function SettingsPage({
             </form>
           </Collapsible>
 
+          <Collapsible title={t("set.tournament")} hint={t("set.tournamentIntro")}>
+            <form action={setTournamentExemption} className="space-y-3">
+              <div>
+                <Label htmlFor="tournamentExemption">{t("set.tournamentExemption")}</Label>
+                <Select
+                  id="tournamentExemption"
+                  name="tournamentExemption"
+                  defaultValue={tournamentExemption ?? "WEEK_OF"}
+                >
+                  <option value="WEEK_OF">{t("set.tournamentWeekOf")}</option>
+                  <option value="WEEK_OF_AND_AFTER">{t("set.tournamentWeekOfAndAfter")}</option>
+                  <option value="NONE">{t("set.tournamentNone")}</option>
+                </Select>
+              </div>
+              <p className="text-xs text-slate-500">{t("set.tournamentNote")}</p>
+              <Button type="submit" className="w-full">
+                {t("common.save")}
+              </Button>
+            </form>
+          </Collapsible>
         </SettingsGroup>
       )}
 
