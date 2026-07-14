@@ -40,6 +40,9 @@ export const en = {
   "teams.manageMembers": "Team members",
   "teams.manageMembersHint": "Add or remove members of any team.",
   "teams.removeFromTeam": "Remove",
+  "teams.deleteAccount": "Delete account",
+  "teams.deleteAccountConfirm":
+    "Permanently delete {name}'s account and ALL their data (logs, plans, strength programs)? This cannot be undone.",
   "teams.addUserLabel": "Add existing user",
   "teams.noOtherUsers": "Everyone is already in this team.",
   "teams.noMembers": "No members yet.",
@@ -574,6 +577,9 @@ export const de: Record<DictKey, string> = {
   "teams.manageMembers": "Teammitglieder",
   "teams.manageMembersHint": "Mitglieder beliebiger Teams hinzufügen oder entfernen.",
   "teams.removeFromTeam": "Entfernen",
+  "teams.deleteAccount": "Konto löschen",
+  "teams.deleteAccountConfirm":
+    "Konto von {name} und ALLE zugehörigen Daten (Logs, Pläne, Kraftprogramme) endgültig löschen? Das kann nicht rückgängig gemacht werden.",
   "teams.addUserLabel": "Bestehende Person hinzufügen",
   "teams.noOtherUsers": "Alle sind bereits in diesem Team.",
   "teams.noMembers": "Noch keine Mitglieder.",

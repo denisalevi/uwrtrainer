@@ -27,6 +27,16 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
   is a no-op, and switching to another day (or "Empty session") asks for confirmation first when
   you've already entered something.
 
+## [0.26.0] - 2026-07-14
+
+### Added
+- **Admins can delete a user account entirely (not just remove it from a team).** In
+  ⚙️ Settings → Team members, each member now has a red **Delete account** action next to the
+  (now neutral) team **Remove** button. Deleting cascades all of that user's data — session logs,
+  plans, strength programs and team memberships — while plans they authored for other players are
+  kept (their author is cleared). It asks for confirmation, names the member, and refuses to
+  delete your own account or another admin (demote an admin first).
+
 ## [0.25.3] - 2026-07-14
 
 ### Fixed

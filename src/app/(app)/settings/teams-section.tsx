@@ -5,6 +5,7 @@ import type { CurrentUser } from "@/lib/dal";
 import { joinTeam } from "@/app/actions/settings";
 import { addUserToTeam, removeUserFromTeam } from "@/app/actions/trainer";
 import { Badge, Button, Input, Label, Select } from "@/components/ui";
+import { DeleteAccountButton } from "./delete-account-button";
 
 /**
  * The teams list every user sees: all teams, with a fold-open join form per team.
@@ -125,7 +126,7 @@ export async function TeamsSection({
 }
 
 /** Admin-only: every team with its member list — remove members or add any existing user. */
-export async function AdminTeamMembers() {
+export async function AdminTeamMembers({ currentUserId }: { currentUserId: string }) {
   const { t } = await getServerT();
   const [teams, users] = await Promise.all([
     prisma.team.findMany({
@@ -161,10 +162,14 @@ export async function AdminTeamMembers() {
                   <form action={removeUserFromTeam}>
                     <input type="hidden" name="userId" value={m.id} />
                     <input type="hidden" name="teamId" value={team.id} />
-                    <Button type="submit" variant="danger" size="sm">
+                    <Button type="submit" variant="secondary" size="sm">
                       {t("teams.removeFromTeam")}
                     </Button>
                   </form>
+                  {/* Full-account delete: never for yourself or another admin. */}
+                  {m.id !== currentUserId && m.role !== "ADMIN" && (
+                    <DeleteAccountButton userId={m.id} name={m.name} />
+                  )}
                 </li>
               ))}
             </ul>

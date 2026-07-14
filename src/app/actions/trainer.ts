@@ -203,6 +203,29 @@ export async function addUserToTeam(formData: FormData) {
   revalidatePath(`/team/${userId}`);
 }
 
+/**
+ * Admin: permanently delete a user account and all of its data (logs, plans, strength
+ * programs, memberships all cascade; plans they authored for others keep the history with
+ * a null author). Cannot delete yourself or another admin — demote an admin first.
+ */
+export async function deleteUserAccount(formData: FormData) {
+  const user = await requireTrainerAction();
+  if (user.role !== "ADMIN") throw new Error("Not authorized");
+  const userId = formData.get("userId") as string;
+  if (!userId) throw new Error("Invalid user");
+  if (userId === user.id) throw new Error("Cannot delete your own account");
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (!target) throw new Error("Invalid user");
+  if (target.role === "ADMIN") throw new Error("Cannot delete an admin — demote them first");
+  await prisma.user.delete({ where: { id: userId } });
+  revalidatePath("/settings");
+  revalidatePath("/team");
+  revalidatePath("/attendance");
+}
+
 /** Admin: remove a user from a team. Their active team falls back to another membership. */
 export async function removeUserFromTeam(formData: FormData) {
   const user = await requireTrainerAction();

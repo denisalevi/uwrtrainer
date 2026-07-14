@@ -368,7 +368,7 @@ export default async function SettingsPage({
           accent="red"
         >
           <Collapsible title={t("teams.manageMembers")} hint={t("teams.manageMembersHint")}>
-            <AdminTeamMembers />
+            <AdminTeamMembers currentUserId={user.id} />
           </Collapsible>
 
           <Collapsible title={t("teams.create")}>
