@@ -9,7 +9,7 @@ uses [Semantic Versioning](https://semver.org/). While we're pre-1.0, a new **mi
 Release process: `npm version <patch|minor>` (bumps `package.json` and creates the
 `vX.Y.Z` git tag), then `git push --follow-tags`.
 
-## [Unreleased]
+## [0.27.0] - 2026-07-14
 
 ### Added
 - **Tournament / league game logging (#31).** New entry on the Log page: tick off who played,
