@@ -26,11 +26,17 @@ logger UI (no parallel logging path).
   **kg × reps**. Initial option set:
   - `KG_REPS` (default) — weight + reps per set
   - `REPS` — reps only (push-ups, pull-ups)
-  - `SECONDS` — timed set (plank, holds — needed for the future bodyweight workouts, e.g. 3×30 s)
+  - `SECONDS` — timed set where the seconds ARE what you log (plank, holds, e.g. 3×30 s)
   - `KG_SECONDS` — weighted hold (farmer carry, weighted plank) — cheap to include since the two
     axes already exist
-- Future bodyweight workouts will be built as (team-)routines using `REPS` + `SECONDS` — no
-  separate engine.
+- **Per-exercise tempo (separate from measurement type!).** A tempo like `3-0-3` — 3 s down,
+  0 s pause, 3 s up **per rep** — is a *prescription for how to perform the reps*, not a thing
+  you log. Optional free-text `tempo` field on a routine exercise (accepts `3-0-3`, `30X1`-style
+  4-digit notation, whatever the author writes), shown as a badge next to the exercise in the
+  logger and in the saved workout view. Logging is unchanged (still reps / kg × reps); the tempo
+  is carried into the session details for display.
+- Future bodyweight workouts will be built as (team-)routines using `REPS` + `SECONDS` + `tempo`
+  (e.g. "Push-ups 3×8 @ 3-0-3", "Plank 3×30 s") — no separate engine.
 
 ## Data model
 
@@ -41,7 +47,7 @@ model Routine {
   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   teamId    String?              // set on trainer-published team routines
   name      String
-  exercises String               // JSON: [{ name, measure, sets: [{ reps?, weight?, seconds? }], restSeconds? }]
+  exercises String               // JSON: [{ name, measure, tempo?, sets: [{ reps?, weight?, seconds? }], restSeconds? }]
   copiedFromId String?           // provenance only (display "copied from X"); not a live link
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -58,10 +64,11 @@ model Routine {
 
 ## Logger integration
 
-- `LoggerDay` grows a per-suggestion `measure`; `SetVal` gets an optional `seconds` field.
-  The set row renders inputs per measure (kg+reps / reps / seconds / kg+seconds). The details
-  JSON stores `seconds` next to weight/reps; `StrengthWorkoutView` formats accordingly
-  (`3 × 30 s`, `24 kg × 40 s`).
+- `LoggerDay` grows per-suggestion `measure` + `tempo`; `SetVal` gets an optional `seconds`
+  field. The set row renders inputs per measure (kg+reps / reps / seconds / kg+seconds); the
+  tempo shows as a badge on the exercise line (next to the name, like the TM hint today). The
+  details JSON stores `seconds` next to weight/reps and `tempo` on the exercise;
+  `StrengthWorkoutView` formats accordingly (`3 × 30 s`, `24 kg × 40 s`, `@ 3-0-3`).
 - `/strength/log` day picker shows three groups: **plan days** (5/3/1), **my routines**,
   **team routines**. Picking a routine preloads lines like a plan day does today.
 - Prefill from history: when preloading a routine, prefill each exercise's weights/reps/seconds
