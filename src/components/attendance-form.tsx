@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useT } from "@/components/i18n-provider";
 import type { DictKey } from "@/lib/i18n/dictionaries";
-import { logPracticeAttendance } from "@/app/actions/training";
-import { Button, Card, CardBody, Label, Select } from "@/components/ui";
+import { logPracticeAttendance, logTournament } from "@/app/actions/training";
+import { Button, Card, CardBody, Input, Label, Select } from "@/components/ui";
 
 type Slot = { id: string; label: string; tier: string; dayOfWeek: number };
 type Member = { id: string; name: string };
@@ -41,6 +41,10 @@ function weekdayOf(dateStr: string): number | null {
  * Selecting a practice auto-fills the date with the most recent matching weekday
  * (today if it matches), and the picked date's weekday is shown — with a warning when
  * it doesn't match the practice's weekday (the server rejects such dates).
+ *
+ * `tournament` mode (#31) reuses the same flow for a tournament / league game: no practice
+ * slot, an optional event label, and any date (incl. upcoming — pre-logging a game already
+ * pauses the running week's goals). Submits to `logTournament`.
  */
 export function AttendanceForm({
   slots,
@@ -50,6 +54,8 @@ export function AttendanceForm({
   defaultDate,
   editMode,
   initialPresentIds,
+  tournament,
+  defaultLabel,
 }: {
   slots: Slot[];
   members: Member[];
@@ -60,12 +66,16 @@ export function AttendanceForm({
   editMode?: boolean;
   /** Pre-check these members (edit mode: who is currently recorded as present). */
   initialPresentIds?: string[];
+  /** Tournament / league game mode: no practice slot, optional label, free date. */
+  tournament?: boolean;
+  /** Tournament mode: prefilled event label (edit). */
+  defaultLabel?: string;
 }) {
   const { t } = useT();
   const initialSlot = slots.find((s) => s.id === defaultSlotId) ?? slots[0];
   const [slotId, setSlotId] = useState(initialSlot?.id ?? "");
   const [date, setDate] = useState(
-    defaultDate ?? (initialSlot ? mostRecentWeekday(initialSlot.dayOfWeek) : ""),
+    defaultDate ?? (tournament ? dayKey(new Date()) : initialSlot ? mostRecentWeekday(initialSlot.dayOfWeek) : ""),
   );
   const [checked, setChecked] = useState<Record<string, boolean>>(() =>
     initialPresentIds
@@ -76,11 +86,11 @@ export function AttendanceForm({
   const toggle = (id: string) =>
     setChecked((c) => ({ ...c, [id]: !c[id] }));
 
-  if (slots.length === 0) {
+  if (!tournament && slots.length === 0) {
     return <p className="text-sm text-slate-500">{t("log.noSlots")}</p>;
   }
 
-  const slot = slots.find((s) => s.id === slotId);
+  const slot = tournament ? undefined : slots.find((s) => s.id === slotId);
   const dateWeekday = weekdayOf(date);
   const mismatch = slot != null && dateWeekday != null && dateWeekday !== slot.dayOfWeek;
 
@@ -91,25 +101,38 @@ export function AttendanceForm({
   };
 
   return (
-    <form action={logPracticeAttendance} className="space-y-5">
+    <form action={tournament ? logTournament : logPracticeAttendance} className="space-y-5">
       {editMode && <input type="hidden" name="editMode" value="1" />}
       <Card>
         <CardBody className="space-y-4">
-          <div>
-            <Label htmlFor="practiceSlotId">{t("attendance.whichPractice")}</Label>
-            <Select
-              id="practiceSlotId"
-              name="practiceSlotId"
-              value={slotId}
-              onChange={(e) => onSlotChange(e.target.value)}
-            >
-              {slots.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label} · {t(`tier.${s.tier}` as DictKey)}
-                </option>
-              ))}
-            </Select>
-          </div>
+          {tournament ? (
+            <div>
+              <Label htmlFor="label">{t("tournament.label")}</Label>
+              <Input
+                id="label"
+                name="label"
+                maxLength={80}
+                defaultValue={defaultLabel}
+                placeholder={t("tournament.labelPlaceholder")}
+              />
+            </div>
+          ) : (
+            <div>
+              <Label htmlFor="practiceSlotId">{t("attendance.whichPractice")}</Label>
+              <Select
+                id="practiceSlotId"
+                name="practiceSlotId"
+                value={slotId}
+                onChange={(e) => onSlotChange(e.target.value)}
+              >
+                {slots.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label} · {t(`tier.${s.tier}` as DictKey)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
           <div>
             <Label htmlFor="date">{t("attendance.date")}</Label>
             <input
@@ -129,12 +152,13 @@ export function AttendanceForm({
                 )}
               </p>
             )}
+            {tournament && <p className="mt-1 text-xs text-slate-500">{t("tournament.goalsHint")}</p>}
           </div>
         </CardBody>
       </Card>
 
       <div className="space-y-2">
-        <Label>{t("attendance.whoCame")}</Label>
+        <Label>{t(tournament ? "tournament.whoPlayed" : "attendance.whoCame")}</Label>
         <Card>
           <ul className="divide-y divide-slate-100">
             {members.map((m) => {

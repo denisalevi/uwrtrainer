@@ -2,10 +2,12 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import {
   scoreWeek,
+  applyWeekExemption,
   fullAdherenceStreak,
   type ScoreItem,
   type WeekScore,
 } from "@/lib/scoring";
+import { loadExemptWeeks } from "@/lib/exempt-weeks";
 import {
   startOfWeek,
   addWeeks,
@@ -152,6 +154,8 @@ export type WeekDetail = {
   weekStart: Date;
   score: WeekScore;
   items: (ScoreItem & { note: string | null; label: string | null })[];
+  /** Tournament-exempt week (#31): goals are paused, the score counts as fully adherent. */
+  exempt: boolean;
 };
 
 /** Full detail for one player's current week — used by the dashboard. */
@@ -159,9 +163,13 @@ export async function getCurrentWeekDetail(userId: string): Promise<WeekDetail> 
   const weekStart = startOfWeek(new Date());
   const plans = await loadPlans([userId]);
   const logsByUser = await loadLogs([userId], weekStart, addWeeks(weekStart, 1));
+  const exempt = (await loadExemptWeeks([userId], weekStart, addWeeks(weekStart, 1)))
+    .get(userId)
+    ?.has(weekStart.getTime()) ?? false;
   const ref = addDays(weekStart, 6);
   const items = buildScoreItems(activeItems(plans, userId, ref), logsByUser.get(userId) ?? [], weekStart);
-  return { weekStart, score: scoreWeek(items), items };
+  const score = scoreWeek(items);
+  return { weekStart, score: exempt ? applyWeekExemption(score) : score, items, exempt };
 }
 
 export type WeekPlanItem = ScoreItem & { note: string | null; label: string | null };
@@ -191,6 +199,16 @@ export async function getWeekItemsForWeeks(
   return out;
 }
 
+/** Which of the requested weeks are tournament-exempt for `userId` (keyed by weekStart ms). */
+export async function getExemptWeekSet(userId: string, weekStarts: Date[]): Promise<Set<number>> {
+  if (weekStarts.length === 0) return new Set();
+  const sorted = [...weekStarts].sort((a, b) => a.getTime() - b.getTime());
+  const map = await loadExemptWeeks([userId], sorted[0], addWeeks(sorted[sorted.length - 1], 1));
+  const weeks = map.get(userId);
+  if (!weeks) return new Set();
+  return new Set(weekStarts.map((ws) => ws.getTime()).filter((ms) => weeks.has(ms)));
+}
+
 /** Current trailing full-adherence-week streak (looks back up to `weeks` weeks). */
 export async function getStreak(userId: string, weeks = 26): Promise<number> {
   const thisWeekStart = startOfWeek(new Date());
@@ -200,11 +218,13 @@ export async function getStreak(userId: string, weeks = 26): Promise<number> {
   const plans = await loadPlans([userId]);
   const logsByUser = await loadLogs([userId], windowStart, thisWeekStart);
   const logs = logsByUser.get(userId) ?? [];
+  const exemptWeeks = (await loadExemptWeeks([userId], windowStart, thisWeekStart)).get(userId);
 
   const pcts: number[] = [];
   for (const ws of weekStartsInRange(windowStart, thisWeekStart)) {
     const items = buildScoreItems(activeItems(plans, userId, addDays(ws, 6)), logsInWeek(logs, ws), ws);
-    const s = scoreWeek(items);
+    let s = scoreWeek(items);
+    if (exemptWeeks?.has(ws.getTime())) s = applyWeekExemption(s); // tournament week keeps the streak
     pcts.push(s.hasPlan ? s.adherencePct : 0);
   }
   return fullAdherenceStreak(pcts);
@@ -221,8 +241,12 @@ export async function getCurrentWeekMetrics(
   const plans = await loadPlans([userId]);
   const logsByUser = await loadLogs([userId], weekStart, addWeeks(weekStart, 1));
   const logs = logsByUser.get(userId) ?? [];
+  const exempt = (await loadExemptWeeks([userId], weekStart, addWeeks(weekStart, 1)))
+    .get(userId)
+    ?.has(weekStart.getTime()) ?? false;
   const items = buildScoreItems(activeItems(plans, userId, addDays(weekStart, 6)), logs, weekStart);
-  const score = scoreWeek(items);
+  let score = scoreWeek(items);
+  if (exempt) score = applyWeekExemption(score);
   return {
     ADHERENCE_POINTS: score.points,
     RUGBY_PRACTICES: logs.filter((l) => l.status === "DONE" && l.category === "RUGBY").length,
@@ -264,13 +288,17 @@ export async function getLeaderboard(
   } else if (metric === "ADHERENCE_POINTS") {
     const plans = await loadPlans(userIds);
     const logsByUser = await loadLogs(userIds, start, end);
+    const exemptByUser = await loadExemptWeeks(userIds, start, end);
     const weeks = weekStartsInRange(start, end);
     for (const u of users) {
       const logs = logsByUser.get(u.id) ?? [];
+      const exemptWeeks = exemptByUser.get(u.id);
       let total = 0;
       for (const ws of weeks) {
         const items = buildScoreItems(activeItems(plans, u.id, addDays(ws, 6)), logsInWeek(logs, ws), ws);
-        total += scoreWeek(items).points;
+        let s = scoreWeek(items);
+        if (exemptWeeks?.has(ws.getTime())) s = applyWeekExemption(s);
+        total += s.points;
       }
       values.set(u.id, total);
     }
@@ -283,7 +311,7 @@ export async function getLeaderboard(
 
   return users
     .map((u) => ({ userId: u.id, name: u.name, value: values.get(u.id) ?? 0 }))
-    .sort((a, b) => b.value - a.value);
+    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
 }
 
 /** Compact per-player summary for the trainer team view (current week). */
@@ -300,11 +328,13 @@ export async function getTeamSummary(teamId: string | null): Promise<
   const weekStart = startOfWeek(new Date());
   const plans = await loadPlans(userIds);
   const logsByUser = await loadLogs(userIds, weekStart, addWeeks(weekStart, 1));
+  const exemptByUser = await loadExemptWeeks(userIds, weekStart, addWeeks(weekStart, 1));
   const ref = addDays(weekStart, 6);
 
   return users.map((u) => {
     const items = buildScoreItems(activeItems(plans, u.id, ref), logsByUser.get(u.id) ?? [], weekStart);
-    const s = scoreWeek(items);
+    let s = scoreWeek(items);
+    if (exemptByUser.get(u.id)?.has(weekStart.getTime())) s = applyWeekExemption(s);
     return {
       userId: u.id,
       name: u.name,

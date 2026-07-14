@@ -46,11 +46,12 @@ model User {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  plans            Plan[]            @relation("PlanOwner")
-  createdPlans     Plan[]            @relation("PlanCreator")
-  sessionLogs      SessionLog[]
-  strengthPrograms StrengthProgram[]
-  memberships      TeamMembership[]
+  plans             Plan[]                     @relation("PlanOwner")
+  createdPlans      Plan[]                     @relation("PlanCreator")
+  sessionLogs       SessionLog[]
+  strengthPrograms  StrengthProgram[]
+  progressionEvents StrengthProgressionEvent[]
+  memberships       TeamMembership[]
 }
 
 /// A team. registrationCode gates self-signup/join for this team. The migration creates a
@@ -200,6 +201,27 @@ model StrengthProgram {
   updatedAt        DateTime @updatedAt
 
   @@index([userId])
+}
+
+/// Append-only per-lift progression history. One row is written whenever a lift's stored
+/// maxima are OVERWRITTEN — a cycle closing (training max / rep max / level step) or a manual
+/// edit in the program settings — so development can be reviewed and plotted later. `before`
+/// and `after` are full JSON MovementState snapshots; nothing is ever lost to an overwrite.
+model StrengthProgressionEvent {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId    String // plain id (no FK) so history survives program deletion/reset
+  movement     String // MovementKey
+  source       String // "CYCLE" (closed by a finished workout) | "SETTINGS" (manual edit)
+  decision     String? // CYCLE rows: "INCREASE" | "HOLD" | "REDUCE" (derived from the TM step)
+  cycle        Int? // the cycle that just closed (CYCLE rows)
+  before       String // JSON MovementState before the overwrite
+  after        String // JSON MovementState after
+  sessionLogId String? // the workout whose finish closed the cycle (CYCLE rows)
+  createdAt    DateTime @default(now())
+
+  @@index([userId, movement, createdAt])
 }
 
 /// Generic key/value app settings (team name, scoring overrides, etc.).

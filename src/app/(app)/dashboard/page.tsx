@@ -55,6 +55,18 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {detail.exempt && (
+        <Card>
+          <CardBody className="flex items-center gap-2">
+            <span className="text-xl">🏆</span>
+            <div>
+              <p className="text-sm font-medium text-slate-800">{t("dash.tournamentWeek")}</p>
+              <p className="text-xs text-slate-500">{t("dash.tournamentWeekHint")}</p>
+            </div>
+          </CardBody>
+        </Card>
+      )}
+
       {detail.score.hasPlan ? (
         <section className="space-y-2">
           <SectionTitle>{t("dash.title")}</SectionTitle>

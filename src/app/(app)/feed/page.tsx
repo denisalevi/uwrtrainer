@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { addDays } from "@/lib/dates";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Badge, Card, SectionTitle } from "@/components/ui";
+import { TOURNAMENT_CATEGORY, tournamentLabel } from "@/lib/tournament";
 import { StrengthWorkoutView } from "@/components/strength-workout-view";
 import { MissedActions } from "@/components/missed-actions";
 
@@ -196,9 +197,16 @@ async function DaySection({
     rugbyBySlot.set(l.practiceSlotId!, arr);
   }
 
+  // Tournament / league game rows aggregate into ONE event per day (like a practice).
+  const tournamentPlayers = logs.filter(
+    (l) => l.category === TOURNAMENT_CATEGORY && l.status === "DONE",
+  );
+
   // Everything else is listed per person (non-rugby, plus rugby MISSED / non-slot rugby).
   const others = logs.filter(
-    (l) => !(l.category === "RUGBY" && l.status === "DONE" && l.practiceSlotId),
+    (l) =>
+      !(l.category === "RUGBY" && l.status === "DONE" && l.practiceSlotId) &&
+      !(l.category === TOURNAMENT_CATEGORY && l.status === "DONE"),
   );
 
   return (
@@ -274,6 +282,39 @@ async function DaySection({
               </li>
             );
           })}
+
+          {tournamentPlayers.length > 0 && (
+            <li className="text-sm">
+              <details className="group">
+                <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 active:bg-slate-50">
+                  <span className="font-medium text-slate-800">
+                    🏆{" "}
+                    {t("feed.playedTournament", {
+                      n: tournamentPlayers.length,
+                      label:
+                        tournamentLabel(tournamentPlayers[0].details) ?? t("cat.TOURNAMENT"),
+                    })}
+                  </span>
+                  <span className="text-slate-400 group-open:rotate-90">›</span>
+                </summary>
+                <div className="space-y-2 px-4 pb-3 text-slate-600">
+                  <div>
+                    <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
+                      {t("tournament.whoPlayed")}
+                    </p>
+                    <p>{tournamentPlayers.map((a) => a.userName).join(", ")}</p>
+                  </div>
+                  <p className="text-xs text-slate-400">{t("tournament.goalsHint")}</p>
+                  <Link
+                    href={`/attendance?mode=tournament&date=${dayKey(tournamentPlayers[0].date)}&edit=1`}
+                    className="inline-block text-sm font-medium text-teal-700 underline"
+                  >
+                    ✏️ {t("feed.editAttendance")}
+                  </Link>
+                </div>
+              </details>
+            </li>
+          )}
 
           {others.map((l) => (
             <FeedItem key={l.id} t={t} log={l} />

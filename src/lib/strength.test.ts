@@ -33,6 +33,7 @@ import {
   effectiveCycle,
   advanceAfterSession,
   advanceStateAfterSession,
+  inferCycleDecision,
   carryProgression,
   deloadNowState,
   setMovementWeekState,
@@ -793,6 +794,49 @@ describe("per-movement auto-progression (each lift its own wave)", () => {
     );
     expect(advanced).toEqual(["SQUAT"]);
     expect(next.SQUAT?.week).toBe(3); // advanced exactly once (2→3)
+  });
+
+  it("advanceStateAfterSession reports before/after transitions for the history log (#30)", () => {
+    // A week-4 (deload) completion closes the cycle and overwrites the training max — the
+    // transition must carry the pre-overwrite snapshot so nothing is lost.
+    const state: ProgramState = {
+      SQUAT: { trainingMax: 120, week: 4, cycle: 2, pendingAmrap: 8 },
+      PUSH: { trainingMax: 100, week: 1, cycle: 2 },
+    };
+    const { transitions } = advanceStateAfterSession(
+      state,
+      [
+        { movement: "SQUAT" as const, week: 4, done: true, sets: [{ reps: 5 }] },
+        { movement: "PUSH" as const, week: 1, done: true, sets: [{ amrap: true, reps: 10 }] },
+      ],
+      { rounding: 2.5, fallbackCycle: 2, dayEquipment: "WEIGHTS" },
+    );
+    const squat = transitions.find((tr) => tr.movement === "SQUAT")!;
+    expect(squat.event).toBe("cycleFinished");
+    expect(squat.before.trainingMax).toBe(120);
+    expect(squat.after.trainingMax).toBe(125); // squat increment +5
+    expect(squat.after.cycle).toBe(3);
+    const push = transitions.find((tr) => tr.movement === "PUSH")!;
+    expect(push.event).toBe("advanced"); // mid-cycle week step, nothing overwritten
+  });
+
+  it("inferCycleDecision reconstructs INCREASE / HOLD / REDUCE from the snapshots", () => {
+    expect(
+      inferCycleDecision({ trainingMax: 120, holds: 0 }, { trainingMax: 125, holds: 0 }),
+    ).toBe("INCREASE");
+    expect(
+      inferCycleDecision({ trainingMax: 120, holds: 0 }, { trainingMax: 120, holds: 1 }),
+    ).toBe("HOLD");
+    expect(
+      inferCycleDecision({ trainingMax: 120, holds: 1 }, { trainingMax: 107.5, holds: 0 }),
+    ).toBe("REDUCE");
+    // Bodyweight lifts: a dropped level (or rep max at the same level) is the reduce.
+    expect(inferCycleDecision({ repMax: 12, levelIndex: 1 }, { repMax: 5, levelIndex: 2 })).toBe(
+      "INCREASE", // graduated a level — rep reset is part of moving up
+    );
+    expect(inferCycleDecision({ repMax: 12, levelIndex: 1 }, { repMax: 9, levelIndex: 1 })).toBe(
+      "REDUCE",
+    );
   });
 
   it("carryProgression keeps each lift's week/cycle across a settings rebuild (the reset bug)", () => {

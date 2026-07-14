@@ -11,6 +11,7 @@ import {
 } from "@/lib/constants";
 import {
   buildSchedule,
+  effectiveCycle,
   isWeightRoundingMode,
   warmupSets,
   bbbSet,
@@ -102,6 +103,7 @@ export default async function StrengthLogPage({
           id: `slot-${i}`,
           movement: e.movement,
           week: e.week,
+          cycle: effectiveCycle(state[e.movement], program.cycle),
           label: exLabel(e),
           trainingMax: state[e.movement]?.trainingMax,
           sets,

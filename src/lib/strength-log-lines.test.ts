@@ -14,6 +14,7 @@ const squat: Suggestion = {
   id: "slot-0",
   movement: "SQUAT",
   week: 2,
+  cycle: 3,
   label: "Back squat",
   trainingMax: 100,
   sets: [
@@ -53,6 +54,7 @@ describe("switchExercise — typed values must never be lost", () => {
     // custom must not drive progression
     expect(next.movement).toBeUndefined();
     expect(next.week).toBeUndefined();
+    expect(next.cycle).toBeUndefined();
   });
 
   it("restores the exact typed rows when switching back to the plan exercise", () => {
@@ -70,6 +72,7 @@ describe("switchExercise — typed values must never be lost", () => {
     expect(back.sets).toEqual(l.sets); // original typed reps/weights, verbatim
     expect(back.movement).toBe("SQUAT");
     expect(back.week).toBe(2);
+    expect(back.cycle).toBe(3);
     expect(back.trainingMax).toBe(100);
   });
 
@@ -109,12 +112,13 @@ describe("restoreLines — resume/edit re-links plan exercises", () => {
 
   it("re-links via the saved exerciseId (picker + %-of-max survive a reload)", () => {
     const [l] = restoreLines(
-      { exercises: [{ exerciseId: "slot-0", name: "Back squat", movement: "SQUAT", week: 2, sets: savedSets }] },
+      { exercises: [{ exerciseId: "slot-0", name: "Back squat", movement: "SQUAT", week: 2, cycle: 3, sets: savedSets }] },
       day,
     );
     expect(l.exerciseId).toBe("slot-0");
     expect(l.movement).toBe("SQUAT");
     expect(l.week).toBe(2);
+    expect(l.cycle).toBe(3);
     expect(l.sets).toEqual([
       { weight: "70", reps: "5", kind: "main", amrap: false },
       { weight: "80", reps: "", kind: "main", amrap: true },

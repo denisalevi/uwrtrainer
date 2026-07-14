@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { startOfWeek, addWeeks, addDays } from "@/lib/dates";
 import { isSlotAvailableOn } from "@/lib/practice-window";
+import { exemptUsersForWeek, isWeekExempt } from "@/lib/exempt-weeks";
 
 /**
  * Auto-MISSED reconciliation. Two SEPARATE buckets, both producing
@@ -116,10 +117,17 @@ export async function reconcileRugbyMissed(slotId: string, date: Date): Promise<
 
   const touched = new Set<string>();
 
-  // 1. Accounted-for users (present, or with a manual MISSED row): remove any auto-MISSED.
+  // Tournament exemption (#31): players who played a tournament that week owe no goals — they
+  // must get no auto-MISSED for this practice, and any existing one is cleared.
+  const exemptUsers = await exemptUsersForWeek(
+    Array.from(new Set([...committedUserIds, ...autoMissedByUser.keys()])),
+    startOfWeek(date),
+  );
+
+  // 1. Accounted-for users (present, manual MISSED row, or tournament-exempt): remove any auto-MISSED.
   const toDelete: string[] = [];
   for (const [userId, ids] of autoMissedByUser) {
-    if (presentUserIds.has(userId) || manualMissedUserIds.has(userId)) {
+    if (presentUserIds.has(userId) || manualMissedUserIds.has(userId) || exemptUsers.has(userId)) {
       toDelete.push(...ids);
       touched.add(userId);
     }
@@ -128,7 +136,8 @@ export async function reconcileRugbyMissed(slotId: string, date: Date): Promise<
   // 2. Committed-but-unaccounted users: ensure exactly one auto-MISSED exists.
   const toCreate: string[] = [];
   for (const userId of committedUserIds) {
-    if (presentUserIds.has(userId) || manualMissedUserIds.has(userId)) continue;
+    if (presentUserIds.has(userId) || manualMissedUserIds.has(userId) || exemptUsers.has(userId))
+      continue;
     const hasAuto = (autoMissedByUser.get(userId)?.length ?? 0) > 0;
     if (!hasAuto) {
       toCreate.push(userId);
@@ -267,6 +276,25 @@ export async function reconcileNonRugbyWeek(weekStart: Date): Promise<number> {
 export async function reconcileWeekForUser(weekStart: Date, userId: string): Promise<number> {
   const weekEnd = addWeeks(weekStart, 1);
   const ref = addDays(weekStart, 6);
+
+  // Tournament exemption (#31): the week owes no goals — no shortfall summaries may exist for
+  // it. Clear any that were created before the tournament was logged, then stop.
+  if (await isWeekExempt(userId, weekStart)) {
+    const stale = await prisma.sessionLog.findMany({
+      where: {
+        userId,
+        status: "MISSED",
+        auto: true,
+        practiceSlotId: null,
+        date: { gte: weekStart, lt: weekEnd },
+      },
+      select: { id: true },
+    });
+    if (stale.length) {
+      await prisma.sessionLog.deleteMany({ where: { id: { in: stale.map((s) => s.id) } } });
+    }
+    return stale.length;
+  }
 
   const plan = await prisma.plan.findFirst({
     where: {

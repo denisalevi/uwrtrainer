@@ -490,20 +490,31 @@ export function advanceAfterSession(
 export type LoggedSet = { amrap?: boolean; reps?: number | null };
 export type LoggedExercise = { movement?: MovementKey; week?: number; done?: boolean; sets?: LoggedSet[] };
 
+/** One lift's advance from a finished session — before/after snapshots for the history log. */
+export type ProgressTransition = {
+  movement: MovementKey;
+  event: ProgressEvent;
+  before: MovementState;
+  after: MovementState;
+};
+
 /**
  * Advance a whole program's per-movement state from ONE finished session's logged exercises. For
  * each exercise marked done that carries a movement + the week it was logged at, step that lift's
  * own wave (advanceAfterSession), reading the AMRAP reps from its logged set. Deduped per movement.
- * Pure: returns a new state + the list of lifts advanced (never mutates the input). The caller
- * guards single-application (progressionApplied) and handles the rotating-day session pointer.
+ * Pure: returns a new state + the list of lifts advanced + the per-lift transitions (with
+ * before/after snapshots, so cycle closes can be recorded in the history log — never mutates the
+ * input). The caller guards single-application (progressionApplied) and handles the rotating-day
+ * session pointer.
  */
 export function advanceStateAfterSession(
   state: ProgramState,
   exercises: LoggedExercise[],
   opts: { rounding?: number; fallbackCycle: number; dayEquipment: ProgramEquipment; date?: string },
-): { state: ProgramState; advanced: MovementKey[] } {
+): { state: ProgramState; advanced: MovementKey[]; transitions: ProgressTransition[] } {
   const next: ProgramState = { ...state };
   const advanced: MovementKey[] = [];
+  const transitions: ProgressTransition[] = [];
   const seen = new Set<MovementKey>();
   for (const ex of exercises) {
     if (!ex || ex.done !== true) continue;
@@ -523,8 +534,23 @@ export function advanceStateAfterSession(
     next[m] = res.next;
     seen.add(m);
     advanced.push(m);
+    transitions.push({ movement: m, event: res.event, before: seeded, after: res.next });
   }
-  return { state: next, advanced };
+  return { state: next, advanced, transitions };
+}
+
+/**
+ * Reconstruct the adjustment a cycle close applied, from its before/after snapshots (the
+ * decision itself isn't returned by advanceMovementState): a HOLD bumps the lift's own `holds`
+ * counter; otherwise a lowered training max / rep max / level is the ~10 % REDUCE, and anything
+ * else is the normal INCREASE.
+ */
+export function inferCycleDecision(before: MovementState, after: MovementState): Adjustment {
+  if ((after.holds ?? 0) > (before.holds ?? 0)) return "HOLD";
+  const tmDown = (after.trainingMax ?? 0) < (before.trainingMax ?? 0);
+  const levelDown = (after.levelIndex ?? 0) < (before.levelIndex ?? 0);
+  const repsDown = (after.levelIndex ?? 0) === (before.levelIndex ?? 0) && (after.repMax ?? 0) < (before.repMax ?? 0);
+  return tmDown || levelDown || repsDown ? "REDUCE" : "INCREASE";
 }
 
 /**
