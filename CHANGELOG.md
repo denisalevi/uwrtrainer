@@ -11,6 +11,16 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-07-14
+
+### Fixed
+- **Half-kilo weights are accepted again.** Weight and training-max inputs no longer force whole
+  numbers — you can enter 37.5, 42.5, etc. (they were rejecting decimals with "the two nearest
+  valid values are 37 and 38").
+- **Lifts use their real names in the settings/session editor.** The session lift editor and the
+  per-lift setup now say "Deadlift", "Bench press", "Overhead press", "Back squat" (matching the
+  plan) instead of the internal pattern names "Hinge", "Push", etc.
+
 ## [0.25.0] - 2026-07-14
 
 ### Added

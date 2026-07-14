@@ -334,6 +334,9 @@ export function ProgramForm({
             {days.map((d, i) => {
               const assigned = d.movements ?? [];
               const available = movements.filter((m) => !assigned.includes(m));
+              // Label lifts by their actual exercise name (e.g. "Deadlift"), matching the plan —
+              // not the internal movement pattern ("Hinge"). Resolve against the day's equipment.
+              const daySlot: SlotMode = d.equipment === "WEIGHTS" ? "WEIGHTED" : "BODYWEIGHT";
               return (
                 <Card key={d.id}>
                   <CardBody className="space-y-2">
@@ -349,7 +352,7 @@ export function ProgramForm({
                             key={`${m}_${idx}`}
                             className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1 text-sm"
                           >
-                            <span className="text-slate-700">{t(`mv.${m}` as DictKey)}</span>
+                            <span className="text-slate-700">{chosenExercise(m, daySlot).label}</span>
                             <span className="flex items-center gap-0.5">
                               <Button type="button" variant="ghost" size="sm" aria-label="up" disabled={idx === 0} onClick={() => moveLift(i, idx, -1)}>
                                 ▲
@@ -376,7 +379,7 @@ export function ProgramForm({
                         <option value="">+ {t("strength.addLift")}</option>
                         {available.map((m) => (
                           <option key={m} value={m}>
-                            {t(`mv.${m}` as DictKey)}
+                            {chosenExercise(m, daySlot).label}
                           </option>
                         ))}
                       </Select>
@@ -403,7 +406,7 @@ export function ProgramForm({
       {movements.map((m) => (
         <Card key={m}>
           <CardBody className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t(`mv.${m}` as DictKey)}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{chosenExercise(m, anyWeighted ? "WEIGHTED" : "BODYWEIGHT").label}</p>
             {([anyWeighted ? "WEIGHTED" : null, anyBodyweight ? "BODYWEIGHT" : null].filter(Boolean) as SlotMode[]).map((slot) => {
               const ex = chosenExercise(m, slot);
               const weighted = ex.mode === "WEIGHTED";
@@ -424,7 +427,7 @@ export function ProgramForm({
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <Label className="text-xs text-slate-500">{t("strength.estWeight")}</Label>
-                            <Input type="number" min={0} inputMode="decimal" placeholder="kg" value={maxima[m].estWeight} onChange={(e) => setMax(m, { estWeight: e.target.value })} />
+                            <Input type="number" min={0} step="any" inputMode="decimal" placeholder="kg" value={maxima[m].estWeight} onChange={(e) => setMax(m, { estWeight: e.target.value })} />
                           </div>
                           <div>
                             <Label className="text-xs text-slate-500">{t("strength.estReps")}</Label>
@@ -454,7 +457,7 @@ export function ProgramForm({
                             {tmOpen[m] ? "▾" : "▸"} {t("strength.enterTmDirectly")}
                           </button>
                           {tmOpen[m] && (
-                            <Input className="mt-1" type="number" min={0} inputMode="decimal" placeholder="kg" value={maxima[m].tm} onChange={(e) => setMax(m, { tm: e.target.value })} />
+                            <Input className="mt-1" type="number" min={0} step="any" inputMode="decimal" placeholder="kg" value={maxima[m].tm} onChange={(e) => setMax(m, { tm: e.target.value })} />
                           )}
                         </div>
                         {conflicted(maxima[m]) && (

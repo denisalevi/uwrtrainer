@@ -497,6 +497,7 @@ export function StrengthWorkoutLogger({
                             type="number"
                             inputMode="decimal"
                             min={0}
+                            step="any"
                             placeholder="kg"
                             className="w-20"
                             value={s.weight}
