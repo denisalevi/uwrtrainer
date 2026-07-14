@@ -232,29 +232,33 @@ export function ProgramForm({
         </div>
       ))}
 
-      {/* Quick equipment default */}
-      <div>
-        <SectionTitle>{t("strength.eqChoice.title")}</SectionTitle>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          {PROGRAM_EQUIPMENT.map((eq) => {
-            const active = days.every((d) => d.equipment === eq);
-            return (
-              <button
-                type="button"
-                key={eq}
-                onClick={() => setAllEquipment(eq)}
-                className={cn(
-                  "rounded-xl border px-3 py-3 text-sm font-medium",
-                  active ? "border-teal-600 bg-teal-50 text-teal-800" : "border-slate-200 bg-white text-slate-600",
-                )}
-              >
-                {t(`strength.eqChoice.${eq}` as DictKey)}
-              </button>
-            );
-          })}
+      {/* Quick equipment default — the bodyweight program variant is retired (hidden for new
+          programs); the choice only shows while a legacy program still has a bodyweight day,
+          so it can be viewed and switched back to weights. */}
+      {anyBodyweight && (
+        <div>
+          <SectionTitle>{t("strength.eqChoice.title")}</SectionTitle>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {PROGRAM_EQUIPMENT.map((eq) => {
+              const active = days.every((d) => d.equipment === eq);
+              return (
+                <button
+                  type="button"
+                  key={eq}
+                  onClick={() => setAllEquipment(eq)}
+                  className={cn(
+                    "rounded-xl border px-3 py-3 text-sm font-medium",
+                    active ? "border-teal-600 bg-teal-50 text-teal-800" : "border-slate-200 bg-white text-slate-600",
+                  )}
+                >
+                  {t(`strength.eqChoice.${eq}` as DictKey)}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1 text-xs text-slate-400">{t("strength.eqChoice.perDayNote")}</p>
         </div>
-        <p className="mt-1 text-xs text-slate-400">{t("strength.eqChoice.perDayNote")}</p>
-      </div>
+      )}
 
       {/* Days */}
       <SectionTitle>{t("strength.daysTitle")}</SectionTitle>
@@ -273,21 +277,23 @@ export function ProgramForm({
                 </Button>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {PROGRAM_EQUIPMENT.map((eq) => (
-                <button
-                  type="button"
-                  key={eq}
-                  onClick={() => updateDay(i, { equipment: eq, minutes: eq === "WEIGHTS" ? d.minutes : suggestedMinutes(0) })}
-                  className={cn(
-                    "rounded-xl border px-3 py-2 text-sm",
-                    d.equipment === eq ? "border-teal-600 bg-teal-50 text-teal-800" : "border-slate-200 bg-white text-slate-600",
-                  )}
-                >
-                  {t(`strength.eqChoice.${eq}` as DictKey)}
-                </button>
-              ))}
-            </div>
+            {anyBodyweight && (
+              <div className="grid grid-cols-2 gap-2">
+                {PROGRAM_EQUIPMENT.map((eq) => (
+                  <button
+                    type="button"
+                    key={eq}
+                    onClick={() => updateDay(i, { equipment: eq, minutes: eq === "WEIGHTS" ? d.minutes : suggestedMinutes(0) })}
+                    className={cn(
+                      "rounded-xl border px-3 py-2 text-sm",
+                      d.equipment === eq ? "border-teal-600 bg-teal-50 text-teal-800" : "border-slate-200 bg-white text-slate-600",
+                    )}
+                  >
+                    {t(`strength.eqChoice.${eq}` as DictKey)}
+                  </button>
+                ))}
+              </div>
+            )}
           </CardBody>
         </Card>
       ))}

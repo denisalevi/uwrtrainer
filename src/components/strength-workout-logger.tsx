@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useT } from "@/components/i18n-provider";
 import { saveStrengthWorkout, finishStrengthWorkout } from "@/app/actions/strength";
 import { deleteSession } from "@/app/actions/training";
-import { Button, Card, CardBody, Input, Label, Select, cn } from "@/components/ui";
+import { Button, Card, CardBody, Input, Label, Select, Textarea, cn } from "@/components/ui";
 import { useRestTimer, RestTimerBar, type RestTimerSettings } from "@/components/rest-timer";
 import {
   ACTIVE_WORKOUT_MAX_AGE_MS,
@@ -149,6 +149,11 @@ export function StrengthWorkoutLogger({
   );
   const [warmup, setWarmup] = useState<boolean>(!!restored?.warmup);
   const [stretch, setStretch] = useState<boolean>(!!restored?.stretch);
+  // Free-text session notes — the "just write down what I did" escape hatch (any session,
+  // including an empty one). Stored inside the details JSON; no schema change needed.
+  const [sessionNotes, setSessionNotes] = useState<string>(
+    typeof restored?.notes === "string" ? (restored.notes as string) : "",
+  );
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -176,6 +181,7 @@ export function StrengthWorkoutLogger({
       startedAt: startedAtRef.current ?? undefined,
       warmup,
       stretch,
+      notes: sessionNotes.trim() || undefined,
       exercises: lines.map((l) => ({
         // Which picker choice the line was on — restore/edit re-links it to the plan exercise
         // (keeping the picker + %-of-max display) instead of degrading to custom.
@@ -639,6 +645,22 @@ export function StrengthWorkoutLogger({
           scheduleSave();
         }}
       />
+
+      {/* Session notes — describe anything the structured fields can't capture. */}
+      <div>
+        <Label htmlFor="sw-notes">{t("strength.sessionNotes")}</Label>
+        <Textarea
+          id="sw-notes"
+          rows={3}
+          placeholder={t("strength.sessionNotesPlaceholder")}
+          value={sessionNotes}
+          onChange={(e) => {
+            markStarted();
+            setSessionNotes(e.target.value);
+            scheduleSave();
+          }}
+        />
+      </div>
 
       {/* Duration (+ live session clock, wall-clock based — phones lock between sets) */}
       <div>

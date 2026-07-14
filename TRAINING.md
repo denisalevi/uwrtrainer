@@ -4,8 +4,15 @@ This explains the strength program model the app uses, in plain terms. The maths
 [`src/lib/strength.ts`](src/lib/strength.ts) (pure & unit-tested in `strength.test.ts`); the
 data model is the `StrengthProgram` table in [`prisma/schema.prisma`](prisma/schema.prisma).
 
-It's based on **Wendler 5/3/1**, adapted so it also works for people with **no equipment at
+It's based on **Wendler 5/3/1**, adapted so it can also work for people with **no equipment at
 all** — not even a pull-up bar. No AI is involved: it's deterministic arithmetic.
+
+> **Status note:** the all-bodyweight *program* variant described in parts of this document is
+> currently **hidden in the app** — nobody on the team used it, and a more flexible
+> routine-based replacement is planned (see
+> [`docs/plans/custom-routines.md`](docs/plans/custom-routines.md)). The engine still supports
+> it, existing bodyweight programs keep working, and individual bodyweight *exercises* (e.g.
+> pull-ups on a weighted day) remain available everywhere.
 
 ## The core idea (in plain words)
 
@@ -130,19 +137,16 @@ Falling short is built into the system, not a failure:
 
 In code these are the three outcomes of `decideAdjustment()`: **increase / hold / reduce**.
 
-## Days, time & extra volume
+## Days & extra volume
 
-You set up **1–4 days**, each with its **equipment** (weights / bodyweight) and a **session
-length**. Day count and time are two views of the same total weekly work — spread the lifts over
-more days and each session shrinks. The app **suggests a comfortable length** per day (more lifts
-= longer): roughly 4 days ≈ 45 min, 2 days ≈ 60 min, an all-in-one weighted day ≈ 2 h. You can
-shorten any day.
+You set up **1–4 sessions per week** (each with a name); the app lays the lifts out across them
+automatically, or you take over the per-session layout in the settings. There is no per-session
+time setting any more — you log the actual duration when you train.
 
-**Extra volume (Boring But Big).** On longer weighted sessions the app adds Wendler's optional
-"Boring But Big" assistance — **5 sets of 10** at about **50 %** of the training max — to build
-muscle on top of the main work. Short on time? It's **dropped automatically**; the main 5/3/1
-sets are what drive progress, so a short day still "counts". On bodyweight days the same idea
-applies as more or fewer sets of each pattern.
+**Extra volume (Boring But Big).** Wendler's optional assistance is **opt-in in the logger**:
+one tap adds a light high-rep set — by default **10 reps at about 50 %** of the training max,
+with the percentage and reps configurable per user in Settings. The main 5/3/1 sets are what
+drive progress, so skipping it is always fine.
 
 Most UWR players also train rugby 1–3×/week, so **2 strength days** is a sensible default — and
 the rugby practices stay the priority.
