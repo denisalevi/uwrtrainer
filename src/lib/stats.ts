@@ -283,7 +283,7 @@ export async function getLeaderboard(
 
   return users
     .map((u) => ({ userId: u.id, name: u.name, value: values.get(u.id) ?? 0 }))
-    .sort((a, b) => b.value - a.value);
+    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
 }
 
 /** Compact per-player summary for the trainer team view (current week). */
