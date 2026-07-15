@@ -12,6 +12,17 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 ## [Unreleased]
 
 ### Added
+- **Custom workout routines** (docs/plans/custom-routines.md). Build named routines from free-text
+  exercises, each with a measure type (kg × reps, reps only, seconds, kg × seconds), an optional
+  tempo prescription (shown, never logged), per-exercise rest seconds and target sets. The
+  strength page is now a hub: the guided program — finally named **5/3/1 Wendler**, with a short
+  explainer — sits next to your routines, where you create, edit, duplicate, archive/activate and
+  delete them. Active routines appear as pickable days in the strength logger (grouped: 5/3/1 plan
+  days · my routines · team routines) and prefill from the last logged session of that routine.
+  Trainers can publish routines to the team; teammates' active routines are visible on their
+  member page and copyable from there and from routine sessions in the feed ("see it → copy it" —
+  a deep snapshot, never a live link). The 5/3/1 program itself can now be **paused** (its days
+  leave the log picker; maxima and progress kept) and resumed from the hub.
 - **Extra practices with a custom name.** The attendance flow has a new "Extra practice" choice:
   type what it was (e.g. "beach training"), pick any past date, tick off who came. It counts
   toward everyone's weekly rugby goal, aggregates in the feed like a scheduled practice

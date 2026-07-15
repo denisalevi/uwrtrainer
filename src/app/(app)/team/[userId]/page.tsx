@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/dal";
 import { isTrainer, CATEGORIES } from "@/lib/constants";
 import { setRole } from "@/app/actions/trainer";
+import { copyRoutine } from "@/app/actions/routines";
+import { parseRoutineExercises, summarizeExercise } from "@/lib/routines";
 import { SessionLogList } from "@/components/session-log-list";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Card, CardBody, Badge, Button, SectionTitle } from "@/components/ui";
@@ -19,7 +21,7 @@ export default async function PlayerDetailPage({
   const viewer = await requireUser();
   const viewerIsTrainer = isTrainer(viewer.role);
 
-  const [player, recent, activePlan, slots] = await Promise.all([
+  const [player, recent, activePlan, slots, routines] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -46,6 +48,11 @@ export default async function PlayerDetailPage({
     prisma.practiceSlot.findMany({
       where: { active: true, teamId: viewer.activeTeamId ?? "" },
       orderBy: { dayOfWeek: "asc" },
+    }),
+    // Active routines are visible to teammates (see-it → copy-it, custom-routines.md).
+    prisma.routine.findMany({
+      where: { userId, active: true },
+      orderBy: { createdAt: "asc" },
     }),
   ]);
   if (!player) notFound();
@@ -75,6 +82,44 @@ export default async function PlayerDetailPage({
         plan={activePlan}
         availabilityNote={player.availabilityNote}
       />
+
+      {routines.length > 0 && (
+        <section className="space-y-2">
+          <SectionTitle>{t("routines.memberRoutines")}</SectionTitle>
+          <Card>
+            <CardBody className="space-y-3">
+              {routines.map((r) => {
+                const exercises = parseRoutineExercises(r.exercises);
+                return (
+                  <div key={r.id} className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-slate-800">
+                        {r.name}
+                        {r.teamId && (
+                          <Badge tone="teal" className="ml-2">
+                            {t("routines.publishedBadge")}
+                          </Badge>
+                        )}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-slate-500">
+                        {exercises.map((ex) => `${ex.name} ${summarizeExercise(ex)}`).join(" · ")}
+                      </p>
+                    </div>
+                    {viewer.id !== player.id && (
+                      <form action={copyRoutine} className="shrink-0">
+                        <input type="hidden" name="id" value={r.id} />
+                        <Button type="submit" variant="secondary" size="sm">
+                          ⧉ {t("routines.copy")}
+                        </Button>
+                      </form>
+                    )}
+                  </div>
+                );
+              })}
+            </CardBody>
+          </Card>
+        </section>
+      )}
 
       <section className="space-y-2">
         <SectionTitle>{t("team.recentLogs")}</SectionTitle>

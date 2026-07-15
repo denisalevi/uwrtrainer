@@ -31,7 +31,13 @@ from a single Docker Compose stack.
 - **Strength program** — a guided Wendler 5/3/1-style plan: it picks weights/reps for you,
   every lift progresses on its own automatic 4-week wave as you log it, and it explains
   itself in-app. Sessions are logged in a workout logger with autosave, rest timer, session
-  clock and per-lift history. Full model in [`TRAINING.md`](TRAINING.md).
+  clock and per-lift history. Pausable any time (state kept). Full model in
+  [`TRAINING.md`](TRAINING.md).
+- **Custom routines** — build your own named workouts next to the 5/3/1 program: free-text
+  exercises measured in kg × reps, reps only, seconds (planks/holds) or kg × seconds, with
+  optional tempo prescriptions and per-exercise rest. Active routines show up in the workout
+  logger (prefilled from your last session of that routine), trainers can publish routines to
+  the team, and teammates' routines can be copied with one tap.
 - **Multi-team** — several teams in one instance, with join codes, an account-less roster
   (claim your entry when you sign up), and per-team feeds/leaderboards.
 - **Adherence scoring** — full adherence is worth a fixed weekly base regardless of plan
@@ -148,9 +154,6 @@ With Node installed locally you can instead use `npm run dev`, `npm test`, `npm 
 
 ## Roadmap (not yet built)
 
-- Custom workout routines — per-user and trainer-published, copyable from teammates, with
-  reps/seconds/tempo prescriptions (design in
-  [`docs/plans/custom-routines.md`](docs/plans/custom-routines.md)).
 - Offline logging + background sync (log at the pool with no signal).
 - Goals & countdowns (e.g. tournament dates, weeks-until timers).
 - Notifications for peer motivation.

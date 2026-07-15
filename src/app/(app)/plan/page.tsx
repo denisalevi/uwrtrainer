@@ -19,7 +19,7 @@ export default async function PlanPage() {
       >
         <span>
           <span className="block font-semibold text-slate-900">💪 {t("strength.title")}</span>
-          <span className="mt-0.5 block text-sm text-slate-500">{t("strength.intro")}</span>
+          <span className="mt-0.5 block text-sm text-slate-500">{t("strength.hubIntro")}</span>
         </span>
         <span className="text-slate-400">›</span>
       </Link>

@@ -120,8 +120,8 @@ describe("restoreLines — resume/edit re-links plan exercises", () => {
     expect(l.week).toBe(2);
     expect(l.cycle).toBe(3);
     expect(l.sets).toEqual([
-      { weight: "70", reps: "5", kind: "main", amrap: false },
-      { weight: "80", reps: "", kind: "main", amrap: true },
+      { weight: "70", reps: "5", seconds: "", kind: "main", amrap: false },
+      { weight: "80", reps: "", seconds: "", kind: "main", amrap: true },
     ]);
   });
 

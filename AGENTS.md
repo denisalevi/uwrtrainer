@@ -128,6 +128,17 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
   + reasoning in `TRAINING.md`. Server-action files export **only async functions** (pure helpers
   like `buildSchedule`/`weightedAssignment`/`resolveExercise` live in `strength.ts`) — webpack
   build enforces this.
+- **Custom routines** (docs/plans/custom-routines.md, built): `Routine` model (owner `userId`,
+  trainer-published `teamId`, `exercises` JSON with per-exercise `measure`
+  (`MEASURE_TYPES` in constants.ts: kg×reps / reps / seconds / kg×seconds), optional `tempo` +
+  `restSeconds`, target sets; archive-style `active`). Pure helpers + prefill-from-last-log in
+  `src/lib/routines.ts` (unit-tested); actions in `actions/routines.ts` (CRUD, copy/duplicate,
+  publish, 5/3/1 `paused` toggle). `/strength` is the **hub** (5/3/1 Wendler card + routine
+  management; program view/wizard moved to `/strength/program`; editor at
+  `/strength/routines/[id|new]`). Active routines become extra picker days in `/strength/log`
+  (grouped plan/mine/team, `routine:<id>` day ids); sessions record `routineId`/`routineName` +
+  per-exercise measure/tempo and per-set `seconds` in the details JSON; teammates can copy a
+  visible routine from the member page, the feed (via `StrengthWorkoutView`) or the hub.
 - **i18n**: `src/lib/i18n/` — `en`/`de` dictionaries (flat dotted keys), server helper
   `getServerT()`, client `useT()` (`src/components/i18n-provider.tsx`). Locale is **per user**
   (`User.locale`), applied in the root layout.
@@ -191,6 +202,6 @@ bonus. All weights are tunable in `DEFAULT_SCORING`.
 
 ## Roadmap (not yet built)
 
-Custom workout routines (per-user + trainer-published + copy-from-teammate; design in
-`docs/plans/custom-routines.md`) · offline logging + background sync · goals & countdowns
-(tournament dates, weeks-until) · notifications · Postgres option. (Also mirrored in README.)
+Offline logging + background sync · goals & countdowns
+(tournament dates, weeks-until) · notifications · Postgres option · delete the LEVELS
+bodyweight-engine code once no active program uses it (custom-routines step 5). (Also mirrored in README.)
