@@ -39,6 +39,10 @@ export const en = {
   "teams.wrongCode": "Wrong code — please try again.",
   "teams.manageMembers": "Team members",
   "teams.manageMembersHint": "Add or remove members of any team.",
+  "users.manageTitle": "User management",
+  "users.manageHint": "All users, the teams they're in, and account deletion.",
+  "users.noTeam": "No team",
+  "users.addToTeam": "Add to team",
   "teams.removeFromTeam": "Remove",
   "teams.deleteAccount": "Delete account",
   "teams.deleteAccountConfirm":
@@ -612,6 +616,10 @@ export const de: Record<DictKey, string> = {
   "teams.wrongCode": "Falscher Code — bitte erneut versuchen.",
   "teams.manageMembers": "Teammitglieder",
   "teams.manageMembersHint": "Mitglieder beliebiger Teams hinzufügen oder entfernen.",
+  "users.manageTitle": "Benutzerverwaltung",
+  "users.manageHint": "Alle Benutzer, ihre Teams und Kontolöschung.",
+  "users.noTeam": "Kein Team",
+  "users.addToTeam": "Zu Team hinzufügen",
   "teams.removeFromTeam": "Entfernen",
   "teams.deleteAccount": "Konto löschen",
   "teams.deleteAccountConfirm":

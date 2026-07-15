@@ -9,6 +9,16 @@ uses [Semantic Versioning](https://semver.org/). While we're pre-1.0, a new **mi
 Release process: `npm version <patch|minor>` (bumps `package.json` and creates the
 `vX.Y.Z` git tag), then `git push --follow-tags`.
 
+## [0.29.0] - 2026-07-15
+
+### Changed
+- **Account deletion moved out of the per-team view into a new User management section.** The
+  admin "Team members" view is now only for team membership (add/remove); its "Delete account"
+  button is gone. A new **User management** section (Settings → Admin) lists *every* user with the
+  teams they're in, an add-to-team picker, and the account-delete button. This fixes the case where
+  a user removed from all teams became unreachable — team-less users now show a "No team" badge and
+  can be deleted directly, without first re-adding them to a team.
+
 ## [0.28.0] - 2026-07-14
 
 ### Added
