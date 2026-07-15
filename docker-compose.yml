@@ -9,6 +9,14 @@ services:
       SESSION_SECRET: "${SESSION_SECRET:?set SESSION_SECRET in your .env}"
       # Optional: invite code required to sign up (recommended on a public URL).
       REGISTRATION_CODE: "${REGISTRATION_CODE:-}"
+      # Optional outbound email (verification + password reset). Empty SMTP_HOST
+      # disables the whole email feature gracefully (see .env.example).
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+      MAIL_FROM: "${MAIL_FROM:-}"
+      APP_URL: "${APP_URL:-}"
       NODE_ENV: "production"
     volumes:
       - db-data:/data

@@ -77,6 +77,14 @@ Default leaderboards are created automatically (two on for everyone, two off for
 > grab the admin account. Share the code with teammates; leave it empty only on a trusted/local
 > network.
 
+> **Email verification & password reset (optional).** Fill the `SMTP_*` block in `.env`
+> (any SMTP submission service — e.g. Brevo's free tier: host `smtp-relay.brevo.com`, port
+> `587`, login + key from *Brevo → Settings → SMTP & API*) plus `MAIL_FROM` and `APP_URL`
+> (your public URL, used in the emailed links), then `docker compose up -d`. New signups must
+> then confirm their email before they can log in, and "Forgot password?" appears on the
+> sign-in page. With `SMTP_HOST` empty the app behaves as before: signup works without
+> verification and password reset is unavailable (existing accounts are unaffected either way).
+
 The app listens on an **unprivileged port (3000 by default)** bound to localhost, so there's
 nothing special to do under rootless Docker. Put HTTPS in front of it one of two ways:
 

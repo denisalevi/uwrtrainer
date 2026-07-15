@@ -47,6 +47,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       name: true,
       email: true,
       role: true,
+      sessionVersion: true,
       activeTeamId: true,
       memberships: { select: { teamId: true }, orderBy: { createdAt: "asc" } },
       locale: true,
@@ -67,9 +68,12 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     },
   });
   if (!user) return null;
+  // Stale session: the password was reset after this JWT was issued (pre-feature
+  // cookies carry no sv and count as 0, matching grandfathered users' version 0).
+  if ((session.sv ?? 0) !== user.sessionVersion) return null;
 
   const teamIds = user.memberships.map((m) => m.teamId);
-  const { memberships: _memberships, ...rest } = user;
+  const { memberships: _memberships, sessionVersion: _sv, ...rest } = user;
   return {
     ...rest,
     activeTeamId:

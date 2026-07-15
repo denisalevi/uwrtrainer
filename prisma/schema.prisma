@@ -19,6 +19,14 @@ model User {
   email            String?  @unique
   name             String
   passwordHash     String?
+  // Set once the user proved ownership of `email` (signup link, or a completed password
+  // reset — that proves inbox access too). NULL + passwordHash set = login is blocked
+  // while mail sending is configured (see src/lib/mail.ts); pre-feature users were
+  // grandfathered as verified by the migration.
+  emailVerifiedAt  DateTime?
+  // Bumped on password reset; embedded in the session JWT so old sessions die (JWTs are
+  // stateless — this is the revocation handle). Cookies without the claim count as 0.
+  sessionVersion   Int      @default(0)
   role             String   @default("PLAYER")
   activeTeamId     String?
   locale           String   @default("en")
@@ -54,6 +62,23 @@ model User {
   memberships       TeamMembership[]
   weekNotes         WeekNote[]
   routines          Routine[]
+  authTokens        AuthToken[]
+}
+
+/// Single-use emailed auth token (only its SHA-256 hash is stored; the raw token lives
+/// solely in the emailed link). type: "VERIFY_EMAIL" | "RESET_PASSWORD" (constants.ts).
+/// Consumed = usedAt set. Issuing a new token voids the user's older ones of that type.
+model AuthToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  type      String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, type])
 }
 
 /// A team. registrationCode gates self-signup/join for this team. The migration creates a

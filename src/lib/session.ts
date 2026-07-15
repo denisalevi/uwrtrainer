@@ -8,6 +8,9 @@ const MAX_AGE_SEC = 60 * 60 * 24 * 30; // 30 days
 export type SessionPayload = {
   userId: string;
   role: string;
+  /** User.sessionVersion at issue time; a mismatch in the DAL revokes the session
+   *  (bumped on password reset). Absent in pre-feature cookies — treated as 0. */
+  sv?: number;
 };
 
 function key(): Uint8Array {
@@ -31,7 +34,11 @@ export async function decrypt(
   try {
     const { payload } = await jwtVerify(token, key(), { algorithms: ["HS256"] });
     if (typeof payload.userId === "string" && typeof payload.role === "string") {
-      return { userId: payload.userId, role: payload.role };
+      return {
+        userId: payload.userId,
+        role: payload.role,
+        sv: typeof payload.sv === "number" ? payload.sv : 0,
+      };
     }
     return null;
   } catch {

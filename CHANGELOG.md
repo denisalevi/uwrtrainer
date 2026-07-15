@@ -11,6 +11,28 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-07-16
+
+### Added
+- **Email verification & password reset** (optional, on when `SMTP_HOST` is configured — see
+  README / `.env.example`; any SMTP submission service works, e.g. Brevo's free tier).
+  - Signup (including roster claims) now emails a confirmation link (valid 24 h) and blocks
+    login until it's clicked; the check-your-inbox page and the sign-in error both offer a
+    rate-limited resend. Accounts created before this release are grandfathered as verified.
+  - "Forgot password?" on the sign-in page emails a single-use reset link (valid 1 h). The
+    response never reveals whether an account exists. Completing a reset revokes all existing
+    sessions (new `User.sessionVersion` claim in the session JWT) and counts as email
+    verification, since it proves inbox access.
+  - Tokens are stored hashed (SHA-256), single-use, and superseded by newer ones; localized
+    (en/de) emails via the existing dictionaries; new public pages `/forgot-password`,
+    `/reset-password`, `/verify`, `/check-email`.
+  - With `SMTP_HOST` empty everything behaves as before (signup auto-verifies, reset hidden) —
+    nothing to configure for local/trusted deployments.
+
+### Fixed
+- Signup no longer fails with "Something went wrong" on instances with **open registration**
+  (no invite code): the absent code field submitted `null`, which the validator rejected.
+
 ## [0.31.0] - 2026-07-15
 
 ### Added

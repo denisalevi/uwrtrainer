@@ -2,7 +2,13 @@
 
 import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
-import { login, signup, listClaimableMembers, type AuthState } from "@/app/actions/auth";
+import {
+  login,
+  signup,
+  listClaimableMembers,
+  resendVerification,
+  type AuthState,
+} from "@/app/actions/auth";
 import { useT } from "@/components/i18n-provider";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Button, Input, Label } from "@/components/ui";
@@ -10,13 +16,21 @@ import { Button, Input, Label } from "@/components/ui";
 export function AuthForm({
   mode,
   requireCode = false,
+  resetAvailable = false,
 }: {
   mode: "login" | "signup";
   requireCode?: boolean;
+  resetAvailable?: boolean;
 }) {
   const { t } = useT();
   const action = mode === "login" ? login : signup;
   const [state, formAction, pending] = useActionState<AuthState, FormData>(action, undefined);
+  // Separate action for the "resend verification link" button shown when login is
+  // blocked by an unverified email (submits the same form's email field).
+  const [resendState, resendAction, resendPending] = useActionState<AuthState, FormData>(
+    resendVerification,
+    undefined,
+  );
   const [code, setCode] = useState("");
   const [claimables, setClaimables] = useState<{ id: string; name: string }[]>([]);
 
@@ -62,6 +76,13 @@ export function AuthForm({
           required
         />
         {mode === "signup" && <p className="mt-1 text-xs text-slate-500">{t("auth.passwordHint")}</p>}
+        {mode === "login" && resetAvailable && (
+          <p className="mt-1 text-right text-xs">
+            <Link href="/forgot-password" className="text-teal-700 hover:underline">
+              {t("auth.forgotPassword")}
+            </Link>
+          </p>
+        )}
       </div>
 
       {mode === "signup" && requireCode && (
@@ -96,8 +117,30 @@ export function AuthForm({
       )}
 
       {state?.error && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {t(state.error as DictKey)}
+        <div className="space-y-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p>{t(state.error as DictKey)}</p>
+          {state.unverifiedEmail && (
+            <Button
+              type="submit"
+              variant="secondary"
+              formAction={resendAction}
+              disabled={resendPending}
+              className="w-full"
+            >
+              {resendPending ? t("common.loading") : t("auth.resendButton")}
+            </Button>
+          )}
+        </div>
+      )}
+      {(resendState?.info || resendState?.error) && (
+        <p
+          className={
+            resendState.error
+              ? "rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"
+              : "rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-800"
+          }
+        >
+          {t((resendState.error ?? resendState.info) as DictKey)}
         </p>
       )}
 

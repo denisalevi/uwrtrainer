@@ -3,7 +3,14 @@ import { decrypt, SESSION_COOKIE } from "@/lib/session";
 
 // Optimistic auth gating only (reads the cookie, no DB). The authoritative
 // checks live in the Data Access Layer (src/lib/dal.ts) used by pages/actions.
-const PUBLIC_PATHS = new Set(["/login", "/signup"]);
+const PUBLIC_PATHS = new Set([
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/verify",
+  "/check-email",
+]);
 
 export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -19,7 +26,8 @@ export default async function proxy(req: NextRequest) {
   }
 
   // Authenticated: keep users out of auth pages and send root to the dashboard.
-  if (isPublic || isRoot) {
+  // /verify stays reachable so an emailed confirmation link works even mid-session.
+  if ((isPublic && pathname !== "/verify") || isRoot) {
     return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
   }
   return NextResponse.next();

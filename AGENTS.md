@@ -90,9 +90,16 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
   `src/app/actions/{auth,training,trainer,settings}.ts` (each `"use server"`).
 - **Prisma 7 + SQLite via the libSQL driver adapter** (`PrismaLibSql`). Client singleton in
   `src/lib/db.ts`; generated client in `src/generated/prisma` (gitignored — run `prisma generate`).
-- **Auth**: custom sessions — `src/lib/session.ts` (jose JWT in an httpOnly cookie) +
+- **Auth**: custom sessions — `src/lib/session.ts` (jose JWT in an httpOnly cookie; carries
+  `sv` = `User.sessionVersion`, bumped on password reset to revoke old sessions) +
   `src/lib/dal.ts` (`getCurrentUser`/`requireUser`/`requireTrainer`, the authoritative checks).
-  `src/proxy.ts` does only optimistic redirect gating.
+  `src/proxy.ts` does only optimistic redirect gating. **Email verification + password reset**
+  (0.32): active only when `SMTP_HOST` is set (`mailEnabled()` in `src/lib/mail.ts` — nodemailer
+  + localized templates from the i18n dictionaries; `APP_URL` builds the links). Single-use
+  SHA-256-hashed tokens: pure helpers `src/lib/auth-tokens.ts` (unit-tested), DB issue/consume
+  `src/lib/auth-token-store.ts`, flows in `actions/auth.ts`, public pages
+  `/forgot-password` `/reset-password` `/verify` `/check-email`. With SMTP unset, signup
+  auto-verifies and reset is hidden (graceful degrade — nothing breaks without config).
 - **Scoring** (pure, unit-tested): `src/lib/scoring.ts`. **Aggregation** (plans+logs → week
   scores, leaderboards, team summary): `src/lib/stats.ts`. Leaderboards are computed **on the
   fly** — there is no cache table, by design (robustness over micro-perf for a small team).

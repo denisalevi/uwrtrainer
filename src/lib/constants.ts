@@ -95,6 +95,10 @@ export function isMeasureType(v: unknown): v is MeasureType {
  *  is NULL, the env REGISTRATION_CODE acts as its code (pre-multi-team behaviour). */
 export const DEFAULT_TEAM_ID = "team-default";
 
+/** AuthToken.type — single-use emailed tokens (see src/lib/auth-tokens.ts). */
+export const AUTH_TOKEN_TYPES = ["VERIFY_EMAIL", "RESET_PASSWORD"] as const;
+export type AuthTokenType = (typeof AUTH_TOKEN_TYPES)[number];
+
 /** Which optional pull slots a user's plan includes (User.strengthPullups / strengthRows). */
 export type PullPrefs = { pullups: boolean; rows: boolean };
 

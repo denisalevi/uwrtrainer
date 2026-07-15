@@ -1,15 +1,14 @@
 import { AuthForm } from "@/components/auth-form";
 
-export function AuthScreen({
+/** Shared centered-card layout for all auth pages (login/signup/reset/verify…). */
+export function AuthShell({
   title,
   subtitle,
-  mode,
-  requireCode = false,
+  children,
 }: {
   title: string;
   subtitle: string;
-  mode: "login" | "signup";
-  requireCode?: boolean;
+  children: React.ReactNode;
 }) {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center px-5 py-10">
@@ -23,9 +22,29 @@ export function AuthScreen({
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold text-slate-900">{title}</h2>
-          <AuthForm mode={mode} requireCode={requireCode} />
+          {children}
         </div>
       </div>
     </main>
+  );
+}
+
+export function AuthScreen({
+  title,
+  subtitle,
+  mode,
+  requireCode = false,
+  resetAvailable = false,
+}: {
+  title: string;
+  subtitle: string;
+  mode: "login" | "signup";
+  requireCode?: boolean;
+  resetAvailable?: boolean;
+}) {
+  return (
+    <AuthShell title={title} subtitle={subtitle}>
+      <AuthForm mode={mode} requireCode={requireCode} resetAvailable={resetAvailable} />
+    </AuthShell>
   );
 }
