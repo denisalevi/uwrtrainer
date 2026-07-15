@@ -23,6 +23,12 @@ import {
 } from "@/lib/strength";
 import { StrengthWorkoutLogger, type LoggerDay } from "@/components/strength-workout-logger";
 import type { RoundingPref } from "@/lib/strength";
+import {
+  parseRoutineExercises,
+  prefillSets,
+  routineDayId,
+  type LoggedRoutineExercise,
+} from "@/lib/routines";
 
 /**
  * Parse a `?date=yyyy-mm-dd` param into local midnight. Returns null when malformed, not a real
@@ -67,9 +73,10 @@ export default async function StrengthLogPage({
   };
 
   // Build the day options to preload from (empty if there's no active program — you can still
-  // start a blank session and add exercises by hand).
+  // start a blank session and add exercises by hand). A PAUSED program keeps its state but
+  // offers no plan days here (resume it on the strength hub).
   let loggerDays: LoggerDay[] = [];
-  if (program && program.days && program.days !== "[]") {
+  if (program && !program.paused && program.days && program.days !== "[]") {
     const state: ProgramState = JSON.parse(program.movements);
     const days: DayPlan[] = JSON.parse(program.days);
     const layout: WeightedLayout = (WEIGHTED_LAYOUTS as readonly string[]).includes(program.weightedLayout)
@@ -82,6 +89,7 @@ export default async function StrengthLogPage({
       id: day.id,
       name: day.rotation ? `${day.name} (${t("strength.rotationWeek")} ${day.rotation})` : day.name,
       minutes: day.minutes,
+      group: "plan" as const,
       suggestions: day.exercises.map((e, i) => {
         const tm = state[e.movement]?.trainingMax ?? 0;
         const weighted = e.mode === "WEIGHTED" && tm > 0;
@@ -112,6 +120,68 @@ export default async function StrengthLogPage({
       }),
     }));
   }
+
+  // Custom routines (docs/plans/custom-routines.md): every ACTIVE routine — the athlete's own
+  // plus the ones trainers published to their team — becomes one more pickable day. Targets
+  // are prefilled from the LAST logged session of that routine (poor-man's progressive
+  // overload), falling back to the routine's stored targets.
+  const [myRoutines, teamRoutines] = await Promise.all([
+    prisma.routine.findMany({ where: { userId: user.id, active: true }, orderBy: { createdAt: "asc" } }),
+    user.activeTeamId
+      ? prisma.routine.findMany({
+          where: { teamId: user.activeTeamId, active: true, NOT: { userId: user.id } },
+          orderBy: { createdAt: "asc" },
+        })
+      : Promise.resolve([]),
+  ]);
+  const routineToDay = async (
+    routine: { id: string; name: string; exercises: string },
+    group: "mine" | "team",
+  ): Promise<LoggerDay> => {
+    const exercises = parseRoutineExercises(routine.exercises);
+    const lastLog = await prisma.sessionLog.findFirst({
+      where: {
+        userId: user.id,
+        category: "STRENGTH",
+        status: "DONE",
+        details: { contains: `"routineId":"${routine.id}"` },
+      },
+      orderBy: { date: "desc" },
+      select: { details: true },
+    });
+    let lastExercises: LoggedRoutineExercise[] | null = null;
+    try {
+      const parsed = lastLog?.details ? JSON.parse(lastLog.details) : null;
+      if (parsed && Array.isArray(parsed.exercises)) lastExercises = parsed.exercises;
+    } catch {
+      lastExercises = null;
+    }
+    return {
+      id: routineDayId(routine.id),
+      name: routine.name,
+      minutes: 0,
+      group,
+      suggestions: exercises.map((ex, i) => ({
+        id: `rex-${i}`,
+        label: ex.name,
+        measure: ex.measure,
+        tempo: ex.tempo,
+        restSeconds: ex.restSeconds,
+        sets: prefillSets(ex, i, lastExercises).map((s) => ({
+          reps: s.reps ?? null,
+          weight: s.weight ?? null,
+          seconds: s.seconds ?? null,
+          amrap: false,
+          kind: "main" as const,
+        })),
+      })),
+    };
+  };
+  loggerDays = [
+    ...loggerDays,
+    ...(await Promise.all(myRoutines.map((r) => routineToDay(r, "mine")))),
+    ...(await Promise.all(teamRoutines.map((r) => routineToDay(r, "team")))),
+  ];
 
   // Resume: a specific session to edit (?id=), otherwise the target day's in-progress draft.
   // A validated ?date= (e.g. from a missed row's "Log the session") backdates the session so it

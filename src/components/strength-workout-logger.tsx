@@ -25,10 +25,12 @@ import {
   switchExercise,
   type Line,
   type LoggerDay,
+  type LoggerDayGroup,
   type SetKind,
   type SetVal,
   type Suggestion,
 } from "@/lib/strength-log-lines";
+import { measureAxes, routineIdFromDayId } from "@/lib/routines";
 
 export type { LoggerDay } from "@/lib/strength-log-lines";
 
@@ -171,6 +173,10 @@ export function StrengthWorkoutLogger({
   durationRef.current = durationMin;
 
   function buildDetails(): string {
+    // A routine-backed day records which routine it came from — the read-only views show it
+    // ("Routine: X") and teammates get a copy affordance; the next log of the same routine
+    // prefills from this session.
+    const routineId = routineIdFromDayId(dayId);
     return JSON.stringify({
       kind: "strengthWorkout",
       programId,
@@ -178,6 +184,8 @@ export function StrengthWorkoutLogger({
       week,
       dayId,
       dayName: day?.name,
+      routineId: routineId ?? undefined,
+      routineName: routineId ? day?.name : undefined,
       startedAt: startedAtRef.current ?? undefined,
       warmup,
       stretch,
@@ -192,9 +200,13 @@ export function StrengthWorkoutLogger({
         movement: l.movement,
         week: l.week,
         cycle: l.cycle,
+        measure: l.measure,
+        tempo: l.tempo,
+        restSeconds: l.restSeconds,
         sets: l.sets.map((s) => ({
           weight: s.weight ? Number(s.weight) : null,
           reps: s.reps ? Number(s.reps) : null,
+          seconds: s.seconds ? Number(s.seconds) : null,
           kind: s.kind,
           amrap: s.amrap,
         })),
@@ -308,7 +320,7 @@ export function StrengthWorkoutLogger({
   function addExercise() {
     const sug = day?.suggestions[0];
     const line: Line = sug
-      ? { key: nextKey(), exerciseId: sug.id, name: sug.label, trainingMax: sug.trainingMax, movement: sug.movement, week: sug.week, cycle: sug.cycle, sets: seedSets(sug) }
+      ? { key: nextKey(), exerciseId: sug.id, name: sug.label, trainingMax: sug.trainingMax, movement: sug.movement, week: sug.week, cycle: sug.cycle, measure: sug.measure, tempo: sug.tempo, restSeconds: sug.restSeconds, sets: seedSets(sug) }
       : { key: nextKey(), exerciseId: CUSTOM_LINE_ID, name: "", sets: [{ weight: "", reps: "", kind: "main" }] };
     mutate((ls) => [...ls, line]);
   }
@@ -320,23 +332,28 @@ export function StrengthWorkoutLogger({
     mutate((ls) => ls.map((l) => (l.key === key ? switchExercise(l, exerciseId, day?.suggestions ?? []) : l)));
   }
 
+  /** The field that marks a set "performed": seconds on timed measures, reps otherwise. */
+  const completionField = (l: Line): "reps" | "seconds" =>
+    l.measure && !measureAxes(l.measure).reps ? "seconds" : "reps";
+
   const setField = (key: string, i: number, field: keyof SetVal, val: string) => {
     markStarted();
     mutate((ls) =>
       ls.map((l) => {
         if (l.key !== key) return l;
         const sets = l.sets.map((s, j) => (j === i ? { ...s, [field]: val } : s));
-        // Auto-mark the exercise done when its LAST empty reps field gets a value. Only ever
-        // auto-set — never auto-clear (a deleted rep may be intentional), and never override
-        // a manual untick (doneTouched).
+        // Auto-mark the exercise done when its LAST empty reps/seconds field gets a value.
+        // Only ever auto-set — never auto-clear (a deleted rep may be intentional), and never
+        // override a manual untick (doneTouched).
+        const doneField = completionField(l);
         let done = l.done;
         if (
-          field === "reps" &&
+          field === doneField &&
           val.trim() !== "" &&
           !done &&
           !doneTouched.current.has(key) &&
           sets.length > 0 &&
-          sets.every((s) => s.reps.trim() !== "")
+          sets.every((s) => ((s[doneField] ?? "") as string).trim() !== "")
         )
           done = true;
         return { ...l, sets, done };
@@ -392,55 +409,67 @@ export function StrengthWorkoutLogger({
         />
       </div>
 
-      {/* Day selector — pick a day from your plan to preload it, or start empty. */}
+      {/* Day selector — pick a 5/3/1 plan day or a routine to preload it, or start empty.
+          Sections only appear when routines exist; a pure plan picker stays one flat grid. */}
       {days.length >= 1 && (
         <div>
           <Label>{t("strength.chooseDay")}</Label>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {days.map((d) => (
+          {(() => {
+            const pickDay = (d: LoggerDay | null) => {
+              const id = d?.id ?? "";
+              // Re-picking the selected day must not re-seed (that would wipe input);
+              // a real switch replaces the lines, so ask first if anything was typed.
+              if (id === dayId) return;
+              if (hasUserInput(lines) && !confirm(t("strength.switchDayConfirm"))) return;
+              markStarted();
+              setDayId(id);
+              setLines(d ? seedLines(d) : []);
+              scheduleSave();
+            };
+            const dayButton = (d: LoggerDay | null, label: string) => (
               <button
-                key={d.id}
+                key={d?.id ?? "empty"}
                 type="button"
-                onClick={() => {
-                  // Re-picking the selected day must not re-seed (that would wipe input);
-                  // a real switch replaces the lines, so ask first if anything was typed.
-                  if (d.id === dayId) return;
-                  if (hasUserInput(lines) && !confirm(t("strength.switchDayConfirm"))) return;
-                  markStarted();
-                  setDayId(d.id);
-                  setLines(seedLines(d));
-                  scheduleSave();
-                }}
+                onClick={() => pickDay(d)}
                 className={cn(
                   "rounded-xl border px-3 py-2 text-sm font-medium",
-                  d.id === dayId
+                  (d?.id ?? "") === dayId
                     ? "border-teal-600 bg-teal-50 text-teal-800"
                     : "border-slate-200 bg-white text-slate-600",
                 )}
               >
-                {d.name}
+                {label}
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => {
-                if (dayId === "") return;
-                if (hasUserInput(lines) && !confirm(t("strength.switchDayConfirm"))) return;
-                markStarted();
-                setDayId("");
-                setLines([]);
-                scheduleSave();
-              }}
-              className={cn(
-                "rounded-xl border px-3 py-2 text-sm font-medium",
-                dayId === ""
-                  ? "border-teal-600 bg-teal-50 text-teal-800"
-                  : "border-slate-200 bg-white text-slate-600",
-              )}
-            >
-              {t("strength.emptySession")}
-            </button>
-          </div>
+            );
+            const sections: Array<{ group: LoggerDayGroup; labelKey: Parameters<typeof t>[0] }> = [
+              { group: "plan", labelKey: "strength.wendlerTitle" },
+              { group: "mine", labelKey: "routines.mine" },
+              { group: "team", labelKey: "routines.team" },
+            ];
+            const grouped = sections
+              .map((s) => ({ ...s, days: days.filter((d) => (d.group ?? "plan") === s.group) }))
+              .filter((s) => s.days.length > 0);
+            const showHeaders = grouped.length > 1 || grouped.some((s) => s.group !== "plan");
+            return (
+              <div className="space-y-2">
+                {grouped.map((s) => (
+                  <div key={s.group}>
+                    {showHeaders && (
+                      <p className="mb-1 mt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        {t(s.labelKey)}
+                      </p>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      {s.days.map((d) => dayButton(d, d.name))}
+                    </div>
+                  </div>
+                ))}
+                <div className="grid grid-cols-2 gap-2">
+                  {dayButton(null, t("strength.emptySession"))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -458,7 +487,25 @@ export function StrengthWorkoutLogger({
       {/* Exercise lines */}
       {lines.map((l) => {
         const sug = suggestionFor(l);
-        const showWeight = l.exerciseId === CUSTOM_LINE_ID || (sug?.sets.some((s) => s.weight != null) ?? false);
+        // Which value axes this line logs: routine exercises declare a measure (kg×reps /
+        // reps / seconds / kg×seconds); plan/custom lines keep the legacy weight+reps rule.
+        const measure = l.measure ?? sug?.measure;
+        const axes = measure
+          ? measureAxes(measure)
+          : {
+              weight: l.exerciseId === CUSTOM_LINE_ID || (sug?.sets.some((s) => s.weight != null) ?? false),
+              reps: true,
+              seconds: false,
+            };
+        const showWeight = axes.weight;
+        const tempo = l.tempo ?? sug?.tempo;
+        // Per-exercise routine rest overrides the per-kind rest durations.
+        const startRest = (kind: SetKind) => {
+          if (!rest.enabled) return;
+          const rs = l.restSeconds ?? sug?.restSeconds;
+          if (rs && rs > 0) rest.startWithSeconds(rs);
+          else rest.startForKind(kind);
+        };
         return (
           <Card key={l.key} className={cn(l.done && "border-teal-400")}>
             <CardBody className="space-y-3">
@@ -493,6 +540,13 @@ export function StrengthWorkoutLogger({
               {showWeight && sug?.trainingMax != null && (
                 <div className="text-xs text-slate-400">
                   {t("strength.currentMax")}: {sug.trainingMax} kg
+                </div>
+              )}
+
+              {/* Tempo prescription (e.g. "3-0-3") — how to perform the reps, never logged. */}
+              {tempo && (
+                <div className="text-xs text-slate-400">
+                  🕐 {t("routines.tempo")}: <span className="font-medium text-slate-500">{tempo}</span>
                 </div>
               )}
 
@@ -555,26 +609,52 @@ export function StrengthWorkoutLogger({
                         {showWeight && pct != null && (
                           <span className="shrink-0 text-xs text-slate-400">{pct}%</span>
                         )}
-                        <Input
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
-                          placeholder={
-                            target ? `${target.reps}${s.amrap ? "+" : ""}` : t("strength.reps")
-                          }
-                          className="w-20"
-                          value={s.reps}
-                          onChange={(e) => setField(l.key, i, "reps", e.target.value)}
-                          // Leaving the reps field (or pressing Enter) auto-starts the rest timer
-                          // for this set's kind. Read the live value to avoid a stale closure.
-                          onBlur={(e) => {
-                            if (rest.enabled && e.target.value.trim() !== "") rest.startForKind(s.kind);
-                          }}
-                          onKeyDown={(e) => {
-                            // Blur is enough — the onBlur handler above starts the timer.
-                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                          }}
-                        />
+                        {axes.reps && (
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            placeholder={
+                              target?.reps != null ? `${target.reps}${s.amrap ? "+" : ""}` : t("strength.reps")
+                            }
+                            className="w-20"
+                            value={s.reps}
+                            onChange={(e) => setField(l.key, i, "reps", e.target.value)}
+                            // Leaving the reps field (or pressing Enter) auto-starts the rest timer
+                            // for this set's kind. Read the live value to avoid a stale closure.
+                            onBlur={(e) => {
+                              if (e.target.value.trim() !== "") startRest(s.kind);
+                            }}
+                            onKeyDown={(e) => {
+                              // Blur is enough — the onBlur handler above starts the timer.
+                              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                            }}
+                          />
+                        )}
+                        {axes.seconds && (
+                          <span className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              placeholder={
+                                target?.seconds != null ? String(target.seconds) : t("routines.secondsShort")
+                              }
+                              className="w-20"
+                              value={s.seconds ?? ""}
+                              onChange={(e) => setField(l.key, i, "seconds", e.target.value)}
+                              // On timed measures the seconds field is what marks a set performed —
+                              // it drives the rest timer instead of reps.
+                              onBlur={(e) => {
+                                if (!axes.reps && e.target.value.trim() !== "") startRest(s.kind);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                              }}
+                            />
+                            <span className="text-xs text-slate-400">s</span>
+                          </span>
+                        )}
                         <Button
                           type="button"
                           variant="ghost"

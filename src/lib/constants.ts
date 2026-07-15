@@ -79,6 +79,18 @@ export type SlotTool = (typeof SLOT_TOOLS)[number];
 export const WEIGHTED_LAYOUTS = ["ROTATE", "ALL_IN_ONE"] as const;
 export type WeightedLayout = (typeof WEIGHTED_LAYOUTS)[number];
 
+/**
+ * What one set of a custom-routine exercise measures (docs/plans/custom-routines.md).
+ * KG_REPS = weight + reps (default) · REPS = reps only (push-ups) · SECONDS = timed set where
+ * the seconds ARE the logged value (plank 3×30 s) · KG_SECONDS = weighted hold (farmer carry).
+ */
+export const MEASURE_TYPES = ["KG_REPS", "REPS", "SECONDS", "KG_SECONDS"] as const;
+export type MeasureType = (typeof MEASURE_TYPES)[number];
+
+export function isMeasureType(v: unknown): v is MeasureType {
+  return typeof v === "string" && (MEASURE_TYPES as readonly string[]).includes(v);
+}
+
 /** Fixed id of the team created by the multi-team migration. While its registrationCode
  *  is NULL, the env REGISTRATION_CODE acts as its code (pre-multi-team behaviour). */
 export const DEFAULT_TEAM_ID = "team-default";

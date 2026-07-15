@@ -53,6 +53,7 @@ model User {
   progressionEvents StrengthProgressionEvent[]
   memberships       TeamMembership[]
   weekNotes         WeekNote[]
+  routines          Routine[]
 }
 
 /// A team. registrationCode gates self-signup/join for this team. The migration creates a
@@ -198,6 +199,10 @@ model StrengthProgram {
   week             Int      @default(1)
   consecutiveHolds Int      @default(0)
   active           Boolean  @default(true)
+  // Paused = still configured (state/maxima kept, shown on the strength hub with "resume"),
+  // but its plan days disappear from the log picker. Distinct from active=false, which is the
+  // full reset that brings the setup wizard back.
+  paused           Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -223,6 +228,29 @@ model StrengthProgressionEvent {
   createdAt    DateTime @default(now())
 
   @@index([userId, movement, createdAt])
+}
+
+/// A custom workout routine (see docs/plans/custom-routines.md). Owned by a user; a trainer
+/// can additionally publish one to a team (teamId set) so teammates can pick/copy it.
+/// `exercises` is a JSON string: [{ name, measure, tempo?, restSeconds?, sets: [{ reps?,
+/// weight?, seconds? }] }] — `measure` is a MEASURE_TYPES union (constants.ts), validated
+/// with Zod. Active routines appear in the strength log picker and are visible to teammates
+/// (who can copy them); archived (active=false) ones are kept but hidden everywhere but the
+/// owner's own list. copiedFromId is provenance only — never a live link.
+model Routine {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId       String? // set = published to that team by a trainer
+  name         String
+  exercises    String   @default("[]")
+  copiedFromId String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([teamId])
 }
 
 /// Generic key/value app settings (team name, scoring overrides, etc.).

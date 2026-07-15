@@ -1,19 +1,31 @@
 import { getServerT } from "@/lib/i18n/server";
-import { Card, CardBody } from "@/components/ui";
+import { getCurrentUser } from "@/lib/dal";
+import { prisma } from "@/lib/db";
+import { copyRoutine } from "@/app/actions/routines";
+import { Card, CardBody, Button } from "@/components/ui";
 
 type SetKind = "warmup" | "main" | "bbb";
-type ViewSet = { weight: number | null; reps: number | null; amrap?: boolean; kind?: SetKind };
+type ViewSet = {
+  weight: number | null;
+  reps: number | null;
+  seconds?: number | null;
+  amrap?: boolean;
+  kind?: SetKind;
+};
 type ViewExercise = {
   name?: string;
   done?: boolean;
   trainingMax?: number;
   week?: number;
   cycle?: number;
+  tempo?: string;
   sets?: ViewSet[];
 };
 type ViewDetails = {
   kind?: string;
   dayName?: string;
+  routineId?: string;
+  routineName?: string;
   cycle?: number;
   week?: number;
   warmup?: boolean;
@@ -36,6 +48,12 @@ function parse(details: string | ViewDetails | null | undefined): ViewDetails | 
 
 function fmtSet(s: ViewSet): string {
   const w = s.weight != null ? String(s.weight) : null;
+  // Timed sets (custom-routine SECONDS/KG_SECONDS): the seconds ARE the logged value —
+  // "30 s" for a plank, "24 × 40 s" for a weighted carry.
+  if (s.seconds != null) {
+    const sec = `${s.seconds} s`;
+    return w != null ? `${w} × ${sec}` : sec;
+  }
   const reps = s.reps != null ? `${s.reps}${s.amrap ? "+" : ""}` : "—";
   return w != null ? `${w} × ${reps}` : reps;
 }
@@ -70,6 +88,37 @@ export async function StrengthWorkoutView({
 }) {
   const { t } = await getServerT();
   const data = parse(details);
+
+  // See-it → copy-it: a session logged from a routine records routineId — viewers who don't
+  // own that routine (and can still see it: active + teammate/team-published) get a copy
+  // button right here. getCurrentUser is request-cached, so this is cheap.
+  let copyable: { id: string; name: string } | null = null;
+  if (data?.routineId && typeof data.routineId === "string") {
+    const [viewer, routine] = await Promise.all([
+      getCurrentUser(),
+      prisma.routine.findUnique({
+        where: { id: data.routineId },
+        select: {
+          id: true,
+          name: true,
+          active: true,
+          userId: true,
+          teamId: true,
+          user: { select: { memberships: { select: { teamId: true } } } },
+        },
+      }),
+    ]);
+    if (
+      viewer &&
+      routine &&
+      routine.active &&
+      routine.userId !== viewer.id &&
+      ((routine.teamId != null && viewer.teamIds.includes(routine.teamId)) ||
+        routine.user.memberships.some((m) => viewer.teamIds.includes(m.teamId)))
+    ) {
+      copyable = { id: routine.id, name: routine.name };
+    }
+  }
   const exercises = Array.isArray(data?.exercises) ? data!.exercises : [];
   const notes = typeof data?.notes === "string" ? data.notes.trim() : "";
 
@@ -116,8 +165,9 @@ export async function StrengthWorkoutView({
     ].filter(Boolean);
     return parts.length ? parts.join(" · ") : null;
   };
+  // Routine sessions never have a 5/3/1 position — the program's legacy pointer is noise there.
   const hasPerLift = exercises.some((ex) => liftPos(ex) != null);
-  const cycleWeek = hasPerLift
+  const cycleWeek = hasPerLift || data.routineName
     ? ""
     : [
         data.cycle != null ? `${t("strength.cycle")} ${data.cycle}` : null,
@@ -128,12 +178,25 @@ export async function StrengthWorkoutView({
 
   return (
     <div className="space-y-2">
-      {(data.dayName || cycleWeek) && (
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+      {(data.dayName || cycleWeek || data.routineName) && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           {data.dayName && (
             <span className="text-sm font-medium text-slate-800">{data.dayName}</span>
           )}
+          {data.routineName && (
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+              {t("routines.badge")}
+            </span>
+          )}
           {cycleWeek && <span className="text-xs text-slate-500">{cycleWeek}</span>}
+          {copyable && (
+            <form action={copyRoutine}>
+              <input type="hidden" name="id" value={copyable.id} />
+              <Button type="submit" variant="ghost" size="sm">
+                ⧉ {t("routines.copyToMine")}
+              </Button>
+            </form>
+          )}
         </div>
       )}
       <Card>
@@ -155,6 +218,9 @@ export async function StrengthWorkoutView({
                     <span className="text-xs text-slate-400 tabular-nums">
                       {t("strength.tmShort")} {ex.trainingMax} kg
                     </span>
+                  )}
+                  {ex.tempo && (
+                    <span className="text-xs text-slate-400 tabular-nums">@ {ex.tempo}</span>
                   )}
                   {ex.done && <span className="text-xs text-teal-700">✓</span>}
                 </div>

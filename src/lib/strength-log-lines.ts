@@ -5,10 +5,18 @@
 // exercise picker back and forth (plan exercise ↔ custom ↔ another plan exercise). Each
 // line therefore carries a per-exercise `stash` of the rows last shown for that choice.
 
-import type { MovementKey } from "@/lib/constants";
+import { isMeasureType, type MeasureType, type MovementKey } from "@/lib/constants";
 
 export type SetKind = "warmup" | "main" | "bbb";
-export type SetTarget = { reps: number; weight: number | null; amrap: boolean; kind?: SetKind; pct?: number | null };
+export type SetTarget = {
+  reps: number | null;
+  weight: number | null;
+  amrap: boolean;
+  kind?: SetKind;
+  pct?: number | null;
+  /** Target seconds for timed sets (custom-routine SECONDS/KG_SECONDS measures). */
+  seconds?: number | null;
+};
 export type Suggestion = {
   id: string;
   /** Which movement pattern this preloads (drives per-lift progression on finish). */
@@ -23,10 +31,24 @@ export type Suggestion = {
   sets: SetTarget[];
   /** Pre-filled weight for one "Boring But Big" set on this lift; null on non-weighted lifts. */
   bbbWeight?: number | null;
+  /** Custom-routine exercises: which axes a set logs (kg×reps / reps / seconds / kg×seconds). */
+  measure?: MeasureType;
+  /** Custom-routine tempo prescription — displayed as a badge, carried into the details. */
+  tempo?: string;
+  /** Custom-routine per-exercise rest, overriding the per-kind rest-timer durations. */
+  restSeconds?: number;
 };
-export type LoggerDay = { id: string; name: string; minutes: number; suggestions: Suggestion[] };
+export type LoggerDayGroup = "plan" | "mine" | "team";
+export type LoggerDay = {
+  id: string;
+  name: string;
+  minutes: number;
+  suggestions: Suggestion[];
+  /** Which picker section the day belongs to (5/3/1 plan days / my routines / team routines). */
+  group?: LoggerDayGroup;
+};
 
-export type SetVal = { weight: string; reps: string; kind: SetKind; amrap?: boolean };
+export type SetVal = { weight: string; reps: string; kind: SetKind; amrap?: boolean; seconds?: string };
 /** Everything a picker choice displays — snapshotted into the stash when switching away. */
 type Snapshot = {
   name: string;
@@ -36,6 +58,9 @@ type Snapshot = {
   movement?: MovementKey;
   week?: number;
   cycle?: number;
+  measure?: MeasureType;
+  tempo?: string;
+  restSeconds?: number;
 };
 export type Line = Snapshot & {
   key: string;
@@ -56,11 +81,14 @@ export function sortByKind(sets: SetVal[]): SetVal[] {
   return [...sets].sort((a, b) => KIND_RANK[a.kind] - KIND_RANK[b.kind]);
 }
 
-/** Build the editable set rows for a suggestion (weights pre-filled, reps blank, kind carried). */
+/** Build the editable set rows for a suggestion. The load axis (weight) is pre-filled; the
+ *  performance axes (reps / seconds — what you actually did) start blank, their targets
+ *  showing as placeholders. */
 export function seedSets(sug: Suggestion): SetVal[] {
   return sug.sets.map((s) => ({
     weight: s.weight != null ? String(s.weight) : "",
     reps: "",
+    seconds: "",
     kind: s.kind ?? "main",
     amrap: s.amrap,
   }));
@@ -77,15 +105,18 @@ export function seedLines(day: LoggerDay | undefined): Line[] {
     movement: sug.movement,
     week: sug.week,
     cycle: sug.cycle,
+    measure: sug.measure,
+    tempo: sug.tempo,
+    restSeconds: sug.restSeconds,
     sets: seedSets(sug),
   }));
 }
 
-/** True when the athlete has typed anything worth protecting (reps, or a custom name). */
+/** True when the athlete has typed anything worth protecting (reps/seconds, or a custom name). */
 export function hasUserInput(lines: Line[]): boolean {
   return lines.some(
     (l) =>
-      l.sets.some((s) => s.reps.trim() !== "") ||
+      l.sets.some((s) => s.reps.trim() !== "" || (s.seconds ?? "").trim() !== "") ||
       (l.exerciseId === CUSTOM_LINE_ID && l.name.trim() !== ""),
   );
 }
@@ -112,6 +143,9 @@ export function switchExercise(l: Line, exerciseId: string, suggestions: Suggest
       movement: l.movement,
       week: l.week,
       cycle: l.cycle,
+      measure: l.measure,
+      tempo: l.tempo,
+      restSeconds: l.restSeconds,
     },
   };
   const kept = l.stash?.[exerciseId];
@@ -124,6 +158,9 @@ export function switchExercise(l: Line, exerciseId: string, suggestions: Suggest
       week: undefined,
       cycle: undefined,
       trainingMax: undefined,
+      measure: undefined,
+      tempo: undefined,
+      restSeconds: undefined,
       sets: l.sets.length > 0 ? l.sets : [{ weight: "", reps: "", kind: "main" }],
       stash,
     };
@@ -138,6 +175,9 @@ export function switchExercise(l: Line, exerciseId: string, suggestions: Suggest
     movement: sug.movement,
     week: sug.week,
     cycle: sug.cycle,
+    measure: sug.measure,
+    tempo: sug.tempo,
+    restSeconds: sug.restSeconds,
     done: false,
     sets: seedSets(sug),
     stash,
@@ -161,6 +201,9 @@ export function restoreLines(details: Record<string, unknown>, day: LoggerDay | 
       movement?: MovementKey;
       week?: number;
       cycle?: number;
+      measure?: MeasureType;
+      tempo?: string;
+      restSeconds?: number;
       sets?: Array<Record<string, unknown>>;
     }>
   ).map((e) => {
@@ -184,9 +227,15 @@ export function restoreLines(details: Record<string, unknown>, day: LoggerDay | 
       movement: e.movement,
       week: typeof e.week === "number" ? e.week : undefined,
       cycle: typeof e.cycle === "number" ? e.cycle : undefined,
+      // Routine metadata (measure/tempo/rest) rides along so an edited session keeps its
+      // measure-specific inputs even when re-linking to the routine day fails.
+      measure: isMeasureType(e.measure) ? e.measure : sug?.measure,
+      tempo: typeof e.tempo === "string" ? e.tempo : undefined,
+      restSeconds: typeof e.restSeconds === "number" ? e.restSeconds : sug?.restSeconds,
       sets: (e.sets ?? []).map((s) => ({
         weight: s.weight != null ? String(s.weight) : "",
         reps: s.reps != null ? String(s.reps) : "",
+        seconds: s.seconds != null ? String(s.seconds) : "",
         kind: (s.kind === "warmup" || s.kind === "bbb" ? s.kind : "main") as SetKind,
         amrap: s.amrap === true,
       })),

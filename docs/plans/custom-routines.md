@@ -1,7 +1,13 @@
 # Custom routines — design plan
 
-Status: **agreed, not yet built** (decisions locked with Denis, 2026-07-14). The quick patch that
-precedes this (session notes + hiding the bodyweight program variant) shipped separately.
+Status: **built** (2026-07-15) — all five build-order steps shipped, plus decisions taken during
+the build (discussed with Denis): `/strength` is now a **hub** (the 5/3/1 program — named
+"5/3/1 Wendler" with a blurb — next to the routine list; the program view moved to
+`/strength/program`); routines have an archive-style `active` flag (many can be active; active =
+in the log picker AND visible/copyable to teammates); the 5/3/1 program got a separate `paused`
+flag (pause = days leave the log picker, state kept; distinct from the reset's `active=false`);
+publishing keeps `userId` and sets `teamId`. `restSeconds` ended up per **exercise** (inside the
+exercises JSON), not per routine. Step 5 (retiring the LEVELS engine) remains open.
 
 ## Goal
 
