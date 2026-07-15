@@ -126,7 +126,7 @@ export async function TeamsSection({
 }
 
 /** Admin-only: every team with its member list — remove members or add any existing user. */
-export async function AdminTeamMembers({ currentUserId }: { currentUserId: string }) {
+export async function AdminTeamMembers() {
   const { t } = await getServerT();
   const [teams, users] = await Promise.all([
     prisma.team.findMany({
@@ -166,10 +166,6 @@ export async function AdminTeamMembers({ currentUserId }: { currentUserId: strin
                       {t("teams.removeFromTeam")}
                     </Button>
                   </form>
-                  {/* Full-account delete: never for yourself or another admin. */}
-                  {m.id !== currentUserId && m.role !== "ADMIN" && (
-                    <DeleteAccountButton userId={m.id} name={m.name} />
-                  )}
                 </li>
               ))}
             </ul>
@@ -197,5 +193,80 @@ export async function AdminTeamMembers({ currentUserId }: { currentUserId: strin
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Admin-only: every user (including those in no team) with their teams — add a user to a team or
+ * delete the account outright. This is the sole place account deletion lives, so orphaned users
+ * (removed from all teams) are still reachable.
+ */
+export async function AdminUserManagement({ currentUserId }: { currentUserId: string }) {
+  const { t } = await getServerT();
+  const [users, teams] = await Promise.all([
+    prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        memberships: {
+          select: { team: { select: { id: true, name: true } } },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+      orderBy: { name: "asc" },
+    }),
+    prisma.team.findMany({ select: { id: true, name: true }, orderBy: { createdAt: "asc" } }),
+  ]);
+
+  return (
+    <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+      {users.map((u) => {
+        const memberTeamIds = new Set(u.memberships.map((m) => m.team.id));
+        const addable = teams.filter((team) => !memberTeamIds.has(team.id));
+        return (
+          <li key={u.id} className="space-y-2 px-3 py-3">
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">
+                {u.name}
+              </span>
+              {u.role !== "PLAYER" && <Badge tone="teal">{u.role}</Badge>}
+              {/* Full-account delete: never for yourself or another admin. */}
+              {u.id !== currentUserId && u.role !== "ADMIN" && (
+                <DeleteAccountButton userId={u.id} name={u.name} />
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-1">
+              {u.memberships.length === 0 ? (
+                <Badge tone="slate">{t("users.noTeam")}</Badge>
+              ) : (
+                u.memberships.map((m) => (
+                  <Badge key={m.team.id} tone="slate">
+                    {m.team.name}
+                  </Badge>
+                ))
+              )}
+            </div>
+            {addable.length > 0 && (
+              <form action={addUserToTeam} className="flex items-end gap-2">
+                <input type="hidden" name="userId" value={u.id} />
+                <div className="flex-1">
+                  <Select name="teamId" aria-label={t("users.addToTeam")}>
+                    {addable.map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <Button type="submit" variant="secondary" size="sm">
+                  {t("users.addToTeam")}
+                </Button>
+              </form>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

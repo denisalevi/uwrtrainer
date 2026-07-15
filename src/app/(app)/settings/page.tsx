@@ -16,7 +16,7 @@ import { logout } from "@/app/actions/auth";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Badge, Button, Collapsible, Input, Label, Select, SectionTitle, cn } from "@/components/ui";
 import { versionLabel } from "@/lib/version";
-import { TeamsSection, AdminTeamMembers } from "./teams-section";
+import { TeamsSection, AdminTeamMembers, AdminUserManagement } from "./teams-section";
 import { PracticeSlotsSettings } from "./practice-slots";
 
 /** A titled group of collapsible settings cards; trainer/admin groups get a coloured accent. */
@@ -390,7 +390,11 @@ export default async function SettingsPage({
           accent="red"
         >
           <Collapsible title={t("teams.manageMembers")} hint={t("teams.manageMembersHint")}>
-            <AdminTeamMembers currentUserId={user.id} />
+            <AdminTeamMembers />
+          </Collapsible>
+
+          <Collapsible title={t("users.manageTitle")} hint={t("users.manageHint")}>
+            <AdminUserManagement currentUserId={user.id} />
           </Collapsible>
 
           <Collapsible title={t("teams.create")}>
