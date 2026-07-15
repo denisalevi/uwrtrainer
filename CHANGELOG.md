@@ -11,7 +11,7 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
-## [0.30.0] - 2026-07-15
+## [0.31.0] - 2026-07-15
 
 ### Added
 - **Custom workout routines** (docs/plans/custom-routines.md). Build named routines from free-text
@@ -25,6 +25,10 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
   member page and copyable from there and from routine sessions in the feed ("see it → copy it" —
   a deep snapshot, never a live link). The 5/3/1 program itself can now be **paused** (its days
   leave the log picker; maxima and progress kept) and resumed from the hub.
+
+## [0.30.0] - 2026-07-15
+
+### Added
 - **Extra practices with a custom name.** The attendance flow has a new "Extra practice" choice:
   type what it was (e.g. "beach training"), pick any past date, tick off who came. It counts
   toward everyone's weekly rugby goal, aggregates in the feed like a scheduled practice
