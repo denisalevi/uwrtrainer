@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { getServerT } from "@/lib/i18n/server";
+import { prisma } from "@/lib/db";
 import { startOfWeek, addDays } from "@/lib/dates";
 import { getWeekItemsForWeeks, getExemptWeekSet } from "@/lib/stats";
 import { TOURNAMENT_CATEGORY, tournamentLabel } from "@/lib/tournament";
+import { extraPracticeLabel } from "@/lib/extra-practice";
 import { StrengthWorkoutView } from "@/components/strength-workout-view";
-import { MissedActions } from "@/components/missed-actions";
-import { weeklySummaryLabel, missedResolveAction } from "@/lib/missed-label";
+import { WeekReasonForm } from "@/components/week-reason-form";
 import { Badge, Button } from "@/components/ui";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 
@@ -33,18 +34,17 @@ function localDayKey(d: Date): string {
 }
 
 /**
- * Week-header tone. The framing is positive ("n of m done"), the colour carries the verdict:
- *  - green   → every planned session of that week was done
- *  - grey    → something was missed but every miss has a reason (excused, calm colour)
- *  - red     → missed with no reason given (gently alarming)
+ * Week-header tone. The framing is positive ("n of m done") and never loud:
+ *  - green   → every goal of that week was reached (celebrated with 🎉)
+ *  - grey    → a past week that fell short — calmly subdued, no red box. The only red left is
+ *              a small "no reason given" tag inside, gone as soon as a week reason is typed.
  *  - neutral → current (still open) week, or no plan data available for that week
  */
-type WeekTone = "green" | "grey" | "red" | "neutral";
+type WeekTone = "green" | "grey" | "neutral";
 
 const TONE_STYLES: Record<WeekTone, { box: string; head: string; count: string }> = {
   green: { box: "border-emerald-200", head: "bg-emerald-50 text-emerald-900", count: "text-emerald-700" },
-  grey: { box: "border-slate-200", head: "bg-slate-100 text-slate-700", count: "text-slate-500" },
-  red: { box: "border-rose-200", head: "bg-rose-50 text-rose-900", count: "text-rose-700" },
+  grey: { box: "border-slate-200", head: "bg-slate-50 text-slate-500", count: "text-slate-400" },
   neutral: { box: "border-slate-200", head: "bg-teal-50/60 text-slate-800", count: "text-teal-700" },
 };
 
@@ -94,14 +94,25 @@ export async function SessionLogList({
   const exemptWeeks = planUserId
     ? await getExemptWeekSet(planUserId, weekKeys.map((k) => new Date(k)))
     : null;
+  // The ONE per-week reason (replaces per-missed-row reasons; auto-missed rows are retired).
+  const weekNotes = new Map<number, string>();
+  if (planUserId) {
+    const notes = await prisma.weekNote.findMany({
+      where: { userId: planUserId, weekStart: { in: weekKeys.map((k) => new Date(k)) } },
+      select: { weekStart: true, reason: true },
+    });
+    for (const n of notes) weekNotes.set(n.weekStart.getTime(), n.reason);
+  }
 
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
   const dateFmt = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString(undefined, opts);
 
   return (
     <div className="space-y-4">
       {weekKeys.map((wk) => {
         const weekLogs = weeks.get(wk)!;
-        const autos = weekLogs.filter((l) => l.auto && l.status === "MISSED");
+        // Auto-MISSED rows are retired from the UI (kept in the DB) — never rendered.
         const entries = weekLogs.filter((l) => !(l.auto && l.status === "MISSED"));
 
         // Group non-auto entries by calendar day, newest day first (input is newest-first).
@@ -122,32 +133,52 @@ export async function SessionLogList({
         )}`;
 
         // Plan achievement for this week (only when planUserId was given and a plan existed).
-        const items = weekItems?.get(wk)?.filter((i) => i.target > 0) ?? null;
+        const allItems = weekItems?.get(wk) ?? null;
+        const items = allItems?.filter((i) => i.target > 0) ?? null;
+        // Committed practice slots (target-0 markers) — shown by name with an attended/missed
+        // mark. A slot whose day hasn't happened yet this week is "pending", never "missed".
+        const markers =
+          allItems
+            ?.filter((i) => i.practiceSlotId && i.target === 0 && i.inSeason)
+            .map((i) => {
+              const slotDate =
+                i.slotDayOfWeek != null ? addDays(weekStart, (i.slotDayOfWeek + 6) % 7) : null;
+              return {
+                label: i.label ?? t("cat.RUGBY"),
+                attended: i.done > 0,
+                pending: wk === currentWeekKey && slotDate != null && slotDate >= todayStart,
+              };
+            }) ?? [];
         const total = items?.reduce((s, i) => s + i.target, 0) ?? 0;
         // Cap per item so overshooting one category can't mask a miss in another.
         const done = items?.reduce((s, i) => s + Math.min(i.done, i.target), 0) ?? 0;
-        const excusedAll = autos.length > 0 && autos.every((a) => a.missReason);
         const exempt = exemptWeeks?.has(wk) ?? false;
+        const hasBreakdown = !!allItems && (total > 0 || markers.length > 0);
+        // "All goals reached" includes the committed practices (attended or still pending).
+        const allDone =
+          hasBreakdown && done >= total && markers.every((m) => m.attended || m.pending);
         let tone: WeekTone;
-        if (exempt) tone = "green"; // tournament week — counts as fully adherent
-        else if (!items || total === 0) tone = "neutral";
-        else if (done >= total) tone = "green";
-        else if (wk === currentWeekKey) tone = "neutral"; // week still open — don't judge it yet
-        else tone = excusedAll ? "grey" : "red";
+        if (exempt || allDone) tone = "green"; // tournament week counts as fully adherent
+        else if (!hasBreakdown || wk === currentWeekKey) tone = "neutral"; // open week: don't judge
+        else tone = "grey"; // fell short — calm, positive framing; the count says how far you got
         const s = TONE_STYLES[tone];
-        const hasBreakdown = !!items && total > 0;
+        const weekReason = weekNotes.get(wk) ?? "";
+        // The one loud element left: a small tag on a fallen-short PAST week with no reason yet.
+        const needsReason = hasBreakdown && !exempt && !allDone && wk !== currentWeekKey;
+        const showNoReasonTag = needsReason && !weekReason;
 
         const header = (
           <>
             <span className="text-sm font-semibold">{weekLabel}</span>
             <span className={`flex shrink-0 items-center gap-1.5 text-xs font-medium ${s.count}`}>
+              {showNoReasonTag && <Badge tone="red">{t("week.noReason")}</Badge>}
               {exempt ? (
                 <span>🏆 {t("week.goalsPaused")}</span>
               ) : (
                 hasBreakdown && (
                   <span>
-                    {tone === "green" && "✓ "}
-                    {t("week.sessionsDone", { done, total })}
+                    {allDone && "🎉 "}
+                    {total > 0 && t("week.sessionsDone", { done, total })}
                   </span>
                 )
               )}
@@ -168,7 +199,7 @@ export async function SessionLogList({
                   {header}
                 </summary>
                 <div className={`space-y-1.5 border-t px-3 py-2.5 text-sm ${s.box} ${s.head}`}>
-                  {items!.map((it, i) => (
+                  {items?.map((it, i) => (
                     <div key={i} className="flex items-center justify-between gap-2">
                       <span className="min-w-0 truncate">
                         {it.label ??
@@ -182,6 +213,37 @@ export async function SessionLogList({
                       </span>
                     </div>
                   ))}
+                  {/* Committed practices, by name: attended ✓ / missed ✗ / still ahead this week. */}
+                  {markers.map((m, i) => (
+                    <div key={`m${i}`} className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate">{m.label}</span>
+                      <span
+                        className={`shrink-0 text-xs font-medium ${
+                          m.attended ? "text-emerald-700" : m.pending ? "text-slate-400" : s.count
+                        }`}
+                      >
+                        {m.attended
+                          ? `✓ ${t("week.attended")}`
+                          : m.pending
+                            ? t("week.upcoming")
+                            : `✗ ${t("week.missedIt")}`}
+                      </span>
+                    </div>
+                  ))}
+                  {/* One reason for everything missed that week (owner edits; teammates read). */}
+                  {needsReason &&
+                    (canGiveReason ? (
+                      <div className="pt-1">
+                        <p className="text-xs text-slate-500">{t("week.reasonLabel")}</p>
+                        <WeekReasonForm weekStart={localDayKey(weekStart)} initialReason={weekReason} />
+                      </div>
+                    ) : (
+                      weekReason && (
+                        <p className="pt-1 text-xs text-slate-500">
+                          {t("week.reasonLabel")}: {weekReason}
+                        </p>
+                      )
+                    ))}
                   <Link
                     href="/log"
                     className="inline-block pt-1 text-sm font-medium text-teal-700 underline"
@@ -204,38 +266,12 @@ export async function SessionLogList({
                   </p>
                   <div className="space-y-2">
                     {days.get(dk)!.map((log) => (
-                      <SessionRow
-                        key={log.id}
-                        log={log}
-                        t={t}
-                        canGiveReason={canGiveReason}
-                        editable={editable}
-                        showDate={false}
-                      />
+                      <SessionRow key={log.id} log={log} t={t} editable={editable} showDate={false} />
                     ))}
                   </div>
                 </div>
               ))}
 
-              {autos.length > 0 && (
-                <div className="rounded-lg bg-amber-50/60 p-2">
-                  <p className="px-1 pb-1.5 text-xs font-medium uppercase tracking-wide text-amber-600">
-                    {t("dash.autoFlagged")}
-                  </p>
-                  <div className="space-y-2">
-                    {autos.map((log) => (
-                      <SessionRow
-                        key={log.id}
-                        log={log}
-                        t={t}
-                        canGiveReason={canGiveReason}
-                        editable={editable}
-                        showDate
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </section>
         );
@@ -248,20 +284,15 @@ export async function SessionLogList({
 async function SessionRow({
   log,
   t,
-  canGiveReason,
   editable,
   showDate,
 }: {
   log: SessionLogListItem;
   t: T;
-  canGiveReason: boolean;
   editable: boolean;
   showDate: boolean;
 }) {
   const isStrength = log.category === "STRENGTH" && log.status === "DONE";
-  const isAutoMissed = log.auto && log.status === "MISSED";
-  const summaryLabel =
-    isAutoMissed && !log.practiceSlotId ? weeklySummaryLabel(t, log.category, log.details) : null;
   // Type-specific extras stored in the details JSON (cardio: activity name + HR zone; note: any).
   let extras: { zone?: string; activity?: string; note?: string } = {};
   if (log.details) {
@@ -272,21 +303,25 @@ async function SessionRow({
     }
   }
   const isTournament = log.category === TOURNAMENT_CATEGORY;
+  const extraLabel =
+    log.category === "RUGBY" && !log.practiceSlotId ? extraPracticeLabel(log.details) : null;
   const title =
-    summaryLabel ??
     log.practiceSlot?.label ??
+    extraLabel ??
     (isTournament ? tournamentLabel(log.details) ?? t("cat.TOURNAMENT") : null) ??
     t(`cat.${log.category}` as DictKey);
   // A rugby session tied to a practice slot IS a team-practice attendance tick — edit it in the
   // group attendance dialogue (add/remove people), not the detached personal log form. Same for
-  // tournaments (they're group events keyed by date).
+  // tournaments and free-named extra practices (group events keyed by date/label).
   const editHref = isStrength
     ? `/strength/log?id=${log.id}`
     : log.category === "RUGBY" && log.practiceSlotId
       ? `/attendance?slot=${log.practiceSlotId}&date=${localDayKey(log.date)}&edit=1`
-      : isTournament
-        ? `/attendance?mode=tournament&date=${localDayKey(log.date)}&edit=1`
-        : `/log/${log.id}`;
+      : extraLabel
+        ? `/attendance?slot=__extra__&label=${encodeURIComponent(extraLabel)}&date=${localDayKey(log.date)}&edit=1`
+        : isTournament
+          ? `/attendance?mode=tournament&date=${localDayKey(log.date)}&edit=1`
+          : `/log/${log.id}`;
   const showEdit = editable && !log.auto;
 
   const subtitle = [
@@ -304,7 +339,6 @@ async function SessionRow({
           {subtitle && <span className="mt-0.5 block text-xs text-slate-400">{subtitle}</span>}
         </span>
         <span className="flex shrink-0 items-center gap-2">
-          {log.auto && <Badge tone="amber">{t("missed.autoBadge")}</Badge>}
           <Badge tone={log.status === "DONE" ? "green" : "red"}>
             {t(log.status === "DONE" ? "log.done" : "log.missed")}
           </Badge>
@@ -349,21 +383,6 @@ async function SessionRow({
               </div>
             )}
           </dl>
-        )}
-
-        {isAutoMissed && (
-          <>
-            <p className="mt-2 text-xs text-amber-700">
-              {t(summaryLabel ? "missed.weeklyHint" : "missed.autoHint")}
-            </p>
-            <MissedActions
-              logId={log.id}
-              resolveHref={missedResolveAction(log).href}
-              resolveLabel={t(missedResolveAction(log).labelKey)}
-              reason={log.missReason}
-              canGiveReason={canGiveReason}
-            />
-          </>
         )}
 
         {showEdit && (

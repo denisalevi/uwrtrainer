@@ -6,6 +6,7 @@ import { addDays } from "@/lib/dates";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Badge, Card, SectionTitle } from "@/components/ui";
 import { TOURNAMENT_CATEGORY, tournamentLabel } from "@/lib/tournament";
+import { EXTRA_PRACTICE_ID, extraPracticeLabel } from "@/lib/extra-practice";
 import { StrengthWorkoutView } from "@/components/strength-workout-view";
 import { MissedActions } from "@/components/missed-actions";
 
@@ -197,15 +198,30 @@ async function DaySection({
     rugbyBySlot.set(l.practiceSlotId!, arr);
   }
 
+  // Free-named extra practices (slot-less rugby rows) aggregate per NAME, like a scheduled
+  // practice — one "{n} went to {label}" event instead of one line per attendee.
+  const extraByLabel = new Map<string, FeedLog[]>();
+  const extraIds = new Set<string>();
+  for (const l of logs) {
+    if (l.category !== "RUGBY" || l.status !== "DONE" || l.practiceSlotId) continue;
+    const label = extraPracticeLabel(l.details);
+    if (!label) continue;
+    extraIds.add(l.id);
+    const arr = extraByLabel.get(label) ?? [];
+    arr.push(l);
+    extraByLabel.set(label, arr);
+  }
+
   // Tournament / league game rows aggregate into ONE event per day (like a practice).
   const tournamentPlayers = logs.filter(
     (l) => l.category === TOURNAMENT_CATEGORY && l.status === "DONE",
   );
 
-  // Everything else is listed per person (non-rugby, plus rugby MISSED / non-slot rugby).
+  // Everything else is listed per person (non-rugby, plus rugby MISSED / legacy solo rugby).
   const others = logs.filter(
     (l) =>
       !(l.category === "RUGBY" && l.status === "DONE" && l.practiceSlotId) &&
+      !extraIds.has(l.id) &&
       !(l.category === TOURNAMENT_CATEGORY && l.status === "DONE"),
   );
 
@@ -273,6 +289,36 @@ async function DaySection({
                     )}
                     <Link
                       href={`/attendance?slot=${slotId}&date=${day}&edit=1`}
+                      className="inline-block text-sm font-medium text-teal-700 underline"
+                    >
+                      ✏️ {t("feed.editAttendance")}
+                    </Link>
+                  </div>
+                </details>
+              </li>
+            );
+          })}
+
+          {Array.from(extraByLabel.entries()).map(([extraLabel, attendees]) => {
+            const day = dayKey(attendees[0].date);
+            return (
+              <li key={`extra-${extraLabel}`} className="text-sm">
+                <details className="group">
+                  <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 active:bg-slate-50">
+                    <span className="font-medium text-slate-800">
+                      🏉 {t("feed.wentToPractice", { n: attendees.length, label: extraLabel })}
+                    </span>
+                    <span className="text-slate-400 group-open:rotate-90">›</span>
+                  </summary>
+                  <div className="space-y-2 px-4 pb-3 text-slate-600">
+                    <div>
+                      <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
+                        {t("feed.attendees")}
+                      </p>
+                      <p>{attendees.map((a) => a.userName).join(", ")}</p>
+                    </div>
+                    <Link
+                      href={`/attendance?slot=${EXTRA_PRACTICE_ID}&label=${encodeURIComponent(extraLabel)}&date=${day}&edit=1`}
                       className="inline-block text-sm font-medium text-teal-700 underline"
                     >
                       ✏️ {t("feed.editAttendance")}

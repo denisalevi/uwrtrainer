@@ -27,6 +27,15 @@ import { exemptUsersForWeek, isWeekExempt } from "@/lib/exempt-weeks";
  * weeks — only the `done` count (and thus `missed`) may change via late logging.
  */
 
+/**
+ * RETIRED (2026-07, kill switch): auto-MISSED rows are no longer generated — the weekly goal
+ * summary ("n of m done") plus ONE free-text reason per week (`WeekNote`) replaced them, and
+ * scoring never read MISSED rows anyway (adherence = plan targets vs DONE logs). The whole
+ * mechanism is KEPT and tested so it can come back (e.g. for mandatory practices only):
+ * flip `enabled` to true. Existing auto rows stay in the DB but are hidden in the UI.
+ */
+export const autoMissedConfig = { enabled: false };
+
 /** Local-day [start, end) bounds for a given date (the SessionLog `date` is stored at day granularity). */
 function dayBounds(date: Date): { dayStart: Date; dayEnd: Date } {
   const dayStart = new Date(date);
@@ -50,6 +59,7 @@ function dayBounds(date: Date): { dayStart: Date; dayEnd: Date } {
  * auto-MISSED for the same user+slot+date. Returns the set of touched user ids for revalidation.
  */
 export async function reconcileRugbyMissed(slotId: string, date: Date): Promise<string[]> {
+  if (!autoMissedConfig.enabled) return [];
   const { dayStart, dayEnd } = dayBounds(date);
 
   // Seasonal guard: a practice that is deactivated or outside its date window on this day is not
@@ -274,6 +284,7 @@ export async function reconcileNonRugbyWeek(weekStart: Date): Promise<number> {
  * Returns the number of summary rows created/updated/removed for this user+week.
  */
 export async function reconcileWeekForUser(weekStart: Date, userId: string): Promise<number> {
+  if (!autoMissedConfig.enabled) return 0;
   const weekEnd = addWeeks(weekStart, 1);
   const ref = addDays(weekStart, 6);
 
@@ -494,6 +505,7 @@ export const RECONCILE_MAX_BACKFILL_WEEKS = 8;
 export async function runWeeklyReconcileIfDue(
   now: Date = new Date(),
 ): Promise<{ ran: boolean; week: string; created?: number }> {
+  if (!autoMissedConfig.enabled) return { ran: false, week: "" };
   const currentWeekStart = startOfWeek(now);
   const lastCompletedWeekStart = addWeeks(currentWeekStart, -1);
   const week = isoWeekKey(lastCompletedWeekStart);

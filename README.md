@@ -20,11 +20,12 @@ from a single Docker Compose stack.
 - **Plans** — each player commits to which practices they'll attend plus weekly targets for
   strength / cardio / mobility. Players set their own, or a trainer sets it with them.
 - **Logging** — quick session logging (rugby attendance, whole strength workouts, cardio
-  heart-rate zone, free-text session notes), including logging a *missed* session with a
-  reason. Missed plan sessions are flagged automatically at the end of the week.
-- **Group attendance & games** — tick off who came to a practice, and log tournament /
-  league games (which pause the selected players' weekly goals instead of counting
-  against them).
+  heart-rate zone, free-text session notes). You only log what you *did* — each week box
+  shows how far you got ("2 of 3 done", 🎉 when everything's reached) and takes one
+  free-text reason when a week fell short.
+- **Group attendance & games** — tick off who came to a practice (scheduled or a one-off
+  with a custom name), and log tournament / league games (which pause the selected
+  players' weekly goals instead of counting against them).
 - **Activity feed** — everything the team logged, newest first, with practice attendance
   editable in place.
 - **Strength program** — a guided Wendler 5/3/1-style plan: it picks weights/reps for you,

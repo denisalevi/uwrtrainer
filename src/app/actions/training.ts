@@ -10,8 +10,9 @@ import { reconcileRugbyMissed, selfHealCountWeek } from "@/lib/missed";
 import { isSlotAvailableOn } from "@/lib/practice-window";
 import { planItemsEqual } from "@/lib/plan-version";
 import { TOURNAMENT_CATEGORY, exemptWeekStarts } from "@/lib/tournament";
+import { EXTRA_PRACTICE_ID, extraPracticeDetails, extraPracticeLabel } from "@/lib/extra-practice";
 import { getTournamentExemptionMode } from "@/lib/exempt-weeks";
-import { addWeeks } from "@/lib/dates";
+import { addWeeks, startOfWeek } from "@/lib/dates";
 
 /**
  * A tournament exemption just went away for `userIds` in the weeks starting at `weekStarts` —
@@ -238,6 +239,37 @@ export async function setMissedReason(formData: FormData) {
 }
 
 /**
+ * Set / clear the caller's ONE free-text reason for a week whose goals weren't all reached.
+ * Replaces the per-missed-row reasons (auto-missed rows are retired): the week box shows a small
+ * "no reason given" tag on an incomplete past week until this is filled in. Owner-only; the
+ * reason is team-visible (profile week boxes). Empty input clears the note.
+ */
+export async function saveWeekReason(formData: FormData) {
+  const me = await getCurrentUser();
+  if (!me) redirect("/login");
+  const weekStartStr = String(formData.get("weekStart") ?? "");
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(weekStartStr);
+  const weekStart = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(NaN);
+  if (Number.isNaN(weekStart.getTime())) throw new Error("Invalid week");
+  // Normalise to the local Monday so a crafted mid-week date can't mint a second note row.
+  const ws = startOfWeek(weekStart);
+  const reason = String(formData.get("reason") ?? "").slice(0, 300).trim();
+
+  if (reason) {
+    await prisma.weekNote.upsert({
+      where: { userId_weekStart: { userId: me.id, weekStart: ws } },
+      create: { userId: me.id, weekStart: ws, reason },
+      update: { reason },
+    });
+  } else {
+    await prisma.weekNote.deleteMany({ where: { userId: me.id, weekStart: ws } });
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/team/${me.id}`);
+}
+
+/**
  * Record group rugby attendance for a practice slot + date.
  * Any logged-in member may use this (not just trainers). Additive + de-duplicated:
  * for each checked user, if they have no existing DONE rugby SessionLog for that slot+date,
@@ -254,6 +286,11 @@ export async function logPracticeAttendance(formData: FormData) {
   const practiceSlotId = String(formData.get("practiceSlotId") ?? "");
   const dateStr = String(formData.get("date") ?? "");
   if (!practiceSlotId || !dateStr) throw new Error("Missing practice or date");
+
+  // One-off "extra practice" with a free name (no PracticeSlot) — same flow, slot-less rows.
+  if (practiceSlotId === EXTRA_PRACTICE_ID) {
+    return logExtraPractice(me, formData);
+  }
 
   const slot = await prisma.practiceSlot.findUnique({
     where: { id: practiceSlotId },
@@ -389,6 +426,100 @@ export async function logPracticeAttendance(formData: FormData) {
   revalidatePath("/leaderboards");
   for (const userId of touchedUserIds) revalidatePath(`/team/${userId}`);
 
+  redirect("/feed");
+}
+
+/**
+ * Record an "extra practice" — a one-off rugby session with a free name instead of a
+ * PracticeSlot (e.g. a spontaneous extra team session, or training alone). Same tick-off flow
+ * as scheduled attendance; rows are ordinary RUGBY DONE logs (they count toward the weekly
+ * rugby goal) with practiceSlotId = null and details { kind:"extraPractice", label }.
+ * Deduplicated per user + date + label; edit mode reconciles removals within the same label.
+ * No auto-missed reconciliation — an extra practice was never committed to, so nobody can
+ * "miss" it.
+ */
+async function logExtraPractice(
+  me: { id: string; activeTeamId: string | null },
+  formData: FormData,
+): Promise<void> {
+  const teamId = me.activeTeamId;
+  if (!teamId) throw new Error("No active team");
+  const membership = await prisma.teamMembership.findUnique({
+    where: { userId_teamId: { userId: me.id, teamId } },
+  });
+  if (!membership) throw new Error("Not authorized");
+
+  const label = String(formData.get("extraLabel") ?? "").trim().slice(0, 80);
+  if (!label) throw new Error("Missing practice name");
+
+  const dateStr = String(formData.get("date") ?? "");
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  const date = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(NaN);
+  if (Number.isNaN(date.getTime())) throw new Error("Invalid date");
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  if (date > todayStart) throw new Error("Date cannot be in the future");
+  const dayEnd = new Date(date);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
+  const checkedIds = new Set<string>();
+  for (const [key, value] of formData.entries()) {
+    const pm = /^present_(.+)$/.exec(key);
+    if (pm && value) checkedIds.add(pm[1]);
+  }
+
+  const validUsers = await prisma.user.findMany({
+    where: { id: { in: Array.from(checkedIds) }, memberships: { some: { teamId } } },
+    select: { id: true },
+  });
+  const validIds = validUsers.map((u) => u.id);
+
+  // All slot-less rugby rows for that day across the team, narrowed to THIS label in JS
+  // (details is a JSON string — no queryable column).
+  const dayRows = await prisma.sessionLog.findMany({
+    where: {
+      category: "RUGBY",
+      status: "DONE",
+      practiceSlotId: null,
+      user: { memberships: { some: { teamId } } },
+      date: { gte: date, lt: dayEnd },
+    },
+    select: { id: true, userId: true, details: true },
+  });
+  const sameLabel = dayRows.filter((r) => extraPracticeLabel(r.details) === label);
+  const existingByUser = new Map(sameLabel.map((l) => [l.userId, l.id]));
+
+  const toCreate = validIds.filter((id) => !existingByUser.has(id));
+  if (toCreate.length > 0) {
+    await prisma.sessionLog.createMany({
+      data: toCreate.map((userId) => ({
+        userId,
+        category: "RUGBY",
+        status: "DONE",
+        date,
+        details: extraPracticeDetails(label),
+      })),
+    });
+  }
+
+  // Edit mode: the checkbox list is authoritative for this label+date.
+  const removedUserIds: string[] = [];
+  if (String(formData.get("editMode") ?? "") === "1") {
+    const toRemove = sameLabel.filter((l) => !checkedIds.has(l.userId));
+    if (toRemove.length > 0) {
+      await prisma.sessionLog.deleteMany({ where: { id: { in: toRemove.map((l) => l.id) } } });
+      removedUserIds.push(...toRemove.map((l) => l.userId));
+    }
+  }
+
+  // Rugby weekly counts changed — self-heal already-reconciled weeks for everyone touched.
+  const touched = new Set<string>([...validIds, ...removedUserIds]);
+  for (const userId of touched) await selfHealCountWeek(userId, date);
+
+  revalidatePath("/feed");
+  revalidatePath("/dashboard");
+  revalidatePath("/leaderboards");
+  for (const userId of touched) revalidatePath(`/team/${userId}`);
   redirect("/feed");
 }
 

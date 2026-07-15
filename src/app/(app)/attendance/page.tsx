@@ -4,17 +4,19 @@ import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
 import { isSlotAvailableOn } from "@/lib/practice-window";
 import { TOURNAMENT_CATEGORY, tournamentLabel } from "@/lib/tournament";
+import { EXTRA_PRACTICE_ID, extraPracticeLabel } from "@/lib/extra-practice";
 import { AttendanceForm } from "@/components/attendance-form";
 
 export default async function AttendancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ slot?: string; date?: string; edit?: string; mode?: string }>;
+  searchParams: Promise<{ slot?: string; date?: string; edit?: string; mode?: string; label?: string }>;
 }) {
   const user = await requireUser();
   const { t } = await getServerT();
-  const { slot, date, edit, mode } = await searchParams;
+  const { slot, date, edit, mode, label } = await searchParams;
   const tournament = mode === "tournament";
+  const extraEdit = slot === EXTRA_PRACTICE_ID && !!label;
 
   const [allSlots, members] = await Promise.all([
     tournament
@@ -59,16 +61,27 @@ export default async function AttendancePage({
             user: { memberships: { some: { teamId: user.activeTeamId ?? "" } } },
             date: { gte: dayStart, lt: dayEnd },
           }
-        : {
-            category: "RUGBY",
-            status: "DONE",
-            practiceSlotId: slot,
-            date: { gte: dayStart, lt: dayEnd },
-          },
+        : extraEdit
+          ? {
+              category: "RUGBY",
+              status: "DONE",
+              practiceSlotId: null,
+              user: { memberships: { some: { teamId: user.activeTeamId ?? "" } } },
+              date: { gte: dayStart, lt: dayEnd },
+            }
+          : {
+              category: "RUGBY",
+              status: "DONE",
+              practiceSlotId: slot,
+              date: { gte: dayStart, lt: dayEnd },
+            },
       select: { userId: true, details: true },
     });
-    initialPresentIds = done.map((l) => l.userId);
+    // Extra practices are keyed by label (several could share a date) — narrow in JS.
+    const rows = extraEdit ? done.filter((l) => extraPracticeLabel(l.details) === label) : done;
+    initialPresentIds = rows.map((l) => l.userId);
     if (tournament) defaultLabel = done.map((l) => tournamentLabel(l.details)).find(Boolean) ?? undefined;
+    if (extraEdit) defaultLabel = label;
   }
 
   return (
