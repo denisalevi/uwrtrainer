@@ -38,8 +38,8 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
   box are decided by the count goals alone.
 - **Team member page reordered**: planned-per-week counts → practices they're aiming for →
   availability note → recent sessions; the trainer's promote/demote control moved to the bottom.
-- **Softer wording**: "Team practices I commit to" → "I'm aiming for" (de: "die ich anpeile"),
-  and the week counts consistently say "erledigt" in German ("5 von 8 erledigt").
+- **Softer wording**: "Team practices I commit to" → "I'm aiming for" (de: "die ich mir
+  vorgenommen habe"), and the week counts consistently say "erledigt" in German ("5 von 8 erledigt").
 - **The Log page is reorganised.** Rugby is always recorded through the attendance flow — even
   when you trained alone (you're pre-ticked; just save). On top: "Record a rugby practice" and
   "Record a tournament / league game" (no longer highlighted in yellow); below: "Record a solo
