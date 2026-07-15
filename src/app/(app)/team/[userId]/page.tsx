@@ -67,15 +67,14 @@ export default async function PlayerDetailPage({
         <p className="text-sm text-slate-500">{player.email}</p>
       </header>
 
-      {viewerIsTrainer && player.role !== "ADMIN" && (
-        <form action={setRole}>
-          <input type="hidden" name="userId" value={player.id} />
-          <input type="hidden" name="role" value={player.role === "PLAYER" ? "TRAINER" : "PLAYER"} />
-          <Button type="submit" variant="secondary" size="sm">
-            {t(player.role === "PLAYER" ? "team.promote" : "team.demote")}
-          </Button>
-        </form>
-      )}
+      {/* Order: what they're planning (counts → practices → availability) first, then what
+          they actually did; admin controls live at the very bottom. */}
+      <PlanReadOnly
+        t={t}
+        slots={slots}
+        plan={activePlan}
+        availabilityNote={player.availabilityNote}
+      />
 
       <section className="space-y-2">
         <SectionTitle>{t("team.recentLogs")}</SectionTitle>
@@ -85,13 +84,6 @@ export default async function PlayerDetailPage({
           <SessionLogList logs={recent} canGiveReason={viewer.id === player.id} planUserId={player.id} />
         )}
       </section>
-
-      <PlanReadOnly
-        t={t}
-        slots={slots}
-        plan={activePlan}
-        availabilityNote={player.availabilityNote}
-      />
 
       {viewerIsTrainer && player.trainerNote && (
         <section className="space-y-2">
@@ -103,6 +95,16 @@ export default async function PlayerDetailPage({
             </CardBody>
           </Card>
         </section>
+      )}
+
+      {viewerIsTrainer && player.role !== "ADMIN" && (
+        <form action={setRole}>
+          <input type="hidden" name="userId" value={player.id} />
+          <input type="hidden" name="role" value={player.role === "PLAYER" ? "TRAINER" : "PLAYER"} />
+          <Button type="submit" variant="secondary" size="sm">
+            {t(player.role === "PLAYER" ? "team.promote" : "team.demote")}
+          </Button>
+        </form>
       )}
     </div>
   );
@@ -149,14 +151,40 @@ function PlanReadOnly({
 
   return (
     <section className="space-y-4">
+      {/* 1. How much they plan per week; 2. which practices they aim for; 3. availability. */}
       <div className="space-y-2">
-        <SectionTitle>{t("plan.availability")}</SectionTitle>
+        <SectionTitle>{t("team.plannedPerWeek")}</SectionTitle>
         <Card>
-          <CardBody>
-            {availabilityNote ? (
-              <p className="whitespace-pre-wrap text-sm text-slate-700">{availabilityNote}</p>
+          <CardBody className="space-y-1">
+            {rugbyTarget === 0 && catTargets.length === 0 && otherTargets.length === 0 ? (
+              <p className="text-sm text-slate-400">{t("plan.noItems")}</p>
             ) : (
-              <p className="text-sm text-slate-400">{t("common.none")}</p>
+              <>
+                {rugbyTarget > 0 && (
+                  <div className="flex items-center justify-between py-1.5">
+                    <span className="text-sm text-slate-800">{t("plan.rugbyPerWeek")}</span>
+                    <span className="text-sm text-slate-500">
+                      {rugbyTarget} {t("plan.perWeek")}
+                    </span>
+                  </div>
+                )}
+                {catTargets.map(({ c, n }) => (
+                  <div key={c} className="flex items-center justify-between py-1.5">
+                    <span className="text-sm text-slate-800">{t(`cat.${c}` as DictKey)}</span>
+                    <span className="text-sm text-slate-500">
+                      {n} {t("plan.perWeek")}
+                    </span>
+                  </div>
+                ))}
+                {otherTargets.map(({ label, n }, i) => (
+                  <div key={`other-${i}`} className="flex items-center justify-between py-1.5">
+                    <span className="text-sm text-slate-800">{label}</span>
+                    <span className="text-sm text-slate-500">
+                      {n} {t("plan.perWeek")}
+                    </span>
+                  </div>
+                ))}
+              </>
             )}
           </CardBody>
         </Card>
@@ -189,38 +217,13 @@ function PlanReadOnly({
       </div>
 
       <div className="space-y-2">
-        <SectionTitle>{t("plan.otherCommitments")}</SectionTitle>
+        <SectionTitle>{t("plan.availability")}</SectionTitle>
         <Card>
-          <CardBody className="space-y-1">
-            {rugbyTarget === 0 && catTargets.length === 0 && otherTargets.length === 0 ? (
-              <p className="text-sm text-slate-400">{t("plan.noItems")}</p>
+          <CardBody>
+            {availabilityNote ? (
+              <p className="whitespace-pre-wrap text-sm text-slate-700">{availabilityNote}</p>
             ) : (
-              <>
-                {rugbyTarget > 0 && (
-                  <div className="flex items-center justify-between py-1.5">
-                    <span className="text-sm text-slate-800">{t("plan.rugbyPerWeek")}</span>
-                    <span className="text-sm text-slate-500">
-                      {rugbyTarget} {t("plan.perWeek")}
-                    </span>
-                  </div>
-                )}
-                {catTargets.map(({ c, n }) => (
-                  <div key={c} className="flex items-center justify-between py-1.5">
-                    <span className="text-sm text-slate-800">{t(`cat.${c}` as DictKey)}</span>
-                    <span className="text-sm text-slate-500">
-                      {n} {t("plan.perWeek")}
-                    </span>
-                  </div>
-                ))}
-                {otherTargets.map(({ label, n }, i) => (
-                  <div key={`other-${i}`} className="flex items-center justify-between py-1.5">
-                    <span className="text-sm text-slate-800">{label}</span>
-                    <span className="text-sm text-slate-500">
-                      {n} {t("plan.perWeek")}
-                    </span>
-                  </div>
-                ))}
-              </>
+              <p className="text-sm text-slate-400">{t("common.none")}</p>
             )}
           </CardBody>
         </Card>

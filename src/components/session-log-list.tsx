@@ -154,18 +154,38 @@ export async function SessionLogList({
         const done = items?.reduce((s, i) => s + Math.min(i.done, i.target), 0) ?? 0;
         const exempt = exemptWeeks?.has(wk) ?? false;
         const hasBreakdown = !!allItems && (total > 0 || markers.length > 0);
-        // "All goals reached" includes the committed practices (attended or still pending).
-        const allDone =
-          hasBreakdown && done >= total && markers.every((m) => m.attended || m.pending);
+        // "All goals reached" is about the COUNT goals only. A committed practice you skipped
+        // for a different session that week is pure information (✗ row below), never a
+        // goal-killer — the training goal is how much you trained, not which slot you hit.
+        const hasGoals = total > 0;
+        const allDone = hasGoals && done >= total;
         let tone: WeekTone;
         if (exempt || allDone) tone = "green"; // tournament week counts as fully adherent
-        else if (!hasBreakdown || wk === currentWeekKey) tone = "neutral"; // open week: don't judge
+        else if (!hasGoals || wk === currentWeekKey) tone = "neutral"; // open week: don't judge
         else tone = "grey"; // fell short — calm, positive framing; the count says how far you got
         const s = TONE_STYLES[tone];
         const weekReason = weekNotes.get(wk) ?? "";
         // The one loud element left: a small tag on a fallen-short PAST week with no reason yet.
-        const needsReason = hasBreakdown && !exempt && !allDone && wk !== currentWeekKey;
+        const needsReason = hasGoals && !exempt && !allDone && wk !== currentWeekKey;
         const showNoReasonTag = needsReason && !weekReason;
+        // A skipped committed practice also OFFERS the reason box (purely optional, no tag).
+        const missedMarker = markers.some((m) => !m.attended && !m.pending);
+        const offerReason =
+          needsReason || (missedMarker && !exempt && wk !== currentWeekKey);
+
+        // Extras beyond the plan: overshoot inside planned goals (+N on their rows) plus DONE
+        // sessions in categories with no goal at all — surfaced, never hidden by the cap.
+        const plannedCats = new Set<string>(items?.map((i) => i.category) ?? []);
+        if (markers.length > 0) plannedCats.add("RUGBY");
+        const extraCounts = new Map<string, number>();
+        for (const l of entries) {
+          if (l.status !== "DONE" || l.category === TOURNAMENT_CATEGORY) continue;
+          if (!plannedCats.has(l.category))
+            extraCounts.set(l.category, (extraCounts.get(l.category) ?? 0) + 1);
+        }
+        const extrasTotal =
+          (items?.reduce((sum, i) => sum + Math.max(0, i.done - i.target), 0) ?? 0) +
+          [...extraCounts.values()].reduce((a, b) => a + b, 0);
 
         const header = (
           <>
@@ -179,6 +199,7 @@ export async function SessionLogList({
                   <span>
                     {allDone && "🎉 "}
                     {total > 0 && t("week.sessionsDone", { done, total })}
+                    {extrasTotal > 0 && ` +${extrasTotal}`}
                   </span>
                 )
               )}
@@ -230,8 +251,20 @@ export async function SessionLogList({
                       </span>
                     </div>
                   ))}
-                  {/* One reason for everything missed that week (owner edits; teammates read). */}
-                  {needsReason &&
+                  {/* Sessions beyond the plan — categories without a goal that week. */}
+                  {extraCounts.size > 0 && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate">{t("week.extras")}</span>
+                      <span className={`shrink-0 text-xs font-medium ${s.count}`}>
+                        {[...extraCounts.entries()]
+                          .map(([c, n]) => `+${n} ${t(`cat.${c}` as DictKey)}`)
+                          .join(" · ")}
+                      </span>
+                    </div>
+                  )}
+                  {/* One reason for everything missed that week (owner edits; teammates read).
+                      Also offered when only a committed practice was skipped — fully optional. */}
+                  {offerReason &&
                     (canGiveReason ? (
                       <div className="pt-1">
                         <p className="text-xs text-slate-500">{t("week.reasonLabel")}</p>

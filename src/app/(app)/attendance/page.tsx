@@ -49,6 +49,7 @@ export default async function AttendancePage({
   const editMode = edit === "1" && (tournament || !!slot) && !!date && /^\d{4}-\d{2}-\d{2}$/.test(date);
   let initialPresentIds: string[] | undefined;
   let defaultLabel: string | undefined;
+  let defaultNote: string | undefined;
   if (editMode) {
     const [y, m, d] = date!.split("-").map(Number);
     const dayStart = new Date(y, m - 1, d);
@@ -82,6 +83,18 @@ export default async function AttendancePage({
     initialPresentIds = rows.map((l) => l.userId);
     if (tournament) defaultLabel = done.map((l) => tournamentLabel(l.details)).find(Boolean) ?? undefined;
     if (extraEdit) defaultLabel = label;
+    // Prefill the shared event note (stored on each row's details).
+    defaultNote =
+      rows
+        .map((l) => {
+          try {
+            const d = l.details ? (JSON.parse(l.details) as { note?: unknown }) : null;
+            return typeof d?.note === "string" ? d.note : null;
+          } catch {
+            return null;
+          }
+        })
+        .find(Boolean) ?? undefined;
   }
 
   return (
@@ -107,6 +120,7 @@ export default async function AttendancePage({
         initialPresentIds={initialPresentIds}
         tournament={tournament}
         defaultLabel={defaultLabel}
+        defaultNote={defaultNote}
       />
     </div>
   );

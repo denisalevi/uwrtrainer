@@ -270,6 +270,26 @@ export async function saveWeekReason(formData: FormData) {
 }
 
 /**
+ * Merge a group-event note into a row's details JSON string (attendance / extra practice /
+ * tournament rows share one note describing the event). Passing an empty note REMOVES it.
+ * Non-JSON details are treated as empty. Returns null when nothing remains.
+ */
+function mergeNoteIntoDetails(details: string | null, note: string): string | null {
+  let obj: Record<string, unknown> = {};
+  if (details) {
+    try {
+      const parsed = JSON.parse(details);
+      if (parsed && typeof parsed === "object") obj = parsed as Record<string, unknown>;
+    } catch {
+      obj = {};
+    }
+  }
+  if (note) obj.note = note;
+  else delete obj.note;
+  return Object.keys(obj).length > 0 ? JSON.stringify(obj) : null;
+}
+
+/**
  * Record group rugby attendance for a practice slot + date.
  * Any logged-in member may use this (not just trainers). Additive + de-duplicated:
  * for each checked user, if they have no existing DONE rugby SessionLog for that slot+date,
@@ -325,6 +345,9 @@ export async function logPracticeAttendance(formData: FormData) {
   const dayEnd = new Date(date);
   dayEnd.setDate(dayEnd.getDate() + 1);
 
+  // Optional group note describing the event (visible wherever the session shows up).
+  const note = String(formData.get("note") ?? "").trim().slice(0, 300);
+
   // Checked user ids.
   const checkedIds = new Set<string>();
   for (const [key, value] of formData.entries()) {
@@ -367,6 +390,7 @@ export async function logPracticeAttendance(formData: FormData) {
         status: "DONE",
         practiceSlotId,
         date,
+        details: mergeNoteIntoDetails(null, note),
       }));
       try {
         await prisma.sessionLog.createMany({ data: rows });
@@ -412,6 +436,21 @@ export async function logPracticeAttendance(formData: FormData) {
     }
   }
 
+  // Sync the shared event note onto every attendee's row: a typed note always propagates; in
+  // edit mode an emptied field clears it (edit is authoritative, additive submits are not).
+  if (note || editMode) {
+    const eventRows = await prisma.sessionLog.findMany({
+      where: { category: "RUGBY", status: "DONE", practiceSlotId, date: { gte: date, lt: dayEnd } },
+      select: { id: true, details: true },
+    });
+    for (const r of eventRows) {
+      const merged = mergeNoteIntoDetails(r.details, note);
+      if (merged !== r.details) {
+        await prisma.sessionLog.update({ where: { id: r.id }, data: { details: merged } });
+      }
+    }
+  }
+
   // Reconcile auto-MISSED for this practice (present wins; committed-absent get auto-missed).
   await reconcileRugbyMissed(practiceSlotId, date);
 
@@ -451,6 +490,7 @@ async function logExtraPractice(
 
   const label = String(formData.get("extraLabel") ?? "").trim().slice(0, 80);
   if (!label) throw new Error("Missing practice name");
+  const note = String(formData.get("note") ?? "").trim().slice(0, 300);
 
   const dateStr = String(formData.get("date") ?? "");
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
@@ -497,18 +537,30 @@ async function logExtraPractice(
         category: "RUGBY",
         status: "DONE",
         date,
-        details: extraPracticeDetails(label),
+        details: mergeNoteIntoDetails(extraPracticeDetails(label), note),
       })),
     });
   }
 
   // Edit mode: the checkbox list is authoritative for this label+date.
+  const editMode = String(formData.get("editMode") ?? "") === "1";
   const removedUserIds: string[] = [];
-  if (String(formData.get("editMode") ?? "") === "1") {
+  if (editMode) {
     const toRemove = sameLabel.filter((l) => !checkedIds.has(l.userId));
     if (toRemove.length > 0) {
       await prisma.sessionLog.deleteMany({ where: { id: { in: toRemove.map((l) => l.id) } } });
       removedUserIds.push(...toRemove.map((l) => l.userId));
+    }
+  }
+
+  // Propagate the shared event note to the pre-existing rows of this label+date (created rows
+  // already carry it); an emptied field clears it in edit mode.
+  if (note || editMode) {
+    for (const r of sameLabel.filter((l) => checkedIds.has(l.userId) || !editMode)) {
+      const merged = mergeNoteIntoDetails(r.details, note);
+      if (merged !== r.details) {
+        await prisma.sessionLog.update({ where: { id: r.id }, data: { details: merged } });
+      }
     }
   }
 
@@ -554,6 +606,7 @@ export async function logTournament(formData: FormData) {
   if (Math.abs(date.getTime() - now.getTime()) > 370 * 86400000) throw new Error("Invalid date");
 
   const label = String(formData.get("label") ?? "").trim().slice(0, 80);
+  const note = String(formData.get("note") ?? "").trim().slice(0, 300);
   const dayEnd = new Date(date);
   dayEnd.setDate(dayEnd.getDate() + 1);
 
@@ -588,18 +641,34 @@ export async function logTournament(formData: FormData) {
         category: TOURNAMENT_CATEGORY,
         status: "DONE",
         date,
-        details: JSON.stringify({ kind: "tournament", ...(label ? { label } : {}) }),
+        details: mergeNoteIntoDetails(
+          JSON.stringify({ kind: "tournament", ...(label ? { label } : {}) }),
+          note,
+        ),
       })),
     });
   }
 
   // Edit mode: unticked players lose their row for this date (mirrors attendance editing).
+  const editMode = String(formData.get("editMode") ?? "") === "1";
   const removedUserIds: string[] = [];
-  if (String(formData.get("editMode") ?? "") === "1") {
+  if (editMode) {
     const toRemove = existing.filter((l) => !checkedIds.has(l.userId));
     if (toRemove.length > 0) {
       await prisma.sessionLog.deleteMany({ where: { id: { in: toRemove.map((l) => l.id) } } });
       removedUserIds.push(...toRemove.map((l) => l.userId));
+    }
+  }
+
+  // Propagate the shared event note to pre-existing rows (created rows already carry it).
+  if (note || editMode) {
+    for (const r of existing.filter((l) => checkedIds.has(l.userId) || !editMode)) {
+      const current = await prisma.sessionLog.findUnique({ where: { id: r.id }, select: { details: true } });
+      if (!current) continue;
+      const merged = mergeNoteIntoDetails(current.details, note);
+      if (merged !== current.details) {
+        await prisma.sessionLog.update({ where: { id: r.id }, data: { details: merged } });
+      }
     }
   }
 

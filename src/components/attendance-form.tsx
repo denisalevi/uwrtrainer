@@ -57,6 +57,7 @@ export function AttendanceForm({
   initialPresentIds,
   tournament,
   defaultLabel,
+  defaultNote,
 }: {
   slots: Slot[];
   members: Member[];
@@ -71,6 +72,8 @@ export function AttendanceForm({
   tournament?: boolean;
   /** Tournament / extra-practice mode: prefilled event label (edit). */
   defaultLabel?: string;
+  /** Prefilled shared event note (edit). */
+  defaultNote?: string;
 }) {
   const { t } = useT();
   const initialSlot = slots.find((s) => s.id === defaultSlotId) ?? slots[0];
@@ -170,6 +173,11 @@ export function AttendanceForm({
               </p>
             )}
             {tournament && <p className="mt-1 text-xs text-slate-500">{t("tournament.goalsHint")}</p>}
+          </div>
+          {/* Optional shared note about the event — shows wherever the session is displayed. */}
+          <div>
+            <Label htmlFor="att-note">{t("log.note")}</Label>
+            <Input id="att-note" name="note" maxLength={300} defaultValue={defaultNote} />
           </div>
         </CardBody>
       </Card>

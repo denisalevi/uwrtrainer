@@ -234,6 +234,7 @@ async function DaySection({
             const day = dayKey(attendees[0].date);
             const absentees = missedBySlotDay.get(`${slotId}|${day}`) ?? [];
             const mine = absentees.find((a) => a.userId === viewerId);
+            const eventNote = attendees.map((a) => parseDetails(a.details).note).find(Boolean);
             return (
               <li key={`rugby-${slotId}`} className="text-sm">
                 <details className="group">
@@ -248,6 +249,7 @@ async function DaySection({
                     <span className="text-slate-400 group-open:rotate-90">›</span>
                   </summary>
                   <div className="space-y-2 px-4 pb-3 text-slate-600">
+                    {eventNote && <p className="whitespace-pre-wrap">📝 {eventNote}</p>}
                     <div>
                       <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
                         {t("feed.attendees")}
@@ -301,6 +303,7 @@ async function DaySection({
 
           {Array.from(extraByLabel.entries()).map(([extraLabel, attendees]) => {
             const day = dayKey(attendees[0].date);
+            const eventNote = attendees.map((a) => parseDetails(a.details).note).find(Boolean);
             return (
               <li key={`extra-${extraLabel}`} className="text-sm">
                 <details className="group">
@@ -311,6 +314,7 @@ async function DaySection({
                     <span className="text-slate-400 group-open:rotate-90">›</span>
                   </summary>
                   <div className="space-y-2 px-4 pb-3 text-slate-600">
+                    {eventNote && <p className="whitespace-pre-wrap">📝 {eventNote}</p>}
                     <div>
                       <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
                         {t("feed.attendees")}
@@ -344,6 +348,12 @@ async function DaySection({
                   <span className="text-slate-400 group-open:rotate-90">›</span>
                 </summary>
                 <div className="space-y-2 px-4 pb-3 text-slate-600">
+                  {(() => {
+                    const eventNote = tournamentPlayers
+                      .map((a) => parseDetails(a.details).note)
+                      .find(Boolean);
+                    return eventNote ? <p className="whitespace-pre-wrap">📝 {eventNote}</p> : null;
+                  })()}
                   <div>
                     <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
                       {t("tournament.whoPlayed")}

@@ -24,7 +24,22 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 - **One reason per week.** An incomplete past week takes a single free-text reason ("sick",
   "work trip") right in the week box — visible to the team, replacing per-missed-row reasons.
 
+- **A note on every group session.** The attendance flow (scheduled practice, extra practice AND
+  tournament) has an optional note describing the event — shown in the feed event, the week list
+  and the team view, and editable via "Edit attendance".
+- **Extras are visible.** Sessions beyond your plan show as "+N" on the week header and an
+  "Extras" line in the breakdown (e.g. "+1 Cardio") — overshoot on a planned goal keeps its
+  per-row "+N".
+
 ### Changed
+- **Committed practices never block your goals.** Going to a *different* rugby session than the
+  one you aimed for still fulfils the weekly rugby goal — the skipped practice shows as
+  "✗ missed it" info in the week breakdown (with the optional reason box), but 🎉 and the green
+  box are decided by the count goals alone.
+- **Team member page reordered**: planned-per-week counts → practices they're aiming for →
+  availability note → recent sessions; the trainer's promote/demote control moved to the bottom.
+- **Softer wording**: "Team practices I commit to" → "I'm aiming for" (de: "die ich anpeile"),
+  and the week counts consistently say "erledigt" in German ("5 von 8 erledigt").
 - **The Log page is reorganised.** Rugby is always recorded through the attendance flow — even
   when you trained alone (you're pre-ticked; just save). On top: "Record a rugby practice" and
   "Record a tournament / league game" (no longer highlighted in yellow); below: "Record a solo
