@@ -11,6 +11,8 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-07-15
+
 ### Added
 - **Extra practices with a custom name.** The attendance flow has a new "Extra practice" choice:
   type what it was (e.g. "beach training"), pick any past date, tick off who came. It counts
