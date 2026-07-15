@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useT } from "@/components/i18n-provider";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { logPracticeAttendance, logTournament } from "@/app/actions/training";
+import { EXTRA_PRACTICE_ID } from "@/lib/extra-practice";
 import { Button, Card, CardBody, Input, Label, Select } from "@/components/ui";
 
 type Slot = { id: string; label: string; tier: string; dayOfWeek: number };
@@ -56,6 +57,7 @@ export function AttendanceForm({
   initialPresentIds,
   tournament,
   defaultLabel,
+  defaultNote,
 }: {
   slots: Slot[];
   members: Member[];
@@ -68,14 +70,18 @@ export function AttendanceForm({
   initialPresentIds?: string[];
   /** Tournament / league game mode: no practice slot, optional label, free date. */
   tournament?: boolean;
-  /** Tournament mode: prefilled event label (edit). */
+  /** Tournament / extra-practice mode: prefilled event label (edit). */
   defaultLabel?: string;
+  /** Prefilled shared event note (edit). */
+  defaultNote?: string;
 }) {
   const { t } = useT();
   const initialSlot = slots.find((s) => s.id === defaultSlotId) ?? slots[0];
-  const [slotId, setSlotId] = useState(initialSlot?.id ?? "");
+  const [slotId, setSlotId] = useState(
+    defaultSlotId === EXTRA_PRACTICE_ID ? EXTRA_PRACTICE_ID : initialSlot?.id ?? EXTRA_PRACTICE_ID,
+  );
   const [date, setDate] = useState(
-    defaultDate ?? (tournament ? dayKey(new Date()) : initialSlot ? mostRecentWeekday(initialSlot.dayOfWeek) : ""),
+    defaultDate ?? (tournament ? dayKey(new Date()) : initialSlot ? mostRecentWeekday(initialSlot.dayOfWeek) : dayKey(new Date())),
   );
   const [checked, setChecked] = useState<Record<string, boolean>>(() =>
     initialPresentIds
@@ -86,11 +92,8 @@ export function AttendanceForm({
   const toggle = (id: string) =>
     setChecked((c) => ({ ...c, [id]: !c[id] }));
 
-  if (!tournament && slots.length === 0) {
-    return <p className="text-sm text-slate-500">{t("log.noSlots")}</p>;
-  }
-
-  const slot = tournament ? undefined : slots.find((s) => s.id === slotId);
+  const extra = !tournament && slotId === EXTRA_PRACTICE_ID;
+  const slot = tournament || extra ? undefined : slots.find((s) => s.id === slotId);
   const dateWeekday = weekdayOf(date);
   const mismatch = slot != null && dateWeekday != null && dateWeekday !== slot.dayOfWeek;
 
@@ -117,21 +120,38 @@ export function AttendanceForm({
               />
             </div>
           ) : (
-            <div>
-              <Label htmlFor="practiceSlotId">{t("attendance.whichPractice")}</Label>
-              <Select
-                id="practiceSlotId"
-                name="practiceSlotId"
-                value={slotId}
-                onChange={(e) => onSlotChange(e.target.value)}
-              >
-                {slots.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label} · {t(`tier.${s.tier}` as DictKey)}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            <>
+              <div>
+                <Label htmlFor="practiceSlotId">{t("attendance.whichPractice")}</Label>
+                <Select
+                  id="practiceSlotId"
+                  name="practiceSlotId"
+                  value={slotId}
+                  onChange={(e) => onSlotChange(e.target.value)}
+                >
+                  {slots.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.label} · {t(`tier.${s.tier}` as DictKey)}
+                    </option>
+                  ))}
+                  {/* One-off session with a free name — e.g. an extra practice some week. */}
+                  <option value={EXTRA_PRACTICE_ID}>{t("attendance.extraPractice")}</option>
+                </Select>
+              </div>
+              {extra && (
+                <div>
+                  <Label htmlFor="extraLabel">{t("attendance.extraName")}</Label>
+                  <Input
+                    id="extraLabel"
+                    name="extraLabel"
+                    required
+                    maxLength={80}
+                    defaultValue={defaultLabel}
+                    placeholder={t("attendance.extraNamePlaceholder")}
+                  />
+                </div>
+              )}
+            </>
           )}
           <div>
             <Label htmlFor="date">{t("attendance.date")}</Label>
@@ -153,6 +173,11 @@ export function AttendanceForm({
               </p>
             )}
             {tournament && <p className="mt-1 text-xs text-slate-500">{t("tournament.goalsHint")}</p>}
+          </div>
+          {/* Optional shared note about the event — shows wherever the session is displayed. */}
+          <div>
+            <Label htmlFor="att-note">{t("log.note")}</Label>
+            <Input id="att-note" name="note" maxLength={300} defaultValue={defaultNote} />
           </div>
         </CardBody>
       </Card>

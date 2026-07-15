@@ -41,10 +41,14 @@ export function LogForm({
 }) {
   const { t } = useT();
   const editing = !!existing;
+  // Rugby is logged via the attendance flow (even solo), so it's not offered here for NEW
+  // logs — it only appears when editing a legacy rugby row. Same for MISSED: manual missed
+  // logging is retired; the status is fixed to DONE (legacy MISSED rows stay editable).
+  const categories = CATEGORIES.filter((c) => c !== "RUGBY" || existing?.category === "RUGBY");
   const [category, setCategory] = useState<Category>(
-    existing?.category ?? defaultCategory ?? "RUGBY",
+    existing?.category ?? (defaultCategory !== "RUGBY" ? defaultCategory : undefined) ?? "STRENGTH",
   );
-  const [status, setStatus] = useState<SessionStatus>(existing?.status ?? "DONE");
+  const status: SessionStatus = existing?.status ?? "DONE";
   const today = new Date().toISOString().slice(0, 10);
 
   const [note, setNote] = useState<string>(existing?.note ?? "");
@@ -63,7 +67,7 @@ export function LogForm({
         <div>
           <Label>{t("log.chooseCategory")}</Label>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            {CATEGORIES.map((c) => (
+            {categories.map((c) => (
               <button
                 type="button"
                 key={c}
@@ -76,30 +80,6 @@ export function LogForm({
                 )}
               >
                 {t(`cat.${c}` as DictKey)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Status */}
-        <div>
-          <Label>{t("log.status")}</Label>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {(["DONE", "MISSED"] as SessionStatus[]).map((s) => (
-              <button
-                type="button"
-                key={s}
-                onClick={() => setStatus(s)}
-                className={cn(
-                  "rounded-xl border px-3 py-3 text-sm font-medium",
-                  status === s
-                    ? s === "DONE"
-                      ? "border-green-600 bg-green-50 text-green-800"
-                      : "border-red-500 bg-red-50 text-red-700"
-                    : "border-slate-200 bg-white text-slate-700",
-                )}
-              >
-                {t(s === "DONE" ? "log.done" : "log.missed")}
               </button>
             ))}
           </div>

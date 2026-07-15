@@ -71,6 +71,8 @@ export default async function LogPage({
           <span>›</span>
         </Link>
       )}
+      {/* Rugby is ALWAYS logged as a practice with attendance — even for yourself alone (you're
+          pre-ticked there). This kills the solo-rugby path that used to shadow team practices. */}
       <Link
         href="/attendance"
         className="flex items-center justify-between rounded-xl border border-teal-600 bg-teal-50 px-3 py-3 text-sm font-medium text-teal-800"
@@ -80,11 +82,15 @@ export default async function LogPage({
       </Link>
       <Link
         href="/attendance?mode=tournament"
-        className="flex items-center justify-between rounded-xl border border-amber-500 bg-amber-50 px-3 py-3 text-sm font-medium text-amber-800"
+        className="flex items-center justify-between rounded-xl border border-teal-600 bg-teal-50 px-3 py-3 text-sm font-medium text-teal-800"
       >
         <span>🏆 {t("log.tournament")}</span>
         <span>›</span>
       </Link>
+      <div className="border-t border-slate-200 pt-4">
+        <h2 className="text-sm font-semibold text-slate-700">{t("log.soloSection")}</h2>
+        <p className="text-xs text-slate-500">{t("log.soloSectionHint")}</p>
+      </div>
       <LogForm slots={slots} defaultCategory={defaultCategory} defaultDate={defaultDate} />
     </div>
   );

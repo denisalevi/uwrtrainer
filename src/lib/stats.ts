@@ -57,7 +57,13 @@ function buildScoreItems(
   items: PlanWithItems["items"],
   logs: LogRow[],
   weekStart: Date,
-): (ScoreItem & { note: string | null; label: string | null })[] {
+): (ScoreItem & {
+  note: string | null;
+  label: string | null;
+  practiceSlotId: string | null;
+  slotDayOfWeek: number | null;
+  inSeason: boolean;
+})[] {
   return items.map((it) => {
     let done: number;
     if (it.practiceSlotId) {
@@ -76,8 +82,9 @@ function buildScoreItems(
     // A committed practice that's out of season this week (deactivated or outside its date
     // window) isn't expected: drop its target to 0 so it neither counts nor penalises adherence.
     let target = it.target;
+    let inSeason = true;
     if (it.practiceSlotId && it.slotDayOfWeek != null) {
-      const inSeason = isSlotInSeasonForWeek(
+      inSeason = isSlotInSeasonForWeek(
         {
           active: it.slotActive,
           validFrom: it.slotValidFrom,
@@ -95,6 +102,11 @@ function buildScoreItems(
       done,
       note: it.note,
       label: it.label,
+      // Committed-practice metadata, so the weekly breakdown can render the specific practice
+      // with an attended/missed mark (a slot marker has target 0 and is invisible to scoring).
+      practiceSlotId: it.practiceSlotId,
+      slotDayOfWeek: it.slotDayOfWeek,
+      inSeason,
     };
   });
 }
@@ -172,7 +184,13 @@ export async function getCurrentWeekDetail(userId: string): Promise<WeekDetail> 
   return { weekStart, score: exempt ? applyWeekExemption(score) : score, items, exempt };
 }
 
-export type WeekPlanItem = ScoreItem & { note: string | null; label: string | null };
+export type WeekPlanItem = ScoreItem & {
+  note: string | null;
+  label: string | null;
+  practiceSlotId: string | null;
+  slotDayOfWeek: number | null;
+  inSeason: boolean;
+};
 
 /**
  * Plan-vs-done items for each requested week (keyed by weekStart ms) — drives the

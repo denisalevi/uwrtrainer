@@ -52,6 +52,7 @@ model User {
   strengthPrograms  StrengthProgram[]
   progressionEvents StrengthProgressionEvent[]
   memberships       TeamMembership[]
+  weekNotes         WeekNote[]
 }
 
 /// A team. registrationCode gates self-signup/join for this team. The migration creates a
@@ -228,4 +229,18 @@ model StrengthProgressionEvent {
 model Setting {
   key   String @id
   value String
+}
+
+// One free-text reason per user per week for not reaching the weekly goals — replaces the
+// per-missed-row reasons (auto-missed rows are retired from the UI; see src/lib/missed.ts).
+model WeekNote {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStart DateTime // Monday (local midnight) of the week this reason belongs to
+  reason    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, weekStart])
 }

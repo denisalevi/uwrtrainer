@@ -4,17 +4,19 @@ import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
 import { isSlotAvailableOn } from "@/lib/practice-window";
 import { TOURNAMENT_CATEGORY, tournamentLabel } from "@/lib/tournament";
+import { EXTRA_PRACTICE_ID, extraPracticeLabel } from "@/lib/extra-practice";
 import { AttendanceForm } from "@/components/attendance-form";
 
 export default async function AttendancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ slot?: string; date?: string; edit?: string; mode?: string }>;
+  searchParams: Promise<{ slot?: string; date?: string; edit?: string; mode?: string; label?: string }>;
 }) {
   const user = await requireUser();
   const { t } = await getServerT();
-  const { slot, date, edit, mode } = await searchParams;
+  const { slot, date, edit, mode, label } = await searchParams;
   const tournament = mode === "tournament";
+  const extraEdit = slot === EXTRA_PRACTICE_ID && !!label;
 
   const [allSlots, members] = await Promise.all([
     tournament
@@ -47,6 +49,7 @@ export default async function AttendancePage({
   const editMode = edit === "1" && (tournament || !!slot) && !!date && /^\d{4}-\d{2}-\d{2}$/.test(date);
   let initialPresentIds: string[] | undefined;
   let defaultLabel: string | undefined;
+  let defaultNote: string | undefined;
   if (editMode) {
     const [y, m, d] = date!.split("-").map(Number);
     const dayStart = new Date(y, m - 1, d);
@@ -59,16 +62,39 @@ export default async function AttendancePage({
             user: { memberships: { some: { teamId: user.activeTeamId ?? "" } } },
             date: { gte: dayStart, lt: dayEnd },
           }
-        : {
-            category: "RUGBY",
-            status: "DONE",
-            practiceSlotId: slot,
-            date: { gte: dayStart, lt: dayEnd },
-          },
+        : extraEdit
+          ? {
+              category: "RUGBY",
+              status: "DONE",
+              practiceSlotId: null,
+              user: { memberships: { some: { teamId: user.activeTeamId ?? "" } } },
+              date: { gte: dayStart, lt: dayEnd },
+            }
+          : {
+              category: "RUGBY",
+              status: "DONE",
+              practiceSlotId: slot,
+              date: { gte: dayStart, lt: dayEnd },
+            },
       select: { userId: true, details: true },
     });
-    initialPresentIds = done.map((l) => l.userId);
+    // Extra practices are keyed by label (several could share a date) — narrow in JS.
+    const rows = extraEdit ? done.filter((l) => extraPracticeLabel(l.details) === label) : done;
+    initialPresentIds = rows.map((l) => l.userId);
     if (tournament) defaultLabel = done.map((l) => tournamentLabel(l.details)).find(Boolean) ?? undefined;
+    if (extraEdit) defaultLabel = label;
+    // Prefill the shared event note (stored on each row's details).
+    defaultNote =
+      rows
+        .map((l) => {
+          try {
+            const d = l.details ? (JSON.parse(l.details) as { note?: unknown }) : null;
+            return typeof d?.note === "string" ? d.note : null;
+          } catch {
+            return null;
+          }
+        })
+        .find(Boolean) ?? undefined;
   }
 
   return (
@@ -94,6 +120,7 @@ export default async function AttendancePage({
         initialPresentIds={initialPresentIds}
         tournament={tournament}
         defaultLabel={defaultLabel}
+        defaultNote={defaultNote}
       />
     </div>
   );

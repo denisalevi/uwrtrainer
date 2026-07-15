@@ -103,7 +103,12 @@ const {
   isoWeekKey,
   RECONCILE_GRACE_DAYS,
   RECONCILE_MAX_BACKFILL_WEEKS,
+  autoMissedConfig,
 } = await import("./missed");
+
+// The mechanism is RETIRED in the product (kill switch off) but stays fully tested so it can
+// come back — the tests exercise it with the switch on.
+autoMissedConfig.enabled = true;
 
 // A known Monday week start.
 const WEEK = new Date(2026, 4, 4); // Mon 2026-05-04
@@ -380,5 +385,18 @@ describe("runWeeklyReconcileIfDue — downtime backfill", () => {
     const res = await runWeeklyReconcileIfDue(new Date(2026, 4, 19, 12)); // week2 closed 05-18, grace until 05-21
     expect(res.ran).toBe(false);
     expect(summaries()).toHaveLength(0);
+  });
+});
+
+describe("kill switch (auto-missed retired from the product)", () => {
+  it("all entry points are inert while autoMissedConfig.enabled is false", async () => {
+    autoMissedConfig.enabled = false;
+    try {
+      expect(await reconcileRugbyMissed("slot-x", WEEK)).toEqual([]);
+      expect(await reconcileWeekForUser(WEEK, "u1")).toBe(0);
+      expect((await runWeeklyReconcileIfDue(new Date(2026, 4, 19, 12))).ran).toBe(false);
+    } finally {
+      autoMissedConfig.enabled = true;
+    }
   });
 });

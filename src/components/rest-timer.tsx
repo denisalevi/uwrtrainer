@@ -30,6 +30,8 @@ export type RestTimerController = {
   resume: () => void;
   reset: () => void;
   dismiss: () => void;
+  /** Override THIS countdown's duration (paused; Resume starts it). Settings are untouched. */
+  setSeconds: (secs: number) => void;
   /** Unlock audio on a real user gesture (autoplay policy). Safe to call repeatedly. */
   primeAudio: () => void;
 };
@@ -189,6 +191,17 @@ export function useRestTimer(settings: RestTimerSettings): RestTimerController {
     setRemaining(0);
     setTotal(0);
   }, []);
+  // Manual one-off duration (tap the paused time to edit it). Stays paused so the athlete
+  // confirms with Resume; the per-kind defaults in Settings are not changed.
+  const setSeconds = useCallback((secs: number) => {
+    if (!Number.isFinite(secs) || secs <= 0) return;
+    const s = Math.min(3600, Math.round(secs));
+    deadlineRef.current = null;
+    setRunning(false);
+    setFinished(false);
+    setTotal(s);
+    setRemaining(s);
+  }, []);
 
   return {
     enabled: settings.enabled,
@@ -202,14 +215,35 @@ export function useRestTimer(settings: RestTimerSettings): RestTimerController {
     resume,
     reset,
     dismiss,
+    setSeconds,
     primeAudio,
   };
+}
+
+/** Parse "90" (seconds) or "1:30" (m:ss) into seconds; null when malformed. */
+function parseDuration(raw: string): number | null {
+  const v = raw.trim();
+  const colon = /^(\d{1,2}):([0-5]?\d)$/.exec(v);
+  if (colon) return Number(colon[1]) * 60 + Number(colon[2]);
+  if (/^\d{1,4}$/.test(v)) return Number(v);
+  return null;
 }
 
 /** Sticky bar pinned above the bottom nav; hidden until the timer is armed. */
 export function RestTimerBar({ controller }: { controller: RestTimerController }) {
   const { t } = useT();
   const { enabled, remaining, running, finished } = controller;
+  // Tap-to-edit the duration, only while PAUSED (after Pause or Reset) — deliberately quiet
+  // (dotted underline) so the default flow is untouched but it's findable when looked for.
+  const paused = !running && !finished && remaining > 0;
+  const [editing, setEditing] = useState<string | null>(null);
+  const applyEdit = () => {
+    if (editing != null) {
+      const secs = parseDuration(editing);
+      if (secs != null && secs > 0) controller.setSeconds(secs);
+    }
+    setEditing(null);
+  };
   const visible = enabled && (running || finished || remaining > 0);
   if (!visible) return null;
 
@@ -224,14 +258,41 @@ export function RestTimerBar({ controller }: { controller: RestTimerController }
         <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
           {t("strength.rest")}
         </span>
-        <span
-          className={cn(
-            "flex-1 text-center font-mono text-2xl font-bold tabular-nums",
-            finished ? "text-amber-700" : "text-slate-900",
-          )}
-        >
-          {finished ? t("strength.restOver") : fmt(remaining)}
-        </span>
+        {paused && editing != null ? (
+          <input
+            autoFocus
+            value={editing}
+            onChange={(e) => setEditing(e.target.value)}
+            onBlur={applyEdit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              if (e.key === "Escape") setEditing(null);
+            }}
+            placeholder={fmt(remaining)}
+            inputMode="numeric"
+            aria-label={t("strength.restEditHint")}
+            className="w-24 flex-1 rounded-md border border-teal-300 text-center font-mono text-2xl font-bold tabular-nums text-slate-900"
+          />
+        ) : paused ? (
+          <button
+            type="button"
+            onClick={() => setEditing("")}
+            title={t("strength.restEditHint")}
+            aria-label={t("strength.restEditHint")}
+            className="flex-1 text-center font-mono text-2xl font-bold tabular-nums text-slate-900 underline decoration-dotted decoration-slate-300 underline-offset-4"
+          >
+            {fmt(remaining)}
+          </button>
+        ) : (
+          <span
+            className={cn(
+              "flex-1 text-center font-mono text-2xl font-bold tabular-nums",
+              finished ? "text-amber-700" : "text-slate-900",
+            )}
+          >
+            {finished ? t("strength.restOver") : fmt(remaining)}
+          </span>
+        )}
         {finished ? (
           <Button type="button" size="sm" variant="secondary" onClick={controller.dismiss}>
             {t("common.close")}

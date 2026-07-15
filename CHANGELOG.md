@@ -9,6 +9,53 @@ uses [Semantic Versioning](https://semver.org/). While we're pre-1.0, a new **mi
 Release process: `npm version <patch|minor>` (bumps `package.json` and creates the
 `vX.Y.Z` git tag), then `git push --follow-tags`.
 
+## [Unreleased]
+
+### Added
+- **Extra practices with a custom name.** The attendance flow has a new "Extra practice" choice:
+  type what it was (e.g. "beach training"), pick any past date, tick off who came. It counts
+  toward everyone's weekly rugby goal, aggregates in the feed like a scheduled practice
+  ("{n} went to {name}") and is editable from there.
+- **Rest timer: set a custom time for one countdown.** Pause (or reset) the timer, then tap the
+  time itself — a quiet dotted underline marks it editable — and type `90` or `1:30`. Resume
+  starts the new countdown; your per-set defaults in Settings are untouched.
+- **Committed practices show up by name in the weekly breakdown** — "Tuesday pool ✓ attended" /
+  "✗ missed it" (or "still ahead" during the running week), alongside the count goals.
+- **One reason per week.** An incomplete past week takes a single free-text reason ("sick",
+  "work trip") right in the week box — visible to the team, replacing per-missed-row reasons.
+
+- **A note on every group session.** The attendance flow (scheduled practice, extra practice AND
+  tournament) has an optional note describing the event — shown in the feed event, the week list
+  and the team view, and editable via "Edit attendance".
+- **Extras are visible.** Sessions beyond your plan show as "+N" on the week header and an
+  "Extras" line in the breakdown (e.g. "+1 Cardio") — overshoot on a planned goal keeps its
+  per-row "+N".
+
+### Changed
+- **Committed practices never block your goals.** Going to a *different* rugby session than the
+  one you aimed for still fulfils the weekly rugby goal — the skipped practice shows as
+  "✗ missed it" info in the week breakdown (with the optional reason box), but 🎉 and the green
+  box are decided by the count goals alone.
+- **Team member page reordered**: planned-per-week counts → practices they're aiming for →
+  availability note → recent sessions; the trainer's promote/demote control moved to the bottom.
+- **Softer wording**: "Team practices I commit to" → "I'm aiming for" (de: "die ich mir
+  vorgenommen habe"), and the week counts consistently say "erledigt" in German ("5 von 8 erledigt").
+- **The Log page is reorganised.** Rugby is always recorded through the attendance flow — even
+  when you trained alone (you're pre-ticked; just save). On top: "Record a rugby practice" and
+  "Record a tournament / league game" (no longer highlighted in yellow); below: "Record a solo
+  session" with strength / cardio / mobility / other.
+- **Weekly goal boxes are positively framed.** All goals reached → green with a 🎉. Fell short →
+  a calm grey box that simply states how far you got — no more red/amber boxes. The only red left
+  is a small "no reason given" tag on an incomplete past week, and it disappears the moment you
+  type a reason.
+
+### Removed
+- **Missed-session logging is retired.** The Done/Missed toggle is gone from the log form and
+  auto-missed rows (both the per-practice ones and the end-of-week "Missed N of M" summaries) are
+  no longer generated or shown — the weekly boxes carry that information now. Scores never read
+  missed rows, so nobody's points/streaks change. The whole mechanism is kept in code (kill
+  switch in `src/lib/missed.ts`, still fully tested) in case it returns for mandatory practices.
+
 ## [0.29.0] - 2026-07-15
 
 ### Changed
