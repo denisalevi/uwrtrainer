@@ -8,6 +8,7 @@ import { createSession, deleteSession } from "@/lib/session";
 import { DEFAULT_LOCALE, DEFAULT_TEAM_ID } from "@/lib/constants";
 import { appUrl, mailEnabled, sendAuthLink } from "@/lib/mail";
 import { consumeAuthToken, issueAuthToken, mailCooldownOver } from "@/lib/auth-token-store";
+import { notifySignupVerified } from "@/lib/notify";
 
 export type AuthState =
   | {
@@ -299,6 +300,8 @@ export async function resetPassword(_state: AuthState, formData: FormData): Prom
       emailVerifiedAt: user?.emailVerifiedAt ?? new Date(),
     },
   });
+  // A reset that doubled as first-time verification counts as a completed signup.
+  if (!user?.emailVerifiedAt) await notifySignupVerified(userId);
   return { info: "auth.resetDone" };
 }
 

@@ -100,3 +100,29 @@ export async function sendAuthLink(
     html,
   });
 }
+
+/** Plain "new member joined" notice to an admin/trainer (see src/lib/notify.ts). */
+export async function sendSignupNotice(
+  to: { email: string; name: string; locale: string },
+  joined: { name: string; email: string; teamNames: string },
+): Promise<void> {
+  const dict = getDictionary(to.locale);
+  const t = (key: DictKey, vars?: Record<string, string | number>) => translate(dict, key, vars);
+  const body = t("mail.signupBody", {
+    name: joined.name,
+    email: joined.email,
+    teams: joined.teamNames || "—",
+  });
+
+  if (!mailEnabled()) {
+    console.log(`[mail disabled] signup notice for ${to.email}: ${body}`);
+    return;
+  }
+
+  await transporter().sendMail({
+    from: process.env.MAIL_FROM || process.env.SMTP_USER,
+    to: to.email,
+    subject: t("mail.signupSubject", { name: joined.name }),
+    text: `${t("mail.greeting", { name: to.name })}\n\n${body}\n\n${appUrl()}/team\n`,
+  });
+}

@@ -107,6 +107,14 @@ export const en = {
   "mail.resetButton": "Choose new password",
   "mail.resetExpiry": "The link is valid for 1 hour.",
   "mail.ignore": "If this wasn't you, you can safely ignore this email.",
+  "mail.signupSubject": "New member: {name} — UWR Trainer",
+  "mail.signupBody": "{name} ({email}) just finished signing up and verified their email. Team(s): {teams}.",
+
+  "set.signupNotify": "Signup notifications",
+  "set.signupNotifyHint": "Email when someone joins",
+  "set.signupNotifyIntro": "Admins get an email whenever a new member verifies their signup.",
+  "set.signupNotifyTrainers": "Also notify trainers",
+  "set.signupNotifyNoMail": "Email sending isn't configured on this server (SMTP), so signup notifications are off.",
 
   "nav.dashboard": "Home",
   "nav.log": "Log",
@@ -785,6 +793,14 @@ export const de: Record<DictKey, string> = {
   "mail.resetButton": "Neues Passwort wählen",
   "mail.resetExpiry": "Der Link ist 1 Stunde gültig.",
   "mail.ignore": "Falls du das nicht warst, kannst du diese E-Mail einfach ignorieren.",
+  "mail.signupSubject": "Neues Mitglied: {name} — UWR Trainer",
+  "mail.signupBody": "{name} ({email}) hat sich gerade registriert und die E-Mail bestätigt. Team(s): {teams}.",
+
+  "set.signupNotify": "Anmelde-Benachrichtigungen",
+  "set.signupNotifyHint": "E-Mail, wenn jemand beitritt",
+  "set.signupNotifyIntro": "Admins bekommen eine E-Mail, sobald ein neues Mitglied seine Registrierung bestätigt.",
+  "set.signupNotifyTrainers": "Auch Trainer benachrichtigen",
+  "set.signupNotifyNoMail": "E-Mail-Versand (SMTP) ist auf diesem Server nicht eingerichtet, daher sind Anmelde-Benachrichtigungen aus.",
 
   "nav.dashboard": "Start",
   "nav.log": "Eintragen",

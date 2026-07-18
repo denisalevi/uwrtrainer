@@ -5,11 +5,14 @@ import { isTrainer, parseWarmupScheme, parseBbbConfig } from "@/lib/constants";
 import {
   setLocale,
   setRestTimerSettings,
+  setSignupNotify,
   setWeightRounding,
   setStrengthWarmup,
   setStrengthBbb,
   setStrengthPulls,
 } from "@/app/actions/settings";
+import { getSignupNotifyTrainers } from "@/lib/notify";
+import { mailEnabled } from "@/lib/mail";
 import { createTeam, updateLeaderboards, setTournamentExemption } from "@/app/actions/trainer";
 import { getTournamentExemptionMode } from "@/lib/exempt-weeks";
 import { logout } from "@/app/actions/auth";
@@ -64,6 +67,7 @@ export default async function SettingsPage({
     ? await prisma.leaderboard.findMany({ orderBy: { sortOrder: "asc" } })
     : [];
   const tournamentExemption = trainer ? await getTournamentExemptionMode() : null;
+  const signupNotifyTrainers = admin ? await getSignupNotifyTrainers() : false;
   // Pad the parsed scheme to a fixed 3 rows for the form (blank rows are dropped on save).
   const warmup = parseWarmupScheme(user.strengthWarmup);
   const warmupRows = Array.from({ length: 3 }, (_, i) => warmup[i] ?? null);
@@ -395,6 +399,30 @@ export default async function SettingsPage({
 
           <Collapsible title={t("users.manageTitle")} hint={t("users.manageHint")}>
             <AdminUserManagement currentUserId={user.id} />
+          </Collapsible>
+
+          <Collapsible title={t("set.signupNotify")} hint={t("set.signupNotifyHint")}>
+            {mailEnabled() ? (
+              <form action={setSignupNotify} className="space-y-3">
+                <p className="text-sm text-slate-600">{t("set.signupNotifyIntro")}</p>
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    name="notifyTrainers"
+                    defaultChecked={signupNotifyTrainers}
+                    className="h-5 w-5 rounded border-slate-300 text-teal-600 focus:ring-teal-400"
+                  />
+                  <span className="flex-1 text-sm font-medium text-slate-800">
+                    {t("set.signupNotifyTrainers")}
+                  </span>
+                </label>
+                <Button type="submit" variant="secondary">
+                  {t("common.save")}
+                </Button>
+              </form>
+            ) : (
+              <p className="text-sm text-slate-600">{t("set.signupNotifyNoMail")}</p>
+            )}
           </Collapsible>
 
           <Collapsible title={t("teams.create")}>

@@ -16,6 +16,22 @@ import {
   DEFAULT_WEIGHT_ROUNDING,
   DEFAULT_WEIGHT_INCREMENT,
 } from "@/lib/strength";
+import { SIGNUP_NOTIFY_TRAINERS_KEY } from "@/lib/notify";
+
+/** Admin-only: whether TRAINER users also get the new-member signup notice (admins always do). */
+export async function setSignupNotify(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "ADMIN") redirect("/login");
+
+  const value = formData.get("notifyTrainers") ? "1" : "0";
+  await prisma.setting.upsert({
+    where: { key: SIGNUP_NOTIFY_TRAINERS_KEY },
+    create: { key: SIGNUP_NOTIFY_TRAINERS_KEY, value },
+    update: { value },
+  });
+  revalidatePath("/settings");
+  redirect("/settings");
+}
 
 export async function setLocale(formData: FormData) {
   const user = await getCurrentUser();

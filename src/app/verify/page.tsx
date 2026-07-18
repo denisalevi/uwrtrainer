@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AuthShell } from "@/components/auth-screen";
 import { getServerT } from "@/lib/i18n/server";
 import { consumeAuthToken } from "@/lib/auth-token-store";
+import { notifySignupVerified } from "@/lib/notify";
 import { prisma } from "@/lib/db";
 
 /** Lands here from the emailed confirmation link; redeeming the token verifies the email. */
@@ -18,10 +19,12 @@ export default async function VerifyPage({
     const userId = await consumeAuthToken(token, "VERIFY_EMAIL");
     if (userId) {
       // Keep the first verification timestamp if a stale link is clicked again.
-      await prisma.user.updateMany({
+      const marked = await prisma.user.updateMany({
         where: { id: userId, emailVerifiedAt: null },
         data: { emailVerifiedAt: new Date() },
       });
+      // Only on the actual unverified→verified transition (never on re-clicks).
+      if (marked.count === 1) await notifySignupVerified(userId);
       verified = true;
     }
   }

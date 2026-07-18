@@ -11,6 +11,15 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-07-18
+
+### Added
+- **Signup notifications**: admins get an email when a new member verifies their signup
+  (fires on the unverified→verified transition, so abandoned signups stay silent; also when a
+  first-time verification happens via a password reset). New admin setting toggles whether
+  trainers are notified too (default: admins only). Localized per recipient; requires SMTP to
+  be configured, silently off otherwise.
+
 ## [0.32.0] - 2026-07-16
 
 ### Added
