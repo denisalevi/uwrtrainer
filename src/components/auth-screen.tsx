@@ -35,15 +35,20 @@ export function AuthScreen({
   mode,
   requireCode = false,
   resetAvailable = false,
+  notice,
 }: {
   title: string;
   subtitle: string;
   mode: "login" | "signup";
   requireCode?: boolean;
   resetAvailable?: boolean;
+  notice?: string;
 }) {
   return (
     <AuthShell title={title} subtitle={subtitle}>
+      {notice && (
+        <p className="mb-4 rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-800">{notice}</p>
+      )}
       <AuthForm mode={mode} requireCode={requireCode} resetAvailable={resetAvailable} />
     </AuthShell>
   );

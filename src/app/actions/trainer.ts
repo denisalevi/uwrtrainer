@@ -246,6 +246,58 @@ export async function deleteUserAccount(formData: FormData) {
   revalidatePath("/attendance");
 }
 
+/**
+ * Admin: move a login (email/password/verification/locale/role) from one member row to an
+ * account-less roster row — the fix for "ticked the wrong name when signing up". All tracking
+ * data stays with its rows; only the identity moves. The source row becomes an account-less
+ * PLAYER (re-claimable), both rows' sessions are revoked, and pending email tokens die.
+ */
+export async function reassignAccount(formData: FormData) {
+  const user = await requireTrainerAction();
+  if (user.role !== "ADMIN") throw new Error("Not authorized");
+  const sourceId = formData.get("sourceId") as string;
+  const targetId = formData.get("targetId") as string;
+  if (!sourceId || !targetId || sourceId === targetId) throw new Error("Invalid selection");
+
+  const [source, target] = await Promise.all([
+    prisma.user.findUnique({ where: { id: sourceId } }),
+    prisma.user.findUnique({ where: { id: targetId } }),
+  ]);
+  if (!source?.passwordHash) throw new Error("Source has no login to move");
+  if (!target || target.passwordHash !== null) throw new Error("Target already has a login");
+
+  await prisma.$transaction([
+    prisma.authToken.deleteMany({ where: { userId: { in: [sourceId, targetId] } } }),
+    // Free the unique email first, then attach it to the target.
+    prisma.user.update({
+      where: { id: sourceId },
+      data: {
+        email: null,
+        passwordHash: null,
+        emailVerifiedAt: null,
+        role: "PLAYER",
+        sessionVersion: { increment: 1 },
+      },
+    }),
+    prisma.user.update({
+      where: { id: targetId },
+      data: {
+        email: source.email,
+        passwordHash: source.passwordHash,
+        emailVerifiedAt: source.emailVerifiedAt,
+        locale: source.locale,
+        role: source.role,
+        activeTeamId: target.activeTeamId ?? source.activeTeamId,
+        sessionVersion: { increment: 1 },
+      },
+    }),
+  ]);
+
+  revalidatePath("/settings");
+  revalidatePath("/team");
+  redirect("/settings");
+}
+
 /** Admin: remove a user from a team. Their active team falls back to another membership. */
 export async function removeUserFromTeam(formData: FormData) {
   const user = await requireTrainerAction();

@@ -11,6 +11,19 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-07-18
+
+### Added
+- **Delete my account** (Settings → Personal): removes your login (email + password) but keeps
+  all tracking data — you become an account-less roster member again, re-claimable at signup.
+  The UI states explicitly that data is NOT deleted and names the admin email to contact for
+  full deletion (which remains an admin action). All your sessions are signed out; the last
+  remaining admin is blocked from self-deleting.
+- **Reassign account** (Settings → Admin): move a login to a different account-less roster
+  member — the fix for "ticked the wrong name at signup". Email, password, verification,
+  language and role move; all training data stays with its rows; both affected members are
+  signed out everywhere.
+
 ## [0.33.0] - 2026-07-18
 
 ### Added

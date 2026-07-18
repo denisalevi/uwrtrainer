@@ -6,6 +6,7 @@ import { joinTeam } from "@/app/actions/settings";
 import { addUserToTeam, removeUserFromTeam } from "@/app/actions/trainer";
 import { Badge, Button, Input, Label, Select } from "@/components/ui";
 import { DeleteAccountButton } from "./delete-account-button";
+import { ReassignAccountForm } from "./reassign-account-form";
 
 /**
  * The teams list every user sees: all teams, with a fold-open join form per team.
@@ -268,5 +269,27 @@ export async function AdminUserManagement({ currentUserId }: { currentUserId: st
         );
       })}
     </ul>
+  );
+}
+
+/** Admin: reassign a login to a different account-less roster member (wrong-name fix). */
+export async function AdminReassignAccount() {
+  const [accounts, claimables] = await Promise.all([
+    prisma.user.findMany({
+      where: { passwordHash: { not: null } },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.user.findMany({
+      where: { passwordHash: null },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+  return (
+    <ReassignAccountForm
+      accounts={accounts.map((a) => ({ ...a, email: a.email ?? "—" }))}
+      claimables={claimables}
+    />
   );
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
+import { deleteSession } from "@/lib/session";
 import {
   isLocale,
   DEFAULT_LOCALE,
@@ -17,6 +18,41 @@ import {
   DEFAULT_WEIGHT_INCREMENT,
 } from "@/lib/strength";
 import { SIGNUP_NOTIFY_TRAINERS_KEY } from "@/lib/notify";
+
+/**
+ * Self-service "delete my account": strips the login (email, password, verification, role)
+ * but KEEPS all tracking data — the row becomes an account-less roster member again, exactly
+ * like a trainer-created one, and can even be re-claimed at signup. Full data deletion stays
+ * an admin action (deleteUserAccount). Blocked for the last admin so the app can't go
+ * admin-less; other sessions die via the sessionVersion bump.
+ */
+export async function downgradeOwnAccount(): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  if (user.role === "ADMIN") {
+    const admins = await prisma.user.count({ where: { role: "ADMIN" } });
+    if (admins <= 1) throw new Error("Promote another admin before deleting your account");
+  }
+
+  await prisma.$transaction([
+    prisma.authToken.deleteMany({ where: { userId: user.id } }),
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        email: null,
+        passwordHash: null,
+        emailVerifiedAt: null,
+        role: "PLAYER",
+        sessionVersion: { increment: 1 },
+      },
+    }),
+  ]);
+
+  await deleteSession();
+  revalidatePath("/", "layout");
+  redirect("/login?deleted=1");
+}
 
 /** Admin-only: whether TRAINER users also get the new-member signup notice (admins always do). */
 export async function setSignupNotify(formData: FormData) {

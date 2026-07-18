@@ -19,7 +19,8 @@ import { logout } from "@/app/actions/auth";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Badge, Button, Collapsible, Input, Label, Select, SectionTitle, cn } from "@/components/ui";
 import { versionLabel } from "@/lib/version";
-import { TeamsSection, AdminTeamMembers, AdminUserManagement } from "./teams-section";
+import { TeamsSection, AdminTeamMembers, AdminUserManagement, AdminReassignAccount } from "./teams-section";
+import { DeleteOwnAccount } from "./delete-own-account";
 import { PracticeSlotsSettings } from "./practice-slots";
 
 /** A titled group of collapsible settings cards; trainer/admin groups get a coloured accent. */
@@ -68,6 +69,14 @@ export default async function SettingsPage({
     : [];
   const tournamentExemption = trainer ? await getTournamentExemptionMode() : null;
   const signupNotifyTrainers = admin ? await getSignupNotifyTrainers() : false;
+  // Self-delete: contact for full data deletion + last-admin lockout guard.
+  const adminUsers = await prisma.user.findMany({
+    where: { role: "ADMIN", email: { not: null } },
+    select: { email: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const adminMail = adminUsers.map((a) => a.email).join(", ") || "—";
+  const isLastAdmin = admin && (await prisma.user.count({ where: { role: "ADMIN" } })) <= 1;
   // Pad the parsed scheme to a fixed 3 rows for the form (blank rows are dropped on save).
   const warmup = parseWarmupScheme(user.strengthWarmup);
   const warmupRows = Array.from({ length: 3 }, (_, i) => warmup[i] ?? null);
@@ -104,6 +113,14 @@ export default async function SettingsPage({
               </Button>
             </form>
           </div>
+        </Collapsible>
+
+        <Collapsible title={t("set.deleteOwnTitle")} hint={t("set.deleteOwnHint")}>
+          {isLastAdmin ? (
+            <p className="text-sm text-slate-600">{t("set.deleteOwnLastAdmin")}</p>
+          ) : (
+            <DeleteOwnAccount adminMail={adminMail} />
+          )}
         </Collapsible>
       </SettingsGroup>
 
@@ -399,6 +416,10 @@ export default async function SettingsPage({
 
           <Collapsible title={t("users.manageTitle")} hint={t("users.manageHint")}>
             <AdminUserManagement currentUserId={user.id} />
+          </Collapsible>
+
+          <Collapsible title={t("users.reassignTitle")} hint={t("users.reassignHint")}>
+            <AdminReassignAccount />
           </Collapsible>
 
           <Collapsible title={t("set.signupNotify")} hint={t("set.signupNotifyHint")}>
