@@ -11,6 +11,13 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.34.1] - 2026-07-21
+
+### Changed
+- Auth emails: the "we've sent you a link" screens (check-email, resend verification, and
+  password reset) now tell users to check their **spam folder** if the mail doesn't show up —
+  outbound mail can land there on first contact. Both languages.
+
 ## [0.34.0] - 2026-07-18
 
 ### Added
