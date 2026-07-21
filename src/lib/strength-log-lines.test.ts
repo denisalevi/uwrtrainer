@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CUSTOM_LINE_ID,
+  REF_LINE_ID,
   hasUserInput,
   restoreLines,
   seedLines,
@@ -160,5 +161,55 @@ describe("hasUserInput — guards the day switcher", () => {
     expect(
       hasUserInput([{ key: "k", exerciseId: CUSTOM_LINE_ID, name: "Dips", sets: [] }]),
     ).toBe(true);
+  });
+});
+
+describe("collapsed routine-ref / link lines", () => {
+  const refDay: LoggerDay = {
+    id: "day-r",
+    name: "Full body",
+    minutes: 0,
+    suggestions: [squat, pullup],
+    extras: [
+      { index: 0, type: "routine", name: "Stretching", routineId: "r1", note: "before anything" },
+      { index: 3, type: "link", name: "YouTube", url: "https://youtu.be/x" },
+    ],
+  };
+
+  it("seedLines splices extras back at their item-list positions", () => {
+    const lines = seedLines(refDay);
+    expect(lines.map((l) => l.name)).toEqual(["Stretching", "Back squat", "Weighted pull-up", "YouTube"]);
+    expect(lines[0].exerciseId).toBe(REF_LINE_ID);
+    expect(lines[0].ref).toMatchObject({ type: "routine", routineId: "r1", note: "before anything" });
+    expect(lines[0].sets).toEqual([]);
+    expect(lines[3].ref).toMatchObject({ type: "link", url: "https://youtu.be/x" });
+  });
+
+  it("an out-of-range extra index clamps instead of crashing", () => {
+    const lines = seedLines({ ...refDay, extras: [{ index: 99, type: "link", name: "X", url: "https://x.test" }] });
+    expect(lines.map((l) => l.name)).toEqual(["Back squat", "Weighted pull-up", "X"]);
+  });
+
+  it("restoreLines rebuilds ref lines from saved itemType entries", () => {
+    const details = {
+      exercises: [
+        { itemType: "routine", name: "Stretching", routineId: "r1", done: true, sets: [] },
+        { exerciseId: "slot-0", name: "Back squat", sets: [{ weight: 70, reps: 3 }] },
+        { itemType: "link", name: "YouTube", url: "https://youtu.be/x", sets: [] },
+      ],
+    };
+    const lines = restoreLines(details, refDay);
+    expect(lines[0].exerciseId).toBe(REF_LINE_ID);
+    expect(lines[0].done).toBe(true);
+    expect(lines[0].ref).toMatchObject({ type: "routine", routineId: "r1" });
+    expect(lines[1].exerciseId).toBe("slot-0");
+    expect(lines[2].ref).toMatchObject({ type: "link", url: "https://youtu.be/x" });
+  });
+
+  it("a ticked-off ref line counts as user input (guards the day switcher)", () => {
+    const lines = seedLines(refDay);
+    expect(hasUserInput(lines)).toBe(false);
+    lines[0] = { ...lines[0], done: true };
+    expect(hasUserInput(lines)).toBe(true);
   });
 });

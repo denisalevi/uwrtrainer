@@ -11,6 +11,33 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-07-21
+
+### Added
+- **Read-only routine view** (`/strength/routines/<id>/view`): view any routine you're allowed
+  to see — a teammate's, a team-published one, or your own — without copying it first. Linked
+  from the team member page (routine names are now clickable), the team-routine cards on the
+  strength hub, and the "Routine" badge on feed entries. Owners get an edit shortcut, everyone
+  else a "Copy to my routines" button.
+- **Routines inside routines**: a routine entry can now be a reference to another of your own
+  routines (e.g. a stretching routine as warm-up/cool-down). It stays collapsed — in the logger
+  it's one line with its name (tap to open the read-only view) and a done-tick, and the feed
+  shows "↪ <name> ✓" instead of set-by-set clutter. One level deep; copying a routine
+  deep-copies referenced routines you don't own and repoints the reference, so copies stay
+  self-contained.
+- **Link entries**: a routine entry can be a named web link (YouTube warm-up video etc.).
+  Links always render as their name — never the raw URL — with a sensible fallback (e.g.
+  "YouTube") when no name is given. http(s) URLs only.
+- **Warm-up & cool-down sections in the logger**: the warm-up / stretching checkboxes can now
+  carry detail — attach one or more routines (picked from your list, done on the fly) and/or
+  links, plus a free-text note ("what I did"). Ticking an attached item off ticks the section.
+  Everything shows compactly on the feed and team views.
+- **Notes everywhere**: routine exercises, routine references and links each take an optional
+  note, shown in the editor, logger, read-only view and feed.
+
+### Changed
+- The stretching checkbox is now labeled "Cool-down / stretching".
+
 ## [0.34.1] - 2026-07-21
 
 ### Changed

@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { getServerT } from "@/lib/i18n/server";
 import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/db";
 import { copyRoutine } from "@/app/actions/routines";
+import { isSafeHttpUrl, linkLabel } from "@/lib/routines";
 import { Card, CardBody, Button } from "@/components/ui";
 
 type SetKind = "warmup" | "main" | "bbb";
@@ -19,7 +21,20 @@ type ViewExercise = {
   week?: number;
   cycle?: number;
   tempo?: string;
+  /** Present on non-exercise routine items logged inline: a collapsed routine ref or link. */
+  itemType?: "routine" | "link";
+  routineId?: string;
+  url?: string;
+  note?: string;
   sets?: ViewSet[];
+};
+/** An ad-hoc warm-up/cool-down item (routine ref or link) added while logging. */
+type SectionItem = {
+  type?: "routine" | "link";
+  name?: string;
+  routineId?: string;
+  url?: string;
+  done?: boolean;
 };
 type ViewDetails = {
   kind?: string;
@@ -30,9 +45,40 @@ type ViewDetails = {
   week?: number;
   warmup?: boolean;
   stretch?: boolean;
+  warmupItems?: SectionItem[];
+  warmupNote?: string;
+  cooldownItems?: SectionItem[];
+  cooldownNote?: string;
   notes?: string;
   exercises?: ViewExercise[];
 };
+
+/** A routine ref / web link rendered as its clickable name — never the raw URL. */
+function ItemAnchor({ type, name, routineId, url }: SectionItem & { name: string }) {
+  if (type === "routine" && routineId) {
+    return (
+      <Link
+        href={`/strength/routines/${routineId}/view`}
+        className="font-medium text-teal-700 underline decoration-dotted"
+      >
+        ↪ {name}
+      </Link>
+    );
+  }
+  if (type === "link" && url && isSafeHttpUrl(url)) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium text-teal-700 underline decoration-dotted"
+      >
+        🔗 {name || linkLabel({ type: "link", url })}
+      </a>
+    );
+  }
+  return <span className="font-medium">{name}</span>;
+}
 
 function parse(details: string | ViewDetails | null | undefined): ViewDetails | null {
   if (!details) return null;
@@ -93,6 +139,7 @@ export async function StrengthWorkoutView({
   // own that routine (and can still see it: active + teammate/team-published) get a copy
   // button right here. getCurrentUser is request-cached, so this is cheap.
   let copyable: { id: string; name: string } | null = null;
+  let routineHref: string | null = null;
   if (data?.routineId && typeof data.routineId === "string") {
     const [viewer, routine] = await Promise.all([
       getCurrentUser(),
@@ -108,16 +155,17 @@ export async function StrengthWorkoutView({
         },
       }),
     ]);
-    if (
+    const visible =
       viewer &&
       routine &&
       routine.active &&
       routine.userId !== viewer.id &&
       ((routine.teamId != null && viewer.teamIds.includes(routine.teamId)) ||
-        routine.user.memberships.some((m) => viewer.teamIds.includes(m.teamId)))
-    ) {
-      copyable = { id: routine.id, name: routine.name };
-    }
+        routine.user.memberships.some((m) => viewer.teamIds.includes(m.teamId)));
+    if (visible) copyable = { id: routine.id, name: routine.name };
+    // The routine badge/name links to the read-only view for anyone who may see it.
+    if (visible || (viewer && routine && routine.userId === viewer.id))
+      routineHref = `/strength/routines/${routine!.id}/view`;
   }
   const exercises = Array.isArray(data?.exercises) ? data!.exercises : [];
   const notes = typeof data?.notes === "string" ? data.notes.trim() : "";
@@ -183,11 +231,19 @@ export async function StrengthWorkoutView({
           {data.dayName && (
             <span className="text-sm font-medium text-slate-800">{data.dayName}</span>
           )}
-          {data.routineName && (
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
-              {t("routines.badge")}
-            </span>
-          )}
+          {data.routineName &&
+            (routineHref ? (
+              <Link
+                href={routineHref}
+                className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-teal-700 underline decoration-dotted"
+              >
+                {t("routines.badge")}
+              </Link>
+            ) : (
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                {t("routines.badge")}
+              </span>
+            ))}
           {cycleWeek && <span className="text-xs text-slate-500">{cycleWeek}</span>}
           {copyable && (
             <form action={copyRoutine}>
@@ -202,6 +258,23 @@ export async function StrengthWorkoutView({
       <Card>
         <CardBody className="space-y-3">
           {exercises.map((ex, i) => {
+            // Inline routine refs / links log as a single ticked line, not set-by-set.
+            if (ex.itemType === "routine" || ex.itemType === "link") {
+              return (
+                <div key={i} className="space-y-0.5 text-sm">
+                  <div className="flex items-center gap-2">
+                    <ItemAnchor
+                      type={ex.itemType}
+                      name={ex.name ?? ""}
+                      routineId={ex.routineId}
+                      url={ex.url}
+                    />
+                    {ex.done && <span className="text-xs text-teal-700">✓</span>}
+                  </div>
+                  {ex.note && <p className="text-xs text-slate-500">{ex.note}</p>}
+                </div>
+              );
+            }
             const sets = Array.isArray(ex.sets) ? ex.sets : [];
             return (
               <div key={i} className="space-y-1">
@@ -256,12 +329,42 @@ export async function StrengthWorkoutView({
               {notes}
             </p>
           )}
-          {(data.warmup || data.stretch) && (
-            <div className="flex gap-3 pt-1 text-xs text-slate-500">
-              {data.warmup && <span>🔥 {t("strength.warmup")} ✓</span>}
-              {data.stretch && <span>🧘 {t("strength.stretch")} ✓</span>}
-            </div>
-          )}
+          {(() => {
+            // Warm-up / cool-down summaries: the tick plus whatever was attached while
+            // logging — routine refs and links (clickable by name) and a free-text note.
+            const items = (v: unknown): SectionItem[] => (Array.isArray(v) ? (v as SectionItem[]) : []);
+            const note = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+            const sections = [
+              { icon: "🔥", label: t("strength.warmup"), done: !!data.warmup, items: items(data.warmupItems), note: note(data.warmupNote) },
+              { icon: "🧘", label: t("strength.stretch"), done: !!data.stretch, items: items(data.cooldownItems), note: note(data.cooldownNote) },
+            ].filter((s) => s.done || s.items.length > 0 || s.note);
+            if (sections.length === 0) return null;
+            return (
+              <div className="space-y-1.5 pt-1 text-xs text-slate-500">
+                {sections.map((s, i) => (
+                  <div key={i} className="space-y-0.5">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span>
+                        {s.icon} {s.label} {s.done ? "✓" : ""}
+                      </span>
+                      {s.items.map((it, j) => (
+                        <span key={j} className="inline-flex items-center gap-1">
+                          <ItemAnchor
+                            type={it.type}
+                            name={it.name ?? ""}
+                            routineId={it.routineId}
+                            url={it.url}
+                          />
+                          {it.done && <span className="text-teal-700">✓</span>}
+                        </span>
+                      ))}
+                    </div>
+                    {s.note && <p className="whitespace-pre-wrap pl-5">{s.note}</p>}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </CardBody>
       </Card>
     </div>

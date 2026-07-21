@@ -627,7 +627,7 @@ export const en = {
   "strength.logCardHint": "Pick a day from your plan, or start empty.",
   "strength.emptySession": "Empty session",
   "strength.warmup": "Warm-up",
-  "strength.stretch": "Stretching",
+  "strength.stretch": "Cool-down / stretching",
 
   // ── Per-lift auto-progression (each lift its own cycle/week) ──
   "strength.progressionHint":
@@ -697,9 +697,13 @@ export const en = {
   "routines.moveDown": "Move down",
   "routines.removeExercise": "Remove exercise",
   "routines.removeExerciseConfirm": "Remove this exercise from the routine?",
-  "routines.validHint": "Give the routine a name and at least one named exercise.",
+  "routines.validHint": "Give the routine a name and at least one entry (exercise, routine or link).",
   "routines.delete": "Delete routine",
   "routines.deleteConfirm": "Delete this routine? Logged sessions are kept.",
+  "routines.linkBadge": "Link",
+  "routines.linkLabel": "Link name",
+  "routines.chooseRoutine": "Choose routine…",
+  "routines.note": "Note",
 } as const;
 
 export type Dict = typeof en;
@@ -1331,7 +1335,7 @@ export const de: Record<DictKey, string> = {
   "strength.logCardHint": "Wähle einen Tag aus deinem Plan oder starte leer.",
   "strength.emptySession": "Leere Einheit",
   "strength.warmup": "Aufwärmen",
-  "strength.stretch": "Dehnen",
+  "strength.stretch": "Cool-down / Dehnen",
 
   // ── Progression pro Übung (jede Übung eigener Zyklus/Woche) ──
   "strength.progressionHint":
@@ -1401,9 +1405,13 @@ export const de: Record<DictKey, string> = {
   "routines.moveDown": "Nach unten",
   "routines.removeExercise": "Übung entfernen",
   "routines.removeExerciseConfirm": "Diese Übung aus der Routine entfernen?",
-  "routines.validHint": "Gib der Routine einen Namen und mindestens eine benannte Übung.",
+  "routines.validHint": "Gib der Routine einen Namen und mindestens einen Eintrag (Übung, Routine oder Link).",
   "routines.delete": "Routine löschen",
   "routines.deleteConfirm": "Diese Routine löschen? Geloggte Einheiten bleiben erhalten.",
+  "routines.linkBadge": "Link",
+  "routines.linkLabel": "Link-Name",
+  "routines.chooseRoutine": "Routine wählen…",
+  "routines.note": "Notiz",
 };
 
 export const dictionaries = { en, de } as const;

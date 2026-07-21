@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
 import { isTrainer } from "@/lib/constants";
-import { parseRoutineExercises, summarizeExercise } from "@/lib/routines";
+import { parseRoutineItems, summarizeItem } from "@/lib/routines";
 import {
   copyRoutine,
   setRoutineActive,
@@ -110,7 +110,7 @@ export default async function StrengthHubPage() {
           <p className="text-sm text-slate-500">{t("routines.noneYet")}</p>
         )}
         {myRoutines.map((r) => {
-          const exercises = parseRoutineExercises(r.exercises);
+          const items = parseRoutineItems(r.exercises);
           return (
             <Card key={r.id} className={r.active ? undefined : "opacity-70"}>
               <CardBody className="space-y-2">
@@ -118,8 +118,7 @@ export default async function StrengthHubPage() {
                   <Link href={`/strength/routines/${r.id}`} className="min-w-0 flex-1">
                     <p className="font-semibold text-slate-900">{r.name}</p>
                     <p className="mt-0.5 truncate text-xs text-slate-500">
-                      {exercises.map((ex) => `${ex.name} ${summarizeExercise(ex)}`).join(" · ") ||
-                        t("routines.empty")}
+                      {items.map(summarizeItem).join(" · ") || t("routines.empty")}
                     </p>
                   </Link>
                   <span className="flex shrink-0 flex-col items-end gap-1">
@@ -177,20 +176,21 @@ export default async function StrengthHubPage() {
         <section className="space-y-2">
           <SectionTitle>{t("routines.team")}</SectionTitle>
           {teamRoutines.map((r) => {
-            const exercises = parseRoutineExercises(r.exercises);
+            const items = parseRoutineItems(r.exercises);
             return (
               <Card key={r.id}>
                 <CardBody className="space-y-2">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-900">{r.name}</p>
+                    {/* Name links to the read-only view — inspect before copying. */}
+                    <Link href={`/strength/routines/${r.id}/view`} className="min-w-0 flex-1">
+                      <p className="font-semibold text-teal-800">{r.name}</p>
                       <p className="mt-0.5 truncate text-xs text-slate-500">
-                        {exercises.map((ex) => `${ex.name} ${summarizeExercise(ex)}`).join(" · ")}
+                        {items.map(summarizeItem).join(" · ")}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-400">
                         {t("routines.byAuthor", { name: r.user.name })}
                       </p>
-                    </div>
+                    </Link>
                   </div>
                   <form action={copyRoutine}>
                     <input type="hidden" name="id" value={r.id} />

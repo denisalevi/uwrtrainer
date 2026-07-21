@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  linkLabel,
   measureAxes,
   parseRoutineExercises,
+  parseRoutineItems,
   prefillSets,
+  remapRoutineRefs,
   routineDayId,
   routineIdFromDayId,
   summarizeExercise,
+  summarizeItem,
   type RoutineExercise,
 } from "./routines";
 
@@ -111,5 +115,62 @@ describe("routine day ids", () => {
     expect(routineIdFromDayId(routineDayId("abc"))).toBe("abc");
     expect(routineIdFromDayId("d0")).toBeNull();
     expect(routineIdFromDayId(undefined)).toBeNull();
+  });
+});
+
+describe("routine items — refs and links", () => {
+  const doc = JSON.stringify([
+    { type: "routine", routineId: "r1", name: "Stretching", note: "after every workout" },
+    { name: "Bench", measure: "KG_REPS", sets: [{ weight: 60, reps: 5 }], note: "pause on chest" },
+    { type: "link", url: "https://youtu.be/abc", note: "follow along" },
+    { type: "link", url: "https://example.com/warmup", label: "Mobility flow" },
+  ]);
+
+  it("parseRoutineItems round-trips refs, links and exercises in order", () => {
+    const items = parseRoutineItems(doc);
+    expect(items).toHaveLength(4);
+    expect(items[0]).toEqual({ type: "routine", routineId: "r1", name: "Stretching", note: "after every workout" });
+    expect(items[1]).toMatchObject({ name: "Bench", measure: "KG_REPS", note: "pause on chest" });
+    expect(items[2]).toEqual({ type: "link", url: "https://youtu.be/abc", note: "follow along" });
+    expect(items[3]).toMatchObject({ label: "Mobility flow" });
+  });
+
+  it("drops refs without id and links with unsafe/non-http urls", () => {
+    const items = parseRoutineItems(
+      JSON.stringify([
+        { type: "routine", name: "no id" },
+        { type: "link", url: "javascript:alert(1)" },
+        { type: "link", url: "ftp://x" },
+        { type: "link", url: "https://ok.example" },
+      ]),
+    );
+    expect(items).toEqual([{ type: "link", url: "https://ok.example" }]);
+  });
+
+  it("parseRoutineExercises filters to exercises only (prefill compatibility)", () => {
+    const exercises = parseRoutineExercises(doc);
+    expect(exercises).toHaveLength(1);
+    expect(exercises[0].name).toBe("Bench");
+  });
+
+  it("remapRoutineRefs repoints only mapped refs", () => {
+    const items = parseRoutineItems(doc);
+    const out = remapRoutineRefs(items, { r1: "copy1", other: "x" });
+    expect((out[0] as { routineId: string }).routineId).toBe("copy1");
+    expect(out[1]).toEqual(items[1]);
+  });
+
+  it("linkLabel prefers the label, then a friendly host, never the raw path", () => {
+    expect(linkLabel({ type: "link", url: "https://x.test/p", label: "Warm-up" })).toBe("Warm-up");
+    expect(linkLabel({ type: "link", url: "https://www.youtube.com/watch?v=1" })).toBe("YouTube");
+    expect(linkLabel({ type: "link", url: "https://youtu.be/1" })).toBe("YouTube");
+    expect(linkLabel({ type: "link", url: "https://www.example.org/a/b" })).toBe("example.org");
+  });
+
+  it("summarizeItem covers all three kinds", () => {
+    const items = parseRoutineItems(doc);
+    expect(summarizeItem(items[0])).toBe("↪ Stretching");
+    expect(summarizeItem(items[1])).toContain("Bench");
+    expect(summarizeItem(items[2])).toBe("🔗 YouTube");
   });
 });

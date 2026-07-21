@@ -7,12 +7,17 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getCurrentUser, requireTrainer, type CurrentUser } from "@/lib/dal";
+import { getCurrentUser, requireTrainer } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
+import { findVisibleRoutine } from "@/lib/routine-visibility";
 import {
-  normalizeExercises,
-  RoutineExercisesSchema,
+  isRoutineRef,
+  normalizeItems,
+  parseRoutineItems,
+  remapRoutineRefs,
+  RoutineItemsSchema,
   RoutineNameSchema,
+  type RoutineItem,
 } from "@/lib/routines";
 
 /** Load a routine the caller owns (throws if missing / not theirs). */
@@ -22,25 +27,8 @@ async function requireOwnRoutine(userId: string, routineId: string) {
   return routine;
 }
 
-/**
- * Visibility rule for copying (see-it → copy-it): your own routines always; someone else's
- * only while ACTIVE and either published to one of your teams or owned by a teammate.
- */
-async function findVisibleRoutine(viewer: CurrentUser, routineId: string) {
-  const routine = await prisma.routine.findUnique({
-    where: { id: routineId },
-    include: { user: { select: { memberships: { select: { teamId: true } } } } },
-  });
-  if (!routine) return null;
-  if (routine.userId === viewer.id) return routine;
-  if (!routine.active) return null;
-  const publishedToMyTeam = routine.teamId != null && viewer.teamIds.includes(routine.teamId);
-  const ownerSharesTeam = routine.user.memberships.some((m) => viewer.teamIds.includes(m.teamId));
-  return publishedToMyTeam || ownerSharesTeam ? routine : null;
-}
-
-/** Parse + validate the editor's payload (name + exercises JSON). Throws on invalid input. */
-function readRoutinePayload(formData: FormData): { name: string; exercises: string } {
+/** Parse + validate the editor's payload (name + items JSON). Throws on invalid input. */
+function readRoutinePayload(formData: FormData): { name: string; items: RoutineItem[] } {
   const name = RoutineNameSchema.parse(String(formData.get("name") ?? ""));
   const raw = String(formData.get("exercises") ?? "");
   if (raw.length > 20000) throw new Error("Routine too large");
@@ -50,8 +38,32 @@ function readRoutinePayload(formData: FormData): { name: string; exercises: stri
   } catch {
     throw new Error("Invalid exercises");
   }
-  const exercises = normalizeExercises(RoutineExercisesSchema.parse(parsed));
-  return { name, exercises: JSON.stringify(exercises) };
+  return { name, items: normalizeItems(RoutineItemsSchema.parse(parsed)) };
+}
+
+/**
+ * Routine refs may only point at routines the caller OWNS (a ref to someone else's would break
+ * the moment they archive it — copying snapshots instead, see copyRoutine). Non-owned/vanished
+ * refs and self-references are dropped; surviving refs get their name re-snapshotted from the DB.
+ */
+async function resolveOwnRefs(
+  userId: string,
+  items: RoutineItem[],
+  selfId: string | null,
+): Promise<RoutineItem[]> {
+  const ids = [...new Set(items.filter(isRoutineRef).map((r) => r.routineId))];
+  if (ids.length === 0) return items;
+  const owned = await prisma.routine.findMany({
+    where: { id: { in: ids }, userId },
+    select: { id: true, name: true },
+  });
+  const names = new Map(owned.map((r) => [r.id, r.name]));
+  return items.flatMap((item): RoutineItem[] => {
+    if (!isRoutineRef(item)) return [item];
+    if (item.routineId === selfId) return [];
+    const name = names.get(item.routineId);
+    return name ? [{ ...item, name }] : [];
+  });
 }
 
 /** Create (no id) or update (id) a routine from the editor form, then return to the hub. */
@@ -59,7 +71,10 @@ export async function saveRoutine(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const id = String(formData.get("id") ?? "");
-  const data = readRoutinePayload(formData);
+  const payload = readRoutinePayload(formData);
+  const items = await resolveOwnRefs(user.id, payload.items, id || null);
+  if (items.length === 0) throw new Error("Invalid exercises");
+  const data = { name: payload.name, exercises: JSON.stringify(items) };
 
   if (id) {
     await requireOwnRoutine(user.id, id);
@@ -93,6 +108,10 @@ export async function setRoutineActive(formData: FormData) {
 /**
  * Copy a visible routine into the caller's own list — used both for "duplicate my routine"
  * and for "copy a teammate's / team routine". Deep snapshot, provenance only (no live link).
+ * DEEP also across routine refs: a referenced routine the caller can see (but doesn't own)
+ * is copied too and the ref repointed to the copy, so the result stays self-contained when
+ * the original is later archived. Refs to the caller's own routines are kept as-is; refs the
+ * caller can't see stay pointing at the original (they render as unavailable).
  */
 export async function copyRoutine(formData: FormData) {
   const user = await getCurrentUser();
@@ -100,6 +119,22 @@ export async function copyRoutine(formData: FormData) {
   const source = await findVisibleRoutine(user, String(formData.get("id") ?? ""));
   if (!source) throw new Error("Routine not found");
   const { t } = await getServerT();
+
+  const items = parseRoutineItems(source.exercises);
+  const map: Record<string, string> = {};
+  for (const refId of new Set(items.filter(isRoutineRef).map((r) => r.routineId))) {
+    const sub = await findVisibleRoutine(user, refId);
+    if (!sub) continue;
+    if (sub.userId === user.id) continue; // already the caller's — the ref stays live
+    const copy = await prisma.routine.create({
+      data: { userId: user.id, name: sub.name, exercises: sub.exercises, copiedFromId: sub.id },
+    });
+    map[refId] = copy.id;
+  }
+  const exercises = Object.keys(map).length
+    ? JSON.stringify(remapRoutineRefs(items, map))
+    : source.exercises;
+
   // A self-duplicate needs a distinguishing name; a teammate copy keeps the original name.
   const name =
     source.userId === user.id ? `${source.name} (${t("routines.copySuffix")})`.slice(0, 60) : source.name;
@@ -107,7 +142,7 @@ export async function copyRoutine(formData: FormData) {
     data: {
       userId: user.id,
       name,
-      exercises: source.exercises,
+      exercises,
       copiedFromId: source.id,
     },
   });

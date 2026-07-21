@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/i18n-provider";
 import { saveStrengthWorkout, finishStrengthWorkout } from "@/app/actions/strength";
@@ -30,7 +31,7 @@ import {
   type SetVal,
   type Suggestion,
 } from "@/lib/strength-log-lines";
-import { measureAxes, routineIdFromDayId } from "@/lib/routines";
+import { isSafeHttpUrl, linkLabel, measureAxes, routineIdFromDayId } from "@/lib/routines";
 
 export type { LoggerDay } from "@/lib/strength-log-lines";
 
@@ -60,6 +61,197 @@ function ChecklistToggle({
       </span>
       <span className={done ? "text-teal-700" : "text-rose-400"}>{done ? "✓" : "○"}</span>
     </button>
+  );
+}
+
+/** An ad-hoc warm-up/cool-down item added while logging: a routine (done on the fly) or a
+ *  named link (e.g. a YouTube warm-up video). Persisted in the session details. */
+export type SectionItem = {
+  key: string;
+  type: "routine" | "link";
+  name: string;
+  routineId?: string;
+  url?: string;
+  done: boolean;
+};
+
+/**
+ * Warm-up / cool-down section: the familiar tap-to-done toggle, plus attachable detail —
+ * routines picked from your list, named links, and a free-text note ("what I did").
+ */
+function ChecklistSection({
+  done,
+  icon,
+  label,
+  items,
+  note,
+  routineOptions,
+  onToggle,
+  setItems,
+  setNote,
+  markDone,
+}: {
+  done: boolean;
+  icon: string;
+  label: string;
+  items: SectionItem[];
+  note: string;
+  routineOptions: Array<{ id: string; name: string }>;
+  onToggle: () => void;
+  setItems: (fn: (items: SectionItem[]) => SectionItem[]) => void;
+  setNote: (v: string) => void;
+  /** Ticking an item off also ticks the section itself. */
+  markDone: () => void;
+}) {
+  const { t } = useT();
+  const [pickingRoutine, setPickingRoutine] = useState(false);
+  const [addingLink, setAddingLink] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkName, setLinkName] = useState("");
+  const [showNote, setShowNote] = useState(false);
+  const noteVisible = showNote || note.trim() !== "";
+
+  const toggleItem = (key: string) => {
+    const turningOn = items.some((it) => it.key === key && !it.done);
+    setItems((xs) => xs.map((it) => (it.key === key ? { ...it, done: !it.done } : it)));
+    if (turningOn) markDone();
+  };
+  const addLink = () => {
+    let url = linkUrl.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    if (!isSafeHttpUrl(url)) return;
+    const name = linkName.trim() || linkLabel({ type: "link", url });
+    setItems((xs) => [...xs, { key: nextKey(), type: "link", name, url, done: false }]);
+    setLinkUrl("");
+    setLinkName("");
+    setAddingLink(false);
+  };
+
+  return (
+    <div className="space-y-2">
+      <ChecklistToggle done={done} icon={icon} label={label} onToggle={onToggle} />
+      {(items.length > 0 || noteVisible || pickingRoutine || addingLink) && (
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+          {items.map((it) => (
+            <div key={it.key} className="flex items-center gap-2 text-sm">
+              {it.type === "routine" && it.routineId ? (
+                <Link
+                  href={`/strength/routines/${it.routineId}/view`}
+                  className="min-w-0 flex-1 truncate font-medium text-teal-700 underline decoration-dotted"
+                >
+                  ↪ {it.name}
+                </Link>
+              ) : it.type === "link" && it.url ? (
+                <a
+                  href={it.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="min-w-0 flex-1 truncate font-medium text-teal-700 underline decoration-dotted"
+                >
+                  🔗 {it.name}
+                </a>
+              ) : (
+                <span className="min-w-0 flex-1 truncate">{it.name}</span>
+              )}
+              <button
+                type="button"
+                onClick={() => toggleItem(it.key)}
+                className={cn(
+                  "rounded-full border px-2 py-0.5 text-xs font-medium",
+                  it.done
+                    ? "border-teal-600 bg-teal-50 text-teal-800"
+                    : "border-slate-200 bg-white text-slate-400",
+                )}
+              >
+                {it.done ? "✓" : "○"}
+              </button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={t("common.delete")}
+                onClick={() => setItems((xs) => xs.filter((x) => x.key !== it.key))}
+              >
+                ✕
+              </Button>
+            </div>
+          ))}
+          {pickingRoutine && (
+            <Select
+              value=""
+              onChange={(e) => {
+                const r = routineOptions.find((o) => o.id === e.target.value);
+                if (r)
+                  setItems((xs) => [
+                    ...xs,
+                    { key: nextKey(), type: "routine", name: r.name, routineId: r.id, done: false },
+                  ]);
+                setPickingRoutine(false);
+              }}
+            >
+              <option value="">{t("routines.chooseRoutine")}</option>
+              {routineOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </Select>
+          )}
+          {addingLink && (
+            <div className="space-y-2">
+              <Input
+                placeholder="https://…"
+                inputMode="url"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+              />
+              <div className="flex items-center gap-2">
+                <Input
+                  className="mt-0 flex-1"
+                  placeholder={`${t("routines.linkLabel")} (${t("common.optional")})`}
+                  maxLength={60}
+                  value={linkName}
+                  onChange={(e) => setLinkName(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={!linkUrl.trim()}
+                  onClick={addLink}
+                >
+                  {t("common.add")}
+                </Button>
+              </div>
+            </div>
+          )}
+          {noteVisible && (
+            <Textarea
+              rows={2}
+              placeholder={t("routines.note")}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          )}
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {routineOptions.length > 0 && (
+          <Button type="button" variant="ghost" size="sm" onClick={() => setPickingRoutine((v) => !v)}>
+            + {t("routines.badge")}
+          </Button>
+        )}
+        <Button type="button" variant="ghost" size="sm" onClick={() => setAddingLink((v) => !v)}>
+          + {t("routines.linkBadge")}
+        </Button>
+        {!noteVisible && (
+          <Button type="button" variant="ghost" size="sm" onClick={() => setShowNote(true)}>
+            + {t("routines.note")}
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -100,6 +292,7 @@ export function StrengthWorkoutLogger({
   restTimer,
   resume,
   today,
+  routineOptions = [],
 }: {
   programId: string;
   cycle: number;
@@ -109,6 +302,8 @@ export function StrengthWorkoutLogger({
   restTimer: RestTimerSettings;
   resume: { id: string; details: string; durationMin: number | null } | null;
   today: string;
+  /** Pickable routines for the warm-up/cool-down sections (own + team, active). */
+  routineOptions?: Array<{ id: string; name: string }>;
 }) {
   const { t } = useT();
   const router = useRouter();
@@ -151,6 +346,20 @@ export function StrengthWorkoutLogger({
   );
   const [warmup, setWarmup] = useState<boolean>(!!restored?.warmup);
   const [stretch, setStretch] = useState<boolean>(!!restored?.stretch);
+  // Warm-up / cool-down attachments (routines done on the fly, links, a note) — persisted
+  // inside the details JSON alongside the plain booleans.
+  const [warmupItems, setWarmupItems] = useState<SectionItem[]>(() =>
+    parseSectionItems(restored?.warmupItems),
+  );
+  const [warmupNote, setWarmupNote] = useState<string>(
+    typeof restored?.warmupNote === "string" ? (restored.warmupNote as string) : "",
+  );
+  const [cooldownItems, setCooldownItems] = useState<SectionItem[]>(() =>
+    parseSectionItems(restored?.cooldownItems),
+  );
+  const [cooldownNote, setCooldownNote] = useState<string>(
+    typeof restored?.cooldownNote === "string" ? (restored.cooldownNote as string) : "",
+  );
   // Free-text session notes — the "just write down what I did" escape hatch (any session,
   // including an empty one). Stored inside the details JSON; no schema change needed.
   const [sessionNotes, setSessionNotes] = useState<string>(
@@ -189,28 +398,45 @@ export function StrengthWorkoutLogger({
       startedAt: startedAtRef.current ?? undefined,
       warmup,
       stretch,
+      warmupItems: warmupItems.length ? warmupItems.map(stripKey) : undefined,
+      warmupNote: warmupNote.trim() || undefined,
+      cooldownItems: cooldownItems.length ? cooldownItems.map(stripKey) : undefined,
+      cooldownNote: cooldownNote.trim() || undefined,
       notes: sessionNotes.trim() || undefined,
-      exercises: lines.map((l) => ({
-        // Which picker choice the line was on — restore/edit re-links it to the plan exercise
-        // (keeping the picker + %-of-max display) instead of degrading to custom.
-        exerciseId: l.exerciseId,
-        name: l.name,
-        done: !!l.done,
-        trainingMax: l.trainingMax,
-        movement: l.movement,
-        week: l.week,
-        cycle: l.cycle,
-        measure: l.measure,
-        tempo: l.tempo,
-        restSeconds: l.restSeconds,
-        sets: l.sets.map((s) => ({
-          weight: s.weight ? Number(s.weight) : null,
-          reps: s.reps ? Number(s.reps) : null,
-          seconds: s.seconds ? Number(s.seconds) : null,
-          kind: s.kind,
-          amrap: s.amrap,
-        })),
-      })),
+      exercises: lines.map((l) =>
+        // Collapsed routine-ref / link lines: one ticked entry, no sets.
+        l.ref
+          ? {
+              itemType: l.ref.type,
+              name: l.name,
+              routineId: l.ref.routineId,
+              url: l.ref.url,
+              note: l.ref.note,
+              done: !!l.done,
+              sets: [],
+            }
+          : {
+              // Which picker choice the line was on — restore/edit re-links it to the plan exercise
+              // (keeping the picker + %-of-max display) instead of degrading to custom.
+              exerciseId: l.exerciseId,
+              name: l.name,
+              done: !!l.done,
+              trainingMax: l.trainingMax,
+              movement: l.movement,
+              week: l.week,
+              cycle: l.cycle,
+              measure: l.measure,
+              tempo: l.tempo,
+              restSeconds: l.restSeconds,
+              sets: l.sets.map((s) => ({
+                weight: s.weight ? Number(s.weight) : null,
+                reps: s.reps ? Number(s.reps) : null,
+                seconds: s.seconds ? Number(s.seconds) : null,
+                kind: s.kind,
+                amrap: s.amrap,
+              })),
+            },
+      ),
     });
   }
 
@@ -473,19 +699,81 @@ export function StrengthWorkoutLogger({
         </div>
       )}
 
-      {/* Warm-up reminder */}
-      <ChecklistToggle
+      {/* Warm-up reminder — with attachable routines / links / note ("what I did"). */}
+      <ChecklistSection
         done={warmup}
         icon="🔥"
         label={t("strength.warmup")}
+        items={warmupItems}
+        note={warmupNote}
+        routineOptions={routineOptions}
         onToggle={() => {
           setWarmup((v) => !v);
           scheduleSave();
         }}
+        setItems={(fn) => {
+          markStarted();
+          setWarmupItems(fn);
+          scheduleSave();
+        }}
+        setNote={(v) => {
+          markStarted();
+          setWarmupNote(v);
+          scheduleSave();
+        }}
+        markDone={() => setWarmup(true)}
       />
 
       {/* Exercise lines */}
       {lines.map((l) => {
+        // Collapsed routine-ref / link lines: name (tap to open), done-tick, remove — no sets.
+        if (l.ref) {
+          return (
+            <Card key={l.key} className={cn(l.done && "border-teal-400")}>
+              <CardBody className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  {l.ref.type === "routine" && l.ref.routineId ? (
+                    <Link
+                      href={`/strength/routines/${l.ref.routineId}/view`}
+                      className="min-w-0 flex-1 truncate text-sm font-medium text-teal-700 underline decoration-dotted"
+                    >
+                      ↪ {l.name}
+                    </Link>
+                  ) : l.ref.type === "link" && l.ref.url && isSafeHttpUrl(l.ref.url) ? (
+                    <a
+                      href={l.ref.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="min-w-0 flex-1 truncate text-sm font-medium text-teal-700 underline decoration-dotted"
+                    >
+                      🔗 {l.name}
+                    </a>
+                  ) : (
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">
+                      {l.name}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => toggleDone(l.key)}
+                    className={cn(
+                      "flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium",
+                      l.done
+                        ? "border-teal-600 bg-teal-50 text-teal-800"
+                        : "border-rose-200 bg-rose-50 text-rose-600",
+                    )}
+                  >
+                    {l.done ? "✓" : "○"} {t("log.done")}
+                  </button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => removeLine(l.key)}>
+                    ✕
+                  </Button>
+                </div>
+                {l.ref.note && <p className="text-xs text-slate-500">{l.ref.note}</p>}
+              </CardBody>
+            </Card>
+          );
+        }
         const sug = suggestionFor(l);
         // Which value axes this line logs: routine exercises declare a measure (kg×reps /
         // reps / seconds / kg×seconds); plan/custom lines keep the legacy weight+reps rule.
@@ -715,15 +1003,29 @@ export function StrengthWorkoutLogger({
         + {t("strength.addExercise")}
       </Button>
 
-      {/* Stretching reminder */}
-      <ChecklistToggle
+      {/* Cool-down / stretching reminder — same attachable detail as the warm-up. */}
+      <ChecklistSection
         done={stretch}
         icon="🧘"
         label={t("strength.stretch")}
+        items={cooldownItems}
+        note={cooldownNote}
+        routineOptions={routineOptions}
         onToggle={() => {
           setStretch((v) => !v);
           scheduleSave();
         }}
+        setItems={(fn) => {
+          markStarted();
+          setCooldownItems(fn);
+          scheduleSave();
+        }}
+        setNote={(v) => {
+          markStarted();
+          setCooldownNote(v);
+          scheduleSave();
+        }}
+        markDone={() => setStretch(true)}
       />
 
       {/* Session notes — describe anything the structured fields can't capture. */}
@@ -892,4 +1194,28 @@ function safeParse(s: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/** Drop the client-only list key before persisting a section item. */
+function stripKey({ key: _key, ...item }: SectionItem): Omit<SectionItem, "key"> {
+  return item;
+}
+
+/** Tolerantly restore warm-up/cool-down items from a saved details JSON. */
+function parseSectionItems(v: unknown): SectionItem[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((x): SectionItem[] => {
+    const o = (x ?? {}) as Record<string, unknown>;
+    if (o.type !== "routine" && o.type !== "link") return [];
+    return [
+      {
+        key: nextKey(),
+        type: o.type,
+        name: typeof o.name === "string" ? o.name : "",
+        routineId: typeof o.routineId === "string" ? o.routineId : undefined,
+        url: typeof o.url === "string" ? o.url : undefined,
+        done: !!o.done,
+      },
+    ];
+  });
 }

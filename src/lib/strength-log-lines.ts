@@ -39,6 +39,17 @@ export type Suggestion = {
   restSeconds?: number;
 };
 export type LoggerDayGroup = "plan" | "mine" | "team";
+/** A non-exercise routine item (nested routine ref / web link) at its position in the item
+ *  list — logged as one collapsed line with a done-tick, never expanded set-by-set. */
+export type DayExtra = {
+  /** Position in the routine's full item list (exercises + extras interleaved). */
+  index: number;
+  type: "routine" | "link";
+  name: string;
+  routineId?: string;
+  url?: string;
+  note?: string;
+};
 export type LoggerDay = {
   id: string;
   name: string;
@@ -46,6 +57,7 @@ export type LoggerDay = {
   suggestions: Suggestion[];
   /** Which picker section the day belongs to (5/3/1 plan days / my routines / team routines). */
   group?: LoggerDayGroup;
+  extras?: DayExtra[];
 };
 
 export type SetVal = { weight: string; reps: string; kind: SetKind; amrap?: boolean; seconds?: string };
@@ -62,9 +74,12 @@ type Snapshot = {
   tempo?: string;
   restSeconds?: number;
 };
+export type LineRef = { type: "routine" | "link"; routineId?: string; url?: string; note?: string };
 export type Line = Snapshot & {
   key: string;
   exerciseId: string;
+  /** Present on collapsed routine-ref / link lines (no sets, just a done-tick). */
+  ref?: LineRef;
   /** Rows previously shown per picker choice, so switching back restores what was typed. */
   stash?: Record<string, Snapshot>;
 };
@@ -73,6 +88,8 @@ let uid = 0;
 export const nextKey = () => `l${Date.now()}_${uid++}`;
 
 export const CUSTOM_LINE_ID = "custom";
+/** exerciseId of collapsed ref/link lines — they never join the exercise picker. */
+export const REF_LINE_ID = "ref";
 
 /** Display/order rank for set kinds; used to keep a line grouped warm-up → working → BBB. */
 const KIND_RANK: Record<SetKind, number> = { warmup: 0, main: 1, bbb: 2 };
@@ -94,10 +111,27 @@ export function seedSets(sug: Suggestion): SetVal[] {
   }));
 }
 
-/** Preselect one editable line per configured exercise on the day. */
+/** Build one collapsed line for a routine ref / link item. */
+function refLine(extra: DayExtra): Line {
+  return {
+    key: nextKey(),
+    exerciseId: REF_LINE_ID,
+    name: extra.name,
+    sets: [],
+    ref: {
+      type: extra.type,
+      ...(extra.routineId ? { routineId: extra.routineId } : {}),
+      ...(extra.url ? { url: extra.url } : {}),
+      ...(extra.note ? { note: extra.note } : {}),
+    },
+  };
+}
+
+/** Preselect one editable line per configured exercise on the day, with the day's collapsed
+ *  ref/link items spliced back in at their original item-list positions. */
 export function seedLines(day: LoggerDay | undefined): Line[] {
   if (!day) return [];
-  return day.suggestions.map((sug) => ({
+  const lines: Line[] = day.suggestions.map((sug) => ({
     key: nextKey(),
     exerciseId: sug.id,
     name: sug.label,
@@ -110,14 +144,21 @@ export function seedLines(day: LoggerDay | undefined): Line[] {
     restSeconds: sug.restSeconds,
     sets: seedSets(sug),
   }));
+  // Ascending inserts at each extra's own index reconstruct the original interleaving.
+  for (const extra of [...(day.extras ?? [])].sort((a, b) => a.index - b.index)) {
+    lines.splice(Math.min(Math.max(extra.index, 0), lines.length), 0, refLine(extra));
+  }
+  return lines;
 }
 
-/** True when the athlete has typed anything worth protecting (reps/seconds, or a custom name). */
+/** True when the athlete has typed anything worth protecting (reps/seconds, a custom name,
+ *  or a ticked-off ref line). */
 export function hasUserInput(lines: Line[]): boolean {
   return lines.some(
     (l) =>
       l.sets.some((s) => s.reps.trim() !== "" || (s.seconds ?? "").trim() !== "") ||
-      (l.exerciseId === CUSTOM_LINE_ID && l.name.trim() !== ""),
+      (l.exerciseId === CUSTOM_LINE_ID && l.name.trim() !== "") ||
+      (l.ref != null && !!l.done),
   );
 }
 
@@ -204,10 +245,30 @@ export function restoreLines(details: Record<string, unknown>, day: LoggerDay | 
       measure?: MeasureType;
       tempo?: string;
       restSeconds?: number;
+      itemType?: string;
+      routineId?: string;
+      url?: string;
+      note?: string;
       sets?: Array<Record<string, unknown>>;
     }>
   ).map((e) => {
     const name = String(e.name ?? "");
+    // Collapsed routine-ref / link lines restore as such (no sets, no picker).
+    if (e.itemType === "routine" || e.itemType === "link") {
+      return {
+        key: nextKey(),
+        exerciseId: REF_LINE_ID,
+        name,
+        done: !!e.done,
+        sets: [],
+        ref: {
+          type: e.itemType,
+          ...(typeof e.routineId === "string" ? { routineId: e.routineId } : {}),
+          ...(typeof e.url === "string" ? { url: e.url } : {}),
+          ...(typeof e.note === "string" ? { note: e.note } : {}),
+        },
+      };
+    }
     const savedId = typeof e.exerciseId === "string" ? e.exerciseId : undefined;
     // An explicit saved choice is respected (including "custom"); only legacy saves without
     // one fall back to matching the label. A stale id (program changed) degrades to custom.

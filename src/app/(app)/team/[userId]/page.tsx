@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/dal";
 import { isTrainer, CATEGORIES } from "@/lib/constants";
 import { setRole } from "@/app/actions/trainer";
 import { copyRoutine } from "@/app/actions/routines";
-import { parseRoutineExercises, summarizeExercise } from "@/lib/routines";
+import { parseRoutineItems, summarizeItem } from "@/lib/routines";
 import { SessionLogList } from "@/components/session-log-list";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Card, CardBody, Badge, Button, SectionTitle } from "@/components/ui";
@@ -89,11 +89,12 @@ export default async function PlayerDetailPage({
           <Card>
             <CardBody className="space-y-3">
               {routines.map((r) => {
-                const exercises = parseRoutineExercises(r.exercises);
+                const items = parseRoutineItems(r.exercises);
                 return (
                   <div key={r.id} className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-slate-800">
+                    {/* The whole entry links to the read-only view — no need to copy first. */}
+                    <Link href={`/strength/routines/${r.id}/view`} className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-teal-700">
                         {r.name}
                         {r.teamId && (
                           <Badge tone="teal" className="ml-2">
@@ -102,9 +103,9 @@ export default async function PlayerDetailPage({
                         )}
                       </p>
                       <p className="mt-0.5 truncate text-xs text-slate-500">
-                        {exercises.map((ex) => `${ex.name} ${summarizeExercise(ex)}`).join(" · ")}
+                        {items.map(summarizeItem).join(" · ")}
                       </p>
-                    </div>
+                    </Link>
                     {viewer.id !== player.id && (
                       <form action={copyRoutine} className="shrink-0">
                         <input type="hidden" name="id" value={r.id} />

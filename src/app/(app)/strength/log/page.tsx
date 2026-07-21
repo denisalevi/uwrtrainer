@@ -24,11 +24,16 @@ import {
 import { StrengthWorkoutLogger, type LoggerDay } from "@/components/strength-workout-logger";
 import type { RoundingPref } from "@/lib/strength";
 import {
-  parseRoutineExercises,
+  isRoutineExercise,
+  isRoutineLink,
+  isRoutineRef,
+  linkLabel,
+  parseRoutineItems,
   prefillSets,
   routineDayId,
   type LoggedRoutineExercise,
 } from "@/lib/routines";
+import type { DayExtra } from "@/lib/strength-log-lines";
 
 /**
  * Parse a `?date=yyyy-mm-dd` param into local midnight. Returns null when malformed, not a real
@@ -138,7 +143,16 @@ export default async function StrengthLogPage({
     routine: { id: string; name: string; exercises: string },
     group: "mine" | "team",
   ): Promise<LoggerDay> => {
-    const exercises = parseRoutineExercises(routine.exercises);
+    const items = parseRoutineItems(routine.exercises);
+    const exercises = items.filter(isRoutineExercise);
+    // Nested routines / links become collapsed tick-off lines at their list position.
+    const extras: DayExtra[] = items.flatMap((item, i): DayExtra[] => {
+      if (isRoutineRef(item))
+        return [{ index: i, type: "routine", name: item.name, routineId: item.routineId, note: item.note }];
+      if (isRoutineLink(item))
+        return [{ index: i, type: "link", name: linkLabel(item), url: item.url, note: item.note }];
+      return [];
+    });
     const lastLog = await prisma.sessionLog.findFirst({
       where: {
         userId: user.id,
@@ -152,7 +166,11 @@ export default async function StrengthLogPage({
     let lastExercises: LoggedRoutineExercise[] | null = null;
     try {
       const parsed = lastLog?.details ? JSON.parse(lastLog.details) : null;
-      if (parsed && Array.isArray(parsed.exercises)) lastExercises = parsed.exercises;
+      if (parsed && Array.isArray(parsed.exercises))
+        // Ref/link entries carry no sets — drop them so position-fallback matching aligns.
+        lastExercises = (parsed.exercises as Array<LoggedRoutineExercise & { itemType?: string }>).filter(
+          (e) => !e?.itemType,
+        );
     } catch {
       lastExercises = null;
     }
@@ -161,6 +179,7 @@ export default async function StrengthLogPage({
       name: routine.name,
       minutes: 0,
       group,
+      extras,
       suggestions: exercises.map((ex, i) => ({
         id: `rex-${i}`,
         label: ex.name,
@@ -239,6 +258,7 @@ export default async function StrengthLogPage({
         }}
         resume={resume}
         today={date}
+        routineOptions={[...myRoutines, ...teamRoutines].map((r) => ({ id: r.id, name: r.name }))}
       />
     </div>
   );

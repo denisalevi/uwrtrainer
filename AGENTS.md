@@ -138,7 +138,7 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
 - **Custom routines** (docs/plans/custom-routines.md, built): `Routine` model (owner `userId`,
   trainer-published `teamId`, `exercises` JSON with per-exercise `measure`
   (`MEASURE_TYPES` in constants.ts: kg×reps / reps / seconds / kg×seconds), optional `tempo` +
-  `restSeconds`, target sets; archive-style `active`). Pure helpers + prefill-from-last-log in
+  `restSeconds` + `note`, target sets; archive-style `active`). Pure helpers + prefill-from-last-log in
   `src/lib/routines.ts` (unit-tested); actions in `actions/routines.ts` (CRUD, copy/duplicate,
   publish, 5/3/1 `paused` toggle). `/strength` is the **hub** (5/3/1 Wendler card + routine
   management; program view/wizard moved to `/strength/program`; editor at
@@ -146,6 +146,17 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
   (grouped plan/mine/team, `routine:<id>` day ids); sessions record `routineId`/`routineName` +
   per-exercise measure/tempo and per-set `seconds` in the details JSON; teammates can copy a
   visible routine from the member page, the feed (via `StrengthWorkoutView`) or the hub.
+  **Since 0.35** the `exercises` JSON holds a discriminated item list (`src/lib/routines.ts`):
+  untyped/`"exercise"` items as before, `{type:"routine",routineId,name,note?}` collapsed refs
+  to other OWN routines (one level, never expanded; server re-snapshots `name` and drops
+  non-owned/self refs on save), `{type:"link",url,label?,note?}` named web links (http(s)-only,
+  rendered as `linkLabel()` — never the raw URL). Read-only view for any visible routine at
+  `/strength/routines/[id]/view` (shared visibility rule in `src/lib/routine-visibility.ts`),
+  linked from the team member page, hub team cards and the feed badge. `copyRoutine` deep-copies
+  non-owned referenced routines and repoints refs (`remapRoutineRefs`). In the logger, ref/link
+  items become collapsed done-tick lines (`LoggerDay.extras` → `Line.ref`, `itemType` entries in
+  the details JSON), and the warm-up/stretch checkboxes are sections that attach ad-hoc
+  routines/links + a note (`warmupItems`/`warmupNote`/`cooldownItems`/`cooldownNote`).
 - **i18n**: `src/lib/i18n/` — `en`/`de` dictionaries (flat dotted keys), server helper
   `getServerT()`, client `useT()` (`src/components/i18n-provider.tsx`). Locale is **per user**
   (`User.locale`), applied in the root layout.

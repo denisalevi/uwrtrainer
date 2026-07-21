@@ -1,8 +1,11 @@
 // Custom workout routines (docs/plans/custom-routines.md) — pure helpers shared by the
 // server actions, the editor UI and the strength logger. A routine is a named list of
-// exercises with per-exercise measure type (kg×reps / reps / seconds / kg×seconds), an
-// optional tempo prescription and optional rest seconds, plus target sets. Routine
-// exercises never carry movement/week/cycle, so logging one never touches 5/3/1 progression.
+// ITEMS: exercises with per-exercise measure type (kg×reps / reps / seconds / kg×seconds),
+// an optional tempo prescription and optional rest seconds, plus target sets — and, since
+// the nested-routines feature, references to OTHER routines ("do my stretching routine
+// here", shown collapsed and ticked off, never expanded set-by-set) and named web links
+// (a warm-up video; rendered as their label, never the raw URL). Routine exercises never
+// carry movement/week/cycle, so logging one never touches 5/3/1 progression.
 
 import { z } from "zod";
 import { isMeasureType, type MeasureType } from "@/lib/constants";
@@ -14,14 +17,47 @@ export type RoutineSet = {
 };
 
 export type RoutineExercise = {
+  /** Absent on legacy documents — an item without a type IS an exercise. */
+  type?: "exercise";
   name: string;
   measure: MeasureType;
   /** Free-text tempo prescription ("3-0-3", "30X1", …) — displayed, never logged. */
   tempo?: string;
   /** Rest between this exercise's sets, feeding the logger's rest-timer bar. */
   restSeconds?: number;
+  /** Free-text hint ("focus on depth") — displayed wherever the exercise is. */
+  note?: string;
   sets: RoutineSet[];
 };
+
+/** A collapsed reference to another routine (one level — refs are never expanded). The
+ *  name is a snapshot for display; the id links to the live routine's read-only view. */
+export type RoutineRef = {
+  type: "routine";
+  routineId: string;
+  name: string;
+  note?: string;
+};
+
+/** A named web link (warm-up video etc.) — shown as its label, never the raw URL. */
+export type RoutineLink = {
+  type: "link";
+  url: string;
+  label?: string;
+  note?: string;
+};
+
+export type RoutineItem = RoutineExercise | RoutineRef | RoutineLink;
+
+export function isRoutineRef(item: RoutineItem): item is RoutineRef {
+  return (item as { type?: string }).type === "routine";
+}
+export function isRoutineLink(item: RoutineItem): item is RoutineLink {
+  return (item as { type?: string }).type === "link";
+}
+export function isRoutineExercise(item: RoutineItem): item is RoutineExercise {
+  return !isRoutineRef(item) && !isRoutineLink(item);
+}
 
 // ── Validation (server actions) ──────────────────────────────────────────────
 
@@ -32,14 +68,36 @@ const setSchema = z.object({
 });
 
 const exerciseSchema = z.object({
+  type: z.literal("exercise").optional(),
   name: z.string().trim().min(1).max(80),
   measure: z.string().refine(isMeasureType, "invalid measure"),
   tempo: z.string().trim().max(20).optional(),
   restSeconds: z.number().int().min(0).max(3600).optional(),
+  note: z.string().trim().max(500).optional(),
   sets: z.array(setSchema).min(1).max(30),
 });
 
-export const RoutineExercisesSchema = z.array(exerciseSchema).min(1).max(30);
+// Only http(s) — anything else (javascript:, data:, …) must never become an <a href>.
+export const isSafeHttpUrl = (u: string): boolean => /^https?:\/\/\S+$/i.test(u);
+
+const refSchema = z.object({
+  type: z.literal("routine"),
+  routineId: z.string().min(1).max(64),
+  // The server re-snapshots the name from the DB on save; the client value is a hint only.
+  name: z.string().trim().max(60).optional(),
+  note: z.string().trim().max(500).optional(),
+});
+
+const linkSchema = z.object({
+  type: z.literal("link"),
+  url: z.string().trim().max(500).refine(isSafeHttpUrl, "invalid url"),
+  label: z.string().trim().max(60).optional(),
+  note: z.string().trim().max(500).optional(),
+});
+
+// Typed refs/links first — an untyped (or "exercise"-typed) item falls through to exercise.
+const itemSchema = z.union([refSchema, linkSchema, exerciseSchema]);
+export const RoutineItemsSchema = z.array(itemSchema).min(1).max(30);
 export const RoutineNameSchema = z.string().trim().min(1).max(60);
 
 /** Which value axes a measure uses — drives set inputs, targets and display everywhere. */
@@ -51,15 +109,34 @@ export function measureAxes(measure: MeasureType): { weight: boolean; reps: bool
   };
 }
 
-/** Strip a validated exercise list down to the axes its measure uses (drops stray values). */
-export function normalizeExercises(exercises: z.infer<typeof RoutineExercisesSchema>): RoutineExercise[] {
-  return exercises.map((ex) => {
+/** Normalize a validated item list: exercises are stripped down to the axes their measure
+ *  uses (drops stray values); refs/links keep only their known fields. */
+export function normalizeItems(items: z.infer<typeof RoutineItemsSchema>): RoutineItem[] {
+  return items.map((item): RoutineItem => {
+    if (item.type === "routine") {
+      return {
+        type: "routine",
+        routineId: item.routineId,
+        name: item.name ?? "",
+        ...(item.note ? { note: item.note } : {}),
+      };
+    }
+    if (item.type === "link") {
+      return {
+        type: "link",
+        url: item.url,
+        ...(item.label ? { label: item.label } : {}),
+        ...(item.note ? { note: item.note } : {}),
+      };
+    }
+    const ex = item;
     const axes = measureAxes(ex.measure as MeasureType);
     return {
       name: ex.name,
       measure: ex.measure as MeasureType,
       ...(ex.tempo ? { tempo: ex.tempo } : {}),
       ...(ex.restSeconds != null && ex.restSeconds > 0 ? { restSeconds: ex.restSeconds } : {}),
+      ...(ex.note ? { note: ex.note } : {}),
       sets: ex.sets.map((s) => ({
         ...(axes.weight && s.weight != null ? { weight: s.weight } : {}),
         ...(axes.reps && s.reps != null ? { reps: s.reps } : {}),
@@ -71,8 +148,8 @@ export function normalizeExercises(exercises: z.infer<typeof RoutineExercisesSch
 
 // ── Tolerant read (display/logger — stored JSON must never 500 a page) ───────
 
-/** Parse a stored `Routine.exercises` JSON string; malformed input yields []. */
-export function parseRoutineExercises(raw: string | null | undefined): RoutineExercise[] {
+/** Parse a stored `Routine.exercises` JSON string into items; malformed input yields []. */
+export function parseRoutineItems(raw: string | null | undefined): RoutineItem[] {
   if (!raw) return [];
   let arr: unknown;
   try {
@@ -81,8 +158,34 @@ export function parseRoutineExercises(raw: string | null | undefined): RoutineEx
     return [];
   }
   if (!Array.isArray(arr)) return [];
-  return arr.flatMap((e): RoutineExercise[] => {
+  return arr.flatMap((e): RoutineItem[] => {
     const o = (e ?? {}) as Record<string, unknown>;
+    const str = (v: unknown, max: number): string | undefined =>
+      typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined;
+    if (o.type === "routine") {
+      const routineId = str(o.routineId, 64);
+      if (!routineId) return [];
+      return [
+        {
+          type: "routine",
+          routineId,
+          name: str(o.name, 60) ?? "",
+          ...(str(o.note, 500) ? { note: str(o.note, 500) } : {}),
+        },
+      ];
+    }
+    if (o.type === "link") {
+      const url = str(o.url, 500);
+      if (!url || !isSafeHttpUrl(url)) return [];
+      return [
+        {
+          type: "link",
+          url,
+          ...(str(o.label, 60) ? { label: str(o.label, 60) } : {}),
+          ...(str(o.note, 500) ? { note: str(o.note, 500) } : {}),
+        },
+      ];
+    }
     const name = typeof o.name === "string" ? o.name.trim() : "";
     if (!name) return [];
     const measure: MeasureType = isMeasureType(o.measure) ? o.measure : "KG_REPS";
@@ -102,10 +205,40 @@ export function parseRoutineExercises(raw: string | null | undefined): RoutineEx
         ...(typeof o.restSeconds === "number" && o.restSeconds > 0
           ? { restSeconds: Math.min(Math.round(o.restSeconds), 3600) }
           : {}),
+        ...(str(o.note, 500) ? { note: str(o.note, 500) } : {}),
         sets: sets.length ? sets : [{}],
       },
     ];
   });
+}
+
+/** Just the exercises of a routine document (prefill, summaries — refs/links have no sets). */
+export function parseRoutineExercises(raw: string | null | undefined): RoutineExercise[] {
+  return parseRoutineItems(raw).filter(isRoutineExercise);
+}
+
+/** Remap routine-ref targets after a deep copy (source routine id → the copier's copy). */
+export function remapRoutineRefs(items: RoutineItem[], map: Record<string, string>): RoutineItem[] {
+  return items.map((item) =>
+    isRoutineRef(item) && map[item.routineId] ? { ...item, routineId: map[item.routineId] } : item,
+  );
+}
+
+/** Display label for a link item: its label, else a friendly host name, never the raw URL. */
+export function linkLabel(link: RoutineLink): string {
+  if (link.label && link.label.trim()) return link.label.trim();
+  try {
+    const host = new URL(link.url).hostname.replace(/^www\./, "");
+    const known: Record<string, string> = {
+      "youtube.com": "YouTube",
+      "youtu.be": "YouTube",
+      "vimeo.com": "Vimeo",
+      "instagram.com": "Instagram",
+    };
+    return known[host] ?? host;
+  } catch {
+    return link.url;
+  }
 }
 
 // ── Prefill from history (poor-man's progressive overload) ───────────────────
@@ -178,6 +311,28 @@ export function summarizeExercise(ex: RoutineExercise): string {
       : "?";
   const load = axes.weight && first.weight != null ? ` @ ${first.weight} kg` : "";
   return `${n}×${amount}${load}`;
+}
+
+/** One-line summary of any item, for routine cards ("Bench 3×5 @ 60 kg · ↪ Stretching · 🔗 YouTube"). */
+export function summarizeItem(item: RoutineItem): string {
+  if (isRoutineRef(item)) return `↪ ${item.name || "…"}`;
+  if (isRoutineLink(item)) return `🔗 ${linkLabel(item)}`;
+  return `${item.name} ${summarizeExercise(item)}`;
+}
+
+/** Target sets of one exercise as short strings ("60 kg × 5", "30 s", "8"), for read-only views. */
+export function formatTargetSets(ex: RoutineExercise): string[] {
+  const axes = measureAxes(ex.measure);
+  return ex.sets.map((s) => {
+    const amount = axes.seconds
+      ? s.seconds != null
+        ? `${s.seconds} s`
+        : "—"
+      : s.reps != null
+        ? String(s.reps)
+        : "—";
+    return axes.weight && s.weight != null ? `${s.weight} kg × ${amount}` : amount;
+  });
 }
 
 /** The log-picker prefix marking a routine-backed logger day ("routine:<id>"). */
