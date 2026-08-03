@@ -383,11 +383,14 @@ export function prescribedTestReps(mode: SlotMode, cur: MovementState): number {
 
 /**
  * Close out a cycle for ONE movement: judge its week-3 AMRAP result against its prescription,
- * advance both maxima (weighted training max + bodyweight rep/level), and return the movement's
- * next-cycle state. Everything else the state carries (chosen exercise variants, custom names)
- * is PRESERVED — only the progression fields change. The first-cycle estimate inputs
- * (`estWeight`/`estReps`) are deliberately dropped: they describe the set the very first
- * training max was derived from, which is stale once a cycle has adjusted it.
+ * advance its maxima, and return the movement's next-cycle state. Only the maxima of the mode
+ * the lift was actually TRAINED in move (`opts.mode`): a weighted cycle steps the training max
+ * (classic 5/3/1 — the wave's rep schemes never change), a bodyweight cycle steps the rep
+ * max/level. The AMRAP set says nothing about the other mode's max, so that one stays put.
+ * (No mode = legacy callers: both move.) Everything else the state carries (chosen exercise
+ * variants, custom names) is PRESERVED — only the progression fields change. The first-cycle
+ * estimate inputs (`estWeight`/`estReps`) are deliberately dropped: they describe the set the
+ * very first training max was derived from, which is stale once a cycle has adjusted it.
  *
  * Short cycles are tracked PER LIFT in `holds`: the first shortfall HOLDs and bumps the
  * lift's own counter; a second shortfall in a row REDUCEs (~10 %) and resets it, as does
@@ -398,9 +401,11 @@ export function advanceMovementState(
   cur: MovementState,
   amrapReps: number,
   prescribedReps: number,
-  opts: { rounding?: number } = {},
+  opts: { rounding?: number; mode?: SlotMode } = {},
 ): MovementState {
   const adjustment = decideAdjustment(amrapReps, prescribedReps, cur.holds ?? 0);
+  const stepWeighted = opts.mode !== "BODYWEIGHT";
+  const stepBodyweight = opts.mode !== "WEIGHTED";
   const bw = nextBodyweight(
     { repMax: cur.repMax ?? 5, levelIndex: cur.levelIndex ?? 0 },
     adjustment,
@@ -408,12 +413,15 @@ export function advanceMovementState(
   );
   return {
     ...cur,
-    trainingMax: nextTrainingMax(cur.trainingMax ?? 0, adjustment, {
-      increment: incrementFor(movement),
-      rounding: opts.rounding,
-    }),
-    repMax: bw.repMax,
-    levelIndex: bw.levelIndex,
+    ...(stepWeighted
+      ? {
+          trainingMax: nextTrainingMax(cur.trainingMax ?? 0, adjustment, {
+            increment: incrementFor(movement),
+            rounding: opts.rounding,
+          }),
+        }
+      : {}),
+    ...(stepBodyweight ? { repMax: bw.repMax, levelIndex: bw.levelIndex } : {}),
     holds: adjustment === "HOLD" ? (cur.holds ?? 0) + 1 : 0,
     estWeight: undefined, // first-cycle-only; retire after the first adjustment
     estReps: undefined,
@@ -450,7 +458,8 @@ export type ProgressEvent = "advanced" | "cycleFinished" | "deloadReset";
  *   • week 4 (deload): a manual "deload now" (deloadReset) restarts the SAME cycle at week 1 with
  *     no bump; otherwise the cycle closes — the adjustment rule runs on the captured week-3 AMRAP
  *     (blank/absent ⇒ successful test), stepping the maxima and starting the next cycle at week 1.
- * `date` (the session's ISO date) is stamped for stale-return detection.
+ * `date` (the session's ISO date) is stamped for stale-return detection. `mode` is the mode the
+ * lift was performed in — a cycle close only steps THAT mode's maxima (see advanceMovementState).
  */
 export function advanceAfterSession(
   movement: MovementKey,
@@ -458,7 +467,7 @@ export function advanceAfterSession(
   loggedWeek: number,
   amrapReps: number,
   prescribedReps: number,
-  opts: { rounding?: number; date?: string } = {},
+  opts: { rounding?: number; date?: string; mode?: SlotMode } = {},
 ): { next: MovementState; event: ProgressEvent } {
   const from = normWeek(loggedWeek);
   const cycle = cur.cycle ?? 1;
@@ -479,7 +488,10 @@ export function advanceAfterSession(
 
   // Normal cycle close: judge the captured week-3 AMRAP (blank/0 ⇒ successful test → INCREASE).
   const eff = pendingAmrap != null && pendingAmrap > 0 ? pendingAmrap : prescribedReps;
-  const advanced = advanceMovementState(movement, cur, eff, prescribedReps, { rounding: opts.rounding });
+  const advanced = advanceMovementState(movement, cur, eff, prescribedReps, {
+    rounding: opts.rounding,
+    mode: opts.mode,
+  });
   const next: MovementState = { ...advanced, week: 1, cycle: cycle + 1, ...stamp };
   delete next.pendingAmrap;
   delete next.deloadReset;
@@ -530,6 +542,7 @@ export function advanceStateAfterSession(
     const res = advanceAfterSession(m, seeded, loggedWeek, amrapReps, prescribed, {
       rounding: opts.rounding,
       date: opts.date,
+      mode: resolved.mode,
     });
     next[m] = res.next;
     seen.add(m);

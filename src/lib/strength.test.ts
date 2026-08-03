@@ -350,6 +350,25 @@ describe("advanceMovementState (closing out a cycle for one lift)", () => {
     expect(squat.trainingMax).toBe(100); // HOLD, not a 10% reduce
     expect(squat.holds).toBe(1);
   });
+
+  it("a WEIGHTED cycle steps only the training max — the bodyweight rep max never moves", () => {
+    // Classic 5/3/1: progress is +kg on the bar; the wave's rep schemes are fixed. The stored
+    // bodyweight rep max belongs to a different mode and must not ride along.
+    const next = advanceMovementState("PUSH", cur, 3, 1, { rounding: 2.5, mode: "WEIGHTED" });
+    expect(next.trainingMax).toBe(92.5);
+    expect(next.repMax).toBe(8); // untouched
+    expect(next.levelIndex).toBe(1); // untouched
+  });
+
+  it("a BODYWEIGHT cycle steps only the rep max — the weighted training max never moves", () => {
+    // E.g. bodyweight pull-ups: +1 rep. The (unused) weighted max must not gain phantom kilos.
+    const next = advanceMovementState("PULLV", { trainingMax: 0, repMax: 5, levelIndex: 1 }, 5, 5, {
+      rounding: 2.5,
+      mode: "BODYWEIGHT",
+    });
+    expect(next.repMax).toBe(6);
+    expect(next.trainingMax).toBe(0); // untouched
+  });
 });
 
 describe("modeForEquipment", () => {
@@ -818,6 +837,28 @@ describe("per-movement auto-progression (each lift its own wave)", () => {
     expect(squat.after.cycle).toBe(3);
     const push = transitions.find((tr) => tr.movement === "PUSH")!;
     expect(push.event).toBe("advanced"); // mid-cycle week step, nothing overwritten
+  });
+
+  it("a cycle close only steps the maxima of the mode the lift was performed in", () => {
+    // Session 2 shape from the field: weighted squat + bodyweight pull-ups (chosen for the
+    // weighted day) both finish their deload. The squat's TM bumps but its rep max must not;
+    // the pull-up's rep max bumps but it must not gain a phantom weighted TM.
+    const state: ProgramState = {
+      SQUAT: { trainingMax: 55, repMax: 5, week: 4, cycle: 1, pendingAmrap: 10 },
+      PULLV: { trainingMax: 0, repMax: 5, levelIndex: 1, weightedExerciseId: "PULL_FULL", week: 4, cycle: 1, pendingAmrap: 5 },
+    };
+    const { state: next } = advanceStateAfterSession(
+      state,
+      [
+        { movement: "SQUAT" as const, week: 4, done: true, sets: [{ reps: 5 }] },
+        { movement: "PULLV" as const, week: 4, done: true, sets: [{ reps: 3 }] },
+      ],
+      { rounding: 2.5, fallbackCycle: 1, dayEquipment: "WEIGHTS" },
+    );
+    expect(next.SQUAT?.trainingMax).toBe(60); // +5 lower-body increment
+    expect(next.SQUAT?.repMax).toBe(5); // untouched — trained weighted
+    expect(next.PULLV?.repMax).toBe(6); // +1 rep — trained bodyweight
+    expect(next.PULLV?.trainingMax).toBe(0); // untouched — no phantom kilos
   });
 
   it("inferCycleDecision reconstructs INCREASE / HOLD / REDUCE from the snapshots", () => {

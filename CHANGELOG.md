@@ -11,6 +11,21 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.35.1] - 2026-08-03
+
+### Fixed
+- **A cycle close only advances the mode the lift was actually trained in.** Closing a cycle
+  used to step BOTH stored maxima — a weighted lift also gained +1 on its (unused) bodyweight
+  rep max, and a bodyweight lift (e.g. pull-ups on a weighted day) gained phantom kilos on its
+  weighted training max, both showing up in the progression history. Classic 5/3/1: weighted
+  progress is +kg only (the wave's rep schemes are fixed); bodyweight progress is +1 rep only.
+
+### Notes
+- One-off data repair on the production DB (2026-08-03): a first-cycle deload had been finished
+  with a stray manual "Deload" arm on three lifts, so their cycle-1 close (with its INCREASE)
+  never landed — closed properly now, with the matching history rows; cross-mode bumps from an
+  earlier close reverted.
+
 ## [0.35.0] - 2026-07-21
 
 ### Added
