@@ -33,6 +33,7 @@ import {
   effectiveCycle,
   advanceAfterSession,
   advanceStateAfterSession,
+  unappliedProgressionExercises,
   inferCycleDecision,
   carryProgression,
   deloadNowState,
@@ -932,5 +933,65 @@ describe("workoutForSlot", () => {
     expect(w.mode).toBe("BODYWEIGHT");
     expect(w.sets.every((s) => s.weight === undefined)).toBe(true);
     expect(w.labelKey).toBe("ex.push.full");
+  });
+});
+
+describe("unappliedProgressionExercises (a lift ticked done after the session was finished)", () => {
+  const DATE = "2026-08-14";
+  const ex = (movement: string, week: number, done = true) => ({ movement, week, done }) as never;
+
+  it("catches up the lift whose step the finish missed, and leaves the ones it applied alone", () => {
+    // The real case: HINGE/PRESS/PULL all logged at week 2, but only PRESS and PULL were ticked
+    // done when Finish was pressed — they carry this session's stamp, HINGE still carries the
+    // previous session's.
+    const state = {
+      HINGE: { trainingMax: 120, week: 2, cycle: 2, lastTrainedAt: "2026-08-03" },
+      PRESS: { trainingMax: 40, week: 3, cycle: 2, lastTrainedAt: DATE },
+      PULL: { trainingMax: 52.5, week: 3, cycle: 2, lastTrainedAt: DATE },
+    };
+    const out = unappliedProgressionExercises(
+      state,
+      [ex("HINGE", 2), ex("PRESS", 2), ex("PULL", 2)],
+      DATE,
+      1,
+    );
+    expect(out.map((e) => e.movement)).toEqual(["HINGE"]);
+  });
+
+  it("never retro-bumps a lift that has trained since the session being edited", () => {
+    const state = { HINGE: { week: 2, cycle: 2, lastTrainedAt: "2026-08-28" } };
+    expect(unappliedProgressionExercises(state, [ex("HINGE", 2)], DATE, 1)).toEqual([]);
+  });
+
+  it("skips a lift whose logged week no longer matches where it sits", () => {
+    // Already moved on (manual week control, or another session) — stepping from a stale week
+    // would jump the wave.
+    const state = { HINGE: { week: 4, cycle: 2, lastTrainedAt: "2026-08-03" } };
+    expect(unappliedProgressionExercises(state, [ex("HINGE", 2)], DATE, 1)).toEqual([]);
+  });
+
+  it("skips lifts that are still not done, and is idempotent once the step has landed", () => {
+    const state = { HINGE: { week: 2, cycle: 2, lastTrainedAt: "2026-08-03" } };
+    expect(unappliedProgressionExercises(state, [ex("HINGE", 2, false)], DATE, 1)).toEqual([]);
+    // After the catch-up ran, the stamp is this session's date — a second autosave must be a no-op.
+    const after = { HINGE: { week: 3, cycle: 2, lastTrainedAt: DATE } };
+    expect(unappliedProgressionExercises(after, [ex("HINGE", 3)], DATE, 1)).toEqual([]);
+  });
+
+  it("falls back to the program week for a lift with no per-movement week yet", () => {
+    const state = { HINGE: { trainingMax: 120, cycle: 2 } };
+    expect(unappliedProgressionExercises(state, [ex("HINGE", 2)], DATE, 2)).toHaveLength(1);
+    expect(unappliedProgressionExercises(state, [ex("HINGE", 3)], DATE, 2)).toEqual([]);
+  });
+
+  it("ignores untagged/custom exercises and dedupes a repeated movement", () => {
+    const state = { HINGE: { week: 2, cycle: 2, lastTrainedAt: "2026-08-03" } };
+    const out = unappliedProgressionExercises(
+      state,
+      [{ name: "Klimmz\u00fcge", done: true } as never, ex("HINGE", 2), ex("HINGE", 2)],
+      DATE,
+      1,
+    );
+    expect(out).toHaveLength(1);
   });
 });

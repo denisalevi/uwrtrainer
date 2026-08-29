@@ -11,6 +11,26 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.35.2] - 2026-08-29
+
+### Fixed
+- **A lift ticked done *after* you press "Done" no longer loses its wave step.** Finishing a
+  session advances each logged lift's wave exactly once, guarded by the session's
+  `progressionApplied` flag — but the autosave happily rewrote the session afterwards, including
+  flipping a lift's done tick on. That lift's step was then lost for good: the one-shot guard had
+  already been burned, and week steps (unlike cycle closes) leave no trace in the progression
+  history to notice it by. The lift silently repeated its week next session while its training
+  partners moved on. Editing a finished session now catches up exactly the steps that were missed.
+  Skipped when ambiguous — the lift has trained since, or the week it was logged at no longer
+  matches where it sits — so an edit to an old session can never retro-bump a wave.
+
+### Notes
+- One-off data repair on the production DB (2026-08-29): the deadlift had been left a week behind
+  its training partners by the above bug (logged at week 2 on 2026-08-14, ticked done after the
+  finish), so it re-served 3/3/3 instead of 5/3/1. Set back to week 3, and that day's untouched
+  draft re-prescribed to match.
+
+
 ## [0.35.1] - 2026-08-03
 
 ### Fixed

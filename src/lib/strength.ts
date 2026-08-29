@@ -553,6 +553,48 @@ export function advanceStateAfterSession(
 }
 
 /**
+ * The lifts in an already-finished session whose wave step never ran — the "ticked done after
+ * pressing Finish" case. Finishing applies progression exactly once (guarded by the row's
+ * `progressionApplied`), but a later autosave can still flip a lift's `done` on; that lift would
+ * otherwise never step its wave, and week steps leave no trace in the history log to notice it by.
+ *
+ * Returns the subset of `exercises` that is SAFE to advance now. A lift qualifies only when:
+ *   • it's marked done and carries a valid movement plus the week it was logged at;
+ *   • this session hasn't already advanced it — its `lastTrainedAt` stamp isn't this date;
+ *   • this session is the lift's most recent training (stamp older or absent), so editing an old
+ *     session can never retro-bump a lift that has trained since;
+ *   • the week it was logged at still matches where the lift sits, so the step continues its wave
+ *     instead of jumping it.
+ * Anything ambiguous is skipped: a missed step is recoverable with the manual week control, a
+ * spurious one silently corrupts the wave.
+ */
+export function unappliedProgressionExercises(
+  state: ProgramState,
+  exercises: LoggedExercise[],
+  dateISO: string,
+  fallbackWeek: number,
+): LoggedExercise[] {
+  const out: LoggedExercise[] = [];
+  const seen = new Set<MovementKey>();
+  for (const ex of exercises) {
+    if (!ex || ex.done !== true) continue;
+    const m = ex.movement;
+    if (!m || !(MOVEMENTS as readonly string[]).includes(m) || seen.has(m)) continue;
+    const loggedWeek = Number(ex.week);
+    if (!Number.isFinite(loggedWeek)) continue;
+    const cur = state[m];
+    if (!cur) continue;
+    // ISO dates compare lexicographically: >= means this session already stepped the lift, or a
+    // later session has, and either way this edit must not step it again.
+    if (cur.lastTrainedAt != null && cur.lastTrainedAt >= dateISO) continue;
+    if (normWeek(loggedWeek) !== normWeek(effectiveWeek(cur, fallbackWeek))) continue;
+    seen.add(m);
+    out.push(ex);
+  }
+  return out;
+}
+
+/**
  * Reconstruct the adjustment a cycle close applied, from its before/after snapshots (the
  * decision itself isn't returned by advanceMovementState): a HOLD bumps the lift's own `holds`
  * counter; otherwise a lowered training max / rep max / level is the ~10 % REDUCE, and anything

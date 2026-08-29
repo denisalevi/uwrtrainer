@@ -21,6 +21,7 @@ import {
   trainingMaxFromOneRepMax,
   defaultFullState,
   advanceStateAfterSession,
+  unappliedProgressionExercises,
   inferCycleDecision,
   carryProgression,
   deloadNowState,
@@ -330,13 +331,13 @@ function normDuration(v: number | undefined): number | null {
 export async function saveStrengthWorkout(input: StrengthWorkoutInput): Promise<{ id: string }> {
   const user = await getCurrentUser();
   if (!user) throw new Error("Not signed in");
-  const { date, details } = validateStrengthInput(input);
+  const { date, details, parsed } = validateStrengthInput(input);
   const data = { date, durationMin: normDuration(input.durationMin), details };
 
   if (input.logId) {
     const existing = await prisma.sessionLog.findUnique({
       where: { id: input.logId },
-      select: { userId: true, date: true, category: true, status: true, auto: true },
+      select: { userId: true, date: true, category: true, status: true, auto: true, progressionApplied: true },
     });
     if (!existing || existing.userId !== user.id) throw new Error("Not authorized");
     // Only a real logged strength workout may be overwritten — never another category, a MISSED
@@ -349,6 +350,12 @@ export async function saveStrengthWorkout(input: StrengthWorkoutInput): Promise<
     await selfHealCountWeek(user.id, existing.date);
     if (data.date.getTime() !== existing.date.getTime()) {
       await selfHealCountWeek(user.id, data.date);
+    }
+    // Ticking a lift done AFTER the session was finished used to lose that lift's wave step for
+    // good — the finish already burned the one-shot progressionApplied guard. Catch it up here.
+    if (existing.progressionApplied) {
+      await applyProgression(user.id, date, parsed, input.logId, { onlyUnapplied: true });
+      revalidatePath("/strength");
     }
     revalidatePath("/dashboard");
     return { id: input.logId };
@@ -375,6 +382,7 @@ async function applyProgression(
   logDate: Date,
   details: Record<string, unknown>,
   sessionLogId: string,
+  opts: { onlyUnapplied?: boolean } = {},
 ): Promise<void> {
   const program = await prisma.strengthProgram.findFirst({
     where: { userId, active: true },
@@ -393,7 +401,12 @@ async function applyProgression(
   const day = days.find((d) => d.id === dayId);
   const dayEquipment: ProgramEquipment = day?.equipment ?? "WEIGHTS";
   const dateISO = logDate.toISOString().slice(0, 10);
-  const exercises = Array.isArray(details.exercises) ? (details.exercises as LoggedExercise[]) : [];
+  const logged = Array.isArray(details.exercises) ? (details.exercises as LoggedExercise[]) : [];
+  // Re-running over an already-progressed session (an edit): step ONLY the lifts whose step was
+  // missed, never the ones this session already advanced.
+  const exercises = opts.onlyUnapplied
+    ? unappliedProgressionExercises(state, logged, dateISO, program.week)
+    : logged;
 
   const { state: nextState, advanced, transitions } = advanceStateAfterSession(state, exercises, {
     rounding: program.rounding,
@@ -432,7 +445,7 @@ async function applyProgression(
       where: { id: program.id },
       data: {
         movements: JSON.stringify(nextState),
-        ...(rotating ? { week: program.week + 1 } : {}),
+        ...(rotating && !opts.onlyUnapplied ? { week: program.week + 1 } : {}),
       },
     }),
     ...(historyRows.length > 0
@@ -476,7 +489,7 @@ export async function finishStrengthWorkout(input: StrengthWorkoutInput): Promis
     await selfHealCountWeek(user.id, date);
   }
 
-  if (!alreadyApplied) await applyProgression(user.id, date, parsed, logId);
+  await applyProgression(user.id, date, parsed, logId, { onlyUnapplied: alreadyApplied });
 
   revalidatePath("/dashboard");
   revalidatePath("/strength");
