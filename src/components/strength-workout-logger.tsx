@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/i18n-provider";
 import { saveStrengthWorkout, finishStrengthWorkout } from "@/app/actions/strength";
+import { rememberLink } from "@/app/actions/links";
 import { deleteSession } from "@/app/actions/training";
 import { Button, Card, CardBody, Input, Label, Select, Textarea, cn } from "@/components/ui";
 import { useRestTimer, RestTimerBar, type RestTimerSettings } from "@/components/rest-timer";
@@ -31,7 +32,8 @@ import {
   type SetVal,
   type Suggestion,
 } from "@/lib/strength-log-lines";
-import { isSafeHttpUrl, linkLabel, measureAxes, routineIdFromDayId } from "@/lib/routines";
+import { isSafeHttpUrl, measureAxes, routineIdFromDayId } from "@/lib/routines";
+import { normalizeLinkUrl, savedLinkName, type LinkOption } from "@/lib/saved-links";
 
 export type { LoggerDay } from "@/lib/strength-log-lines";
 
@@ -86,6 +88,7 @@ function ChecklistSection({
   items,
   note,
   routineOptions,
+  linkOptions,
   onToggle,
   setItems,
   setNote,
@@ -97,6 +100,8 @@ function ChecklistSection({
   items: SectionItem[];
   note: string;
   routineOptions: Array<{ id: string; name: string }>;
+  /** The user's saved-link library (own + team-shared), for the pick-instead-of-retype dropdown. */
+  linkOptions: LinkOption[];
   onToggle: () => void;
   setItems: (fn: (items: SectionItem[]) => SectionItem[]) => void;
   setNote: (v: string) => void;
@@ -116,13 +121,15 @@ function ChecklistSection({
     setItems((xs) => xs.map((it) => (it.key === key ? { ...it, done: !it.done } : it)));
     if (turningOn) markDone();
   };
-  const addLink = () => {
-    let url = linkUrl.trim();
-    if (!url) return;
-    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-    if (!isSafeHttpUrl(url)) return;
-    const name = linkName.trim() || linkLabel({ type: "link", url });
+  const attachLink = (url: string, name: string) =>
     setItems((xs) => [...xs, { key: nextKey(), type: "link", name, url, done: false }]);
+  const addLink = () => {
+    const url = normalizeLinkUrl(linkUrl);
+    if (!url) return;
+    const name = savedLinkName(linkName, url);
+    attachLink(url, name);
+    // A named link you add is remembered in your library, so it's a dropdown pick next time.
+    void rememberLink(url, name).catch(() => {});
     setLinkUrl("");
     setLinkName("");
     setAddingLink(false);
@@ -200,6 +207,25 @@ function ChecklistSection({
           )}
           {addingLink && (
             <div className="space-y-2">
+              {linkOptions.length > 0 && (
+                <Select
+                  value=""
+                  onChange={(e) => {
+                    const saved = linkOptions.find((o) => o.id === e.target.value);
+                    if (saved) {
+                      attachLink(saved.url, saved.label);
+                      setAddingLink(false);
+                    }
+                  }}
+                >
+                  <option value="">{t("links.choose")}</option>
+                  {linkOptions.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.sharedBy ? `${o.label} — ${t("links.sharedBy", { name: o.sharedBy })}` : o.label}
+                    </option>
+                  ))}
+                </Select>
+              )}
               <Input
                 placeholder="https://…"
                 inputMode="url"
@@ -293,6 +319,7 @@ export function StrengthWorkoutLogger({
   resume,
   today,
   routineOptions = [],
+  linkOptions = [],
 }: {
   programId: string;
   cycle: number;
@@ -304,6 +331,8 @@ export function StrengthWorkoutLogger({
   today: string;
   /** Pickable routines for the warm-up/cool-down sections (own + team, active). */
   routineOptions?: Array<{ id: string; name: string }>;
+  /** The user's saved-link library, offered in the warm-up/cool-down link dropdown. */
+  linkOptions?: LinkOption[];
 }) {
   const { t } = useT();
   const router = useRouter();
@@ -707,6 +736,7 @@ export function StrengthWorkoutLogger({
         items={warmupItems}
         note={warmupNote}
         routineOptions={routineOptions}
+        linkOptions={linkOptions}
         onToggle={() => {
           setWarmup((v) => !v);
           scheduleSave();
@@ -1011,6 +1041,7 @@ export function StrengthWorkoutLogger({
         items={cooldownItems}
         note={cooldownNote}
         routineOptions={routineOptions}
+        linkOptions={linkOptions}
         onToggle={() => {
           setStretch((v) => !v);
           scheduleSave();

@@ -704,6 +704,26 @@ export const en = {
   "routines.linkLabel": "Link name",
   "routines.chooseRoutine": "Choose routine…",
   "routines.note": "Note",
+
+  // ── Saved-link library (v0.36) ──
+  "links.title": "Link library",
+  "links.hint": "Your saved warm-up / cool-down links.",
+  "links.intro":
+    "Every named link you add to a warm-up or cool-down is saved here, so you can pick it from the dropdown next time. Share one with your team and it shows up for your teammates too.",
+  "links.url": "Link address",
+  "links.mine": "My links",
+  "links.team": "Shared with the team",
+  "links.noneOwn": "No saved links yet — add one above, or add a link while logging a session.",
+  "links.noneTeam": "Nobody has shared a link with your team yet.",
+  "links.share": "Share with team",
+  "links.unshare": "Stop sharing",
+  "links.sharedBadge": "Shared",
+  "links.sharedBy": "shared by {name}",
+  "links.removeFromTeam": "Remove from team",
+  "links.showTeam": "Show links shared by my team",
+  "links.showTeamHint": "Off = only your own saved links appear in the dropdown.",
+  "links.saved": "Saved links",
+  "links.choose": "Choose a saved link…",
 } as const;
 
 export type Dict = typeof en;
@@ -1412,6 +1432,27 @@ export const de: Record<DictKey, string> = {
   "routines.linkLabel": "Link-Name",
   "routines.chooseRoutine": "Routine wählen…",
   "routines.note": "Notiz",
+
+  // ── Link-Bibliothek (v0.36) ──
+  "links.title": "Link-Bibliothek",
+  "links.hint": "Deine gespeicherten Aufwärm- und Cool-down-Links.",
+  "links.intro":
+    "Jeder benannte Link, den du zum Aufwärmen oder Cool-down hinzufügst, wird hier gespeichert — beim nächsten Mal wählst du ihn einfach aus der Liste. Teilst du einen mit deinem Team, sehen ihn auch deine Teamkolleg:innen.",
+  "links.url": "Link-Adresse",
+  "links.mine": "Meine Links",
+  "links.team": "Mit dem Team geteilt",
+  "links.noneOwn":
+    "Noch keine gespeicherten Links — füge oben einen hinzu oder beim Protokollieren einer Einheit.",
+  "links.noneTeam": "Bisher hat niemand einen Link mit deinem Team geteilt.",
+  "links.share": "Mit Team teilen",
+  "links.unshare": "Nicht mehr teilen",
+  "links.sharedBadge": "Geteilt",
+  "links.sharedBy": "geteilt von {name}",
+  "links.removeFromTeam": "Aus dem Team entfernen",
+  "links.showTeam": "Vom Team geteilte Links anzeigen",
+  "links.showTeamHint": "Aus = in der Auswahl erscheinen nur deine eigenen Links.",
+  "links.saved": "Gespeicherte Links",
+  "links.choose": "Gespeicherten Link wählen…",
 };
 
 export const dictionaries = { en, de } as const;

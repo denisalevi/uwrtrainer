@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/dal";
+import { getLinkOptions } from "@/lib/saved-links-store";
 import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
 import type { DictKey } from "@/lib/i18n/dictionaries";
@@ -58,6 +59,8 @@ export default async function StrengthLogPage({
   const { id, date: dateParam } = await searchParams;
   const user = await requireUser();
   const { t } = await getServerT();
+  // The saved-link library feeding the warm-up/cool-down link dropdown (own + team-shared).
+  const linkOptions = await getLinkOptions(user);
 
   const program = await prisma.strengthProgram.findFirst({
     where: { userId: user.id, active: true },
@@ -259,6 +262,7 @@ export default async function StrengthLogPage({
         resume={resume}
         today={date}
         routineOptions={[...myRoutines, ...teamRoutines].map((r) => ({ id: r.id, name: r.name }))}
+        linkOptions={linkOptions}
       />
     </div>
   );

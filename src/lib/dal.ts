@@ -29,6 +29,8 @@ export type CurrentUser = {
   strengthBbb: string | null;
   strengthPullups: boolean;
   strengthRows: boolean;
+  /** Saved-link library: show teammates' team-shared links in my link dropdown. */
+  showTeamLinks: boolean;
 };
 
 /**
@@ -65,6 +67,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       strengthBbb: true,
       strengthPullups: true,
       strengthRows: true,
+      showTeamLinks: true,
     },
   });
   if (!user) return null;

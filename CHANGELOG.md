@@ -11,6 +11,22 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-08-31
+
+### Added
+- **Saved-link library.** Every named link you add to a warm-up or cool-down (or drop into a
+  routine) is now remembered, so the next time you open the link field you just pick it from a
+  dropdown and tap it — no more digging the video out of your history. The library lives in
+  **Settings → Link library**: add links by hand, rename them by re-adding the same URL, delete
+  them, and **share one with your team** so it shows up in your teammates' dropdowns too, with
+  **"shared by \<name\>"** attribution. Any member may share; a **trainer** can pull any shared
+  link back out of the team (the link stays in its owner's private library — a trainer moderates
+  what the team sees, not what a member keeps). Don't want the team's links in your dropdown?
+  One checkbox turns them off, for you only.
+- New `SavedLink` model (owner, optional `teamId` = shared, name + URL, unique per owner+URL so
+  re-adding updates instead of duplicating) and `User.showTeamLinks`. URLs go through the same
+  `isSafeHttpUrl` http(s)-only rule as routine links — a saved link becomes an `<a href>`.
+
 ## [0.35.2] - 2026-08-29
 
 ### Fixed

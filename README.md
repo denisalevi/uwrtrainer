@@ -38,6 +38,10 @@ from a single Docker Compose stack.
   optional tempo prescriptions and per-exercise rest. Active routines show up in the workout
   logger (prefilled from your last session of that routine), trainers can publish routines to
   the team, and teammates' routines can be copied with one tap.
+- **Saved links** — name a warm-up or cool-down link once (a video, a mobility routine) and
+  it's saved to your link library: pick it from a dropdown next time and tap it. Manage the
+  library in Settings, share a link with the team so it appears in everyone's dropdown (shown
+  with who shared it), and switch team links off if you'd rather only see your own.
 - **Multi-team** — several teams in one instance, with join codes, an account-less roster
   (claim your entry when you sign up), and per-team feeds/leaderboards.
 - **Adherence scoring** — full adherence is worth a fixed weekly base regardless of plan

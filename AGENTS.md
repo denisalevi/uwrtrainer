@@ -157,6 +157,19 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
   items become collapsed done-tick lines (`LoggerDay.extras` → `Line.ref`, `itemType` entries in
   the details JSON), and the warm-up/stretch checkboxes are sections that attach ad-hoc
   routines/links + a note (`warmupItems`/`warmupNote`/`cooldownItems`/`cooldownNote`).
+- **Saved-link library** (0.36): `SavedLink` model (owner, optional `teamId` = shared with that
+  team, `label` + `url`, `@@unique([userId, url])` so re-adding a URL renames instead of
+  duplicating) + `User.showTeamLinks` (per-member opt-out of teammates' shared links). Pure
+  helpers `src/lib/saved-links.ts` (`normalizeLinkUrl` — assumes https, enforces the
+  `isSafeHttpUrl` http(s)-only rule; `savedLinkName`; `buildLinkOptions` — own first, then
+  team-shared, deduped by URL; unit-tested), DB side `src/lib/saved-links-store.ts`
+  (`rememberSavedLink` upsert, `getLinkLibrary`, `getLinkOptions`), actions
+  `src/app/actions/links.ts`. Links are remembered AUTOMATICALLY: the logger's warm-up/cool-down
+  link field calls `rememberLink` on add, and `saveRoutine` remembers a routine's link items.
+  The dropdown appears only in the warm-up/cool-down link fields (`ChecklistSection`); Settings
+  → Link library (`settings/links-section.tsx`) lists/adds/deletes and shares. Deleting: owners
+  delete their own row; a TRAINER acting on someone else's shared link only unshares it
+  (`teamId = null`) — team moderation never destroys a member's private entry.
 - **i18n**: `src/lib/i18n/` — `en`/`de` dictionaries (flat dotted keys), server helper
   `getServerT()`, client `useT()` (`src/components/i18n-provider.tsx`). Locale is **per user**
   (`User.locale`), applied in the root layout.

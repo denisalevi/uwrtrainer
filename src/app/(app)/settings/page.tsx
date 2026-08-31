@@ -22,6 +22,7 @@ import { versionLabel } from "@/lib/version";
 import { TeamsSection, AdminTeamMembers, AdminUserManagement, AdminReassignAccount } from "./teams-section";
 import { DeleteOwnAccount } from "./delete-own-account";
 import { PracticeSlotsSettings } from "./practice-slots";
+import { LinksSection } from "./links-section";
 
 /** A titled group of collapsible settings cards; trainer/admin groups get a coloured accent. */
 function SettingsGroup({
@@ -113,6 +114,10 @@ export default async function SettingsPage({
               </Button>
             </form>
           </div>
+        </Collapsible>
+
+        <Collapsible title={t("links.title")} hint={t("links.hint")}>
+          <LinksSection user={user} />
         </Collapsible>
 
         <Collapsible title={t("set.deleteOwnTitle")} hint={t("set.deleteOwnHint")}>

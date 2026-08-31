@@ -10,7 +10,9 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser, requireTrainer } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
 import { findVisibleRoutine } from "@/lib/routine-visibility";
+import { rememberSavedLink } from "@/lib/saved-links-store";
 import {
+  isRoutineLink,
   isRoutineRef,
   normalizeItems,
   parseRoutineItems,
@@ -82,6 +84,12 @@ export async function saveRoutine(formData: FormData) {
   } else {
     await prisma.routine.create({ data: { ...data, userId: user.id } });
   }
+  // Named links in a routine land in the author's link library too, so the warm-up/cool-down
+  // dropdown offers them next time (same rule as adding one while logging).
+  for (const link of items.filter(isRoutineLink)) {
+    await rememberSavedLink(user.id, link.url, link.label);
+  }
+  revalidatePath("/settings");
   revalidatePath("/strength");
   redirect("/strength");
 }

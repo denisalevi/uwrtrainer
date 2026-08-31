@@ -51,6 +51,9 @@ model User {
   // Optional pull slots in the strength plan: vertical (pull-ups) / horizontal (rows).
   strengthPullups   Boolean @default(true)
   strengthRows      Boolean @default(true)
+  // Saved-link library: false = teammates' team-shared links stay out of my link dropdown
+  // (my own saved links are always shown).
+  showTeamLinks     Boolean @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -63,6 +66,7 @@ model User {
   weekNotes         WeekNote[]
   routines          Routine[]
   authTokens        AuthToken[]
+  savedLinks        SavedLink[]
 }
 
 /// Single-use emailed auth token (only its SHA-256 hash is stored; the raw token lives
@@ -275,6 +279,26 @@ model Routine {
   updatedAt    DateTime @updatedAt
 
   @@index([userId])
+  @@index([teamId])
+}
+
+/// A link in a member's saved-link library (a warm-up video, a mobility routine on YouTube …).
+/// Filled automatically whenever a named link is attached to a warm-up/cool-down section or put
+/// into a routine, and editable in Settings. `url` is http(s)-only (isSafeHttpUrl) and unique per
+/// owner, so re-adding the same link updates its name instead of piling up duplicates.
+/// teamId set = shared with that team: the link then also shows up in teammates' link dropdowns,
+/// attributed to the owner (unless they turned team links off via User.showTeamLinks).
+model SavedLink {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId    String? // set = shared with that team
+  label     String
+  url       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, url])
   @@index([teamId])
 }
 
