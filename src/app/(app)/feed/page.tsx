@@ -41,13 +41,49 @@ function dayKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function parseDetails(details: string | null): { note?: string; zone?: string; activity?: string } {
+type FeedDetails = {
+  note?: string;
+  zone?: string;
+  activity?: string;
+  /** Strength sessions: the plan day / routine they were logged from. */
+  dayName?: string;
+  routineName?: string;
+};
+
+function parseDetails(details: string | null): FeedDetails {
   if (!details) return {};
   try {
-    return JSON.parse(details) as { note?: string; zone?: string; activity?: string };
+    return JSON.parse(details) as FeedDetails;
   } catch {
     return {};
   }
+}
+
+/** A teammate's name as a link to their profile (plan, goals, routines, recent sessions). */
+function MemberLink({ userId, name, title }: { userId: string; name: string; title: string }) {
+  return (
+    <Link
+      href={`/team/${userId}`}
+      title={title}
+      className="text-teal-700 underline decoration-dotted underline-offset-2"
+    >
+      {name}
+    </Link>
+  );
+}
+
+/** Comma-separated member names, each linking to that member's profile. */
+function MemberList({ members, t }: { members: Array<{ userId: string; userName: string }>; t: ServerT }) {
+  return (
+    <>
+      {members.map((m, i) => (
+        <span key={`${m.userId}-${i}`}>
+          {i > 0 && ", "}
+          <MemberLink userId={m.userId} name={m.userName} title={t("feed.viewProfile")} />
+        </span>
+      ))}
+    </>
+  );
 }
 
 function noteFromDetails(details: string | null): string | null {
@@ -254,7 +290,9 @@ async function DaySection({
                       <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
                         {t("feed.attendees")}
                       </p>
-                      <p>{attendees.map((a) => a.userName).join(", ")}</p>
+                      <p>
+                        <MemberList members={attendees} t={t} />
+                      </p>
                     </div>
                     {absentees.length > 0 && (
                       <div>
@@ -262,21 +300,7 @@ async function DaySection({
                           {t("feed.didNotCome")}
                         </p>
                         <p>
-                          {absentees.map((a, i) => (
-                            <span key={a.userId}>
-                              {i > 0 && ", "}
-                              {a.hasReason ? (
-                                <Link
-                                  href={`/team/${a.userId}`}
-                                  className="text-teal-700 underline"
-                                >
-                                  {a.userName}
-                                </Link>
-                              ) : (
-                                a.userName
-                              )}
-                            </span>
-                          ))}
+                          <MemberList members={absentees} t={t} />
                         </p>
                         {mine && (
                           <MissedActions
@@ -319,7 +343,9 @@ async function DaySection({
                       <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
                         {t("feed.attendees")}
                       </p>
-                      <p>{attendees.map((a) => a.userName).join(", ")}</p>
+                      <p>
+                        <MemberList members={attendees} t={t} />
+                      </p>
                     </div>
                     <Link
                       href={`/attendance?slot=${EXTRA_PRACTICE_ID}&label=${encodeURIComponent(extraLabel)}&date=${day}&edit=1`}
@@ -358,7 +384,9 @@ async function DaySection({
                     <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
                       {t("tournament.whoPlayed")}
                     </p>
-                    <p>{tournamentPlayers.map((a) => a.userName).join(", ")}</p>
+                    <p>
+                      <MemberList members={tournamentPlayers} t={t} />
+                    </p>
                   </div>
                   <p className="text-xs text-slate-400">{t("tournament.goalsHint")}</p>
                   <Link
@@ -384,8 +412,20 @@ async function DaySection({
 async function FeedItem({ t, log }: { t: ServerT; log: FeedLog }) {
   const missed = log.status === "MISSED";
   const isStrength = log.category === "STRENGTH" && log.status === "DONE";
+  const d = parseDetails(log.details);
+  // A strength session is titled by what it was: the routine's name or the 5/3/1 day — plus a
+  // badge saying which, so a newcomer isn't left guessing what "Day A" means.
+  const strengthName = isStrength ? d.routineName ?? d.dayName ?? null : null;
+  const strengthBadge = isStrength
+    ? d.routineName
+      ? t("routines.badge")
+      : d.dayName
+        ? t("strength.wendlerBadge")
+        : null
+    : null;
   const title =
     log.practiceLabel ??
+    strengthName ??
     (log.category === "OTHER" && noteFromDetails(log.details)
       ? noteFromDetails(log.details)!
       : t(`cat.${log.category}` as DictKey));
@@ -397,11 +437,28 @@ async function FeedItem({ t, log }: { t: ServerT; log: FeedLog }) {
       ? `/attendance?slot=${log.practiceSlotId}&date=${dayKey(log.date)}`
       : null;
 
-  const inner = (
+  // The whole row is itself a link for a missed practice (→ add yourself), and anchors can't
+  // nest — so the name stays plain text there.
+  const inner = (linkName: boolean) => (
     <>
       <span className="min-w-0">
-        <span className="block truncate font-medium text-slate-800">
-          {log.userName} · {title}
+        <span className="flex items-center gap-1.5 font-medium text-slate-800">
+          {/* The name is the way to the person's profile from anywhere in the feed — also on
+              rows that have nothing to expand (a cardio session, say). */}
+          <span className="truncate">
+            {linkName ? (
+              <MemberLink userId={log.userId} name={log.userName} title={t("feed.viewProfile")} />
+            ) : (
+              log.userName
+            )}
+            {" · "}
+            {title}
+          </span>
+          {strengthBadge && (
+            <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+              {strengthBadge}
+            </span>
+          )}
         </span>
         <span className="mt-0.5 block text-slate-400">
           {log.durationMin ? `${log.durationMin} ${t("common.minutes")}` : ""}
@@ -425,7 +482,7 @@ async function FeedItem({ t, log }: { t: ServerT; log: FeedLog }) {
           href={rugbyMissedHref}
           className="flex items-center justify-between gap-2 px-4 py-3 active:bg-slate-50"
         >
-          {inner}
+          {inner(false)}
         </Link>
       </li>
     );
@@ -436,7 +493,7 @@ async function FeedItem({ t, log }: { t: ServerT; log: FeedLog }) {
       <li className="text-sm">
         <details className="group">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 active:bg-slate-50">
-            {inner}
+            {inner(true)}
           </summary>
           <div className="px-4 pb-3">
             <StrengthWorkoutView details={log.details} />
@@ -447,6 +504,6 @@ async function FeedItem({ t, log }: { t: ServerT; log: FeedLog }) {
   }
 
   return (
-    <li className="flex items-center justify-between gap-2 px-4 py-3 text-sm">{inner}</li>
+    <li className="flex items-center justify-between gap-2 px-4 py-3 text-sm">{inner(true)}</li>
   );
 }

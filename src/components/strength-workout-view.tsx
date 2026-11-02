@@ -92,10 +92,11 @@ function parse(details: string | ViewDetails | null | undefined): ViewDetails | 
   return details;
 }
 
-function fmtSet(s: ViewSet): string {
-  const w = s.weight != null ? String(s.weight) : null;
-  // Timed sets (custom-routine SECONDS/KG_SECONDS): the seconds ARE the logged value —
-  // "30 s" for a plank, "24 × 40 s" for a weighted carry.
+/** One logged set as text. The load carries its unit ("40 kg × 5") so the bare number after
+ *  the × reads as reps without a label; timed sets show "30 s" / "24 kg × 40 s". */
+export function fmtSet(s: ViewSet): string {
+  const w = s.weight != null ? `${s.weight} kg` : null;
+  // Timed sets (custom-routine SECONDS/KG_SECONDS): the seconds ARE the logged value.
   if (s.seconds != null) {
     const sec = `${s.seconds} s`;
     return w != null ? `${w} × ${sec}` : sec;
@@ -230,6 +231,16 @@ export async function StrengthWorkoutView({
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           {data.dayName && (
             <span className="text-sm font-medium text-slate-800">{data.dayName}</span>
+          )}
+          {/* A program day (not a routine) is labelled so newcomers know what "5/3/1" means —
+              the badge leads to the strength hub, which explains the method. */}
+          {!data.routineName && (hasPerLift || cycleWeek) && (
+            <Link
+              href="/strength"
+              className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-teal-700 underline decoration-dotted"
+            >
+              {t("strength.wendlerBadge")}
+            </Link>
           )}
           {data.routineName &&
             (routineHref ? (

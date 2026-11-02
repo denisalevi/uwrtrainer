@@ -11,6 +11,17 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+### Changed
+- **Feed: who, what, and a way to the person.** Every name in the activity feed (session rows,
+  practice attendees, absentees, tournament players) now links to that member's profile page,
+  so you can get from any logged session to their plan and goals — including rows with nothing
+  to expand, like a cardio session. A strength row is titled by what it was (the routine's name
+  or the 5/3/1 day) with a **Routine** / **5/3/1** badge next to it; inside the expanded
+  workout, the **5/3/1** badge leads to the strength hub (which explains the method) and the
+  **Routine** badge, as before, to the routine itself.
+- **Logged sets read "40 kg × 5" instead of "40 × 5"** in workout views, so the number after
+  the × is unmistakably reps (timed sets stay "30 s" / "24 kg × 30 s").
+
 ## [0.36.0] - 2026-08-31
 
 ### Added
