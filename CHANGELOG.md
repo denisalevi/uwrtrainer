@@ -11,7 +11,11 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-11-02
+
 ### Changed
+- **Workout views read in session order**: warm-up on top, then the lifts, then the cool-down
+  (the warm-up summary used to sit under the exercises).
 - **Feed: who, what, and a way to the person.** Every name in the activity feed (session rows,
   practice attendees, absentees, tournament players) now links to that member's profile page,
   so you can get from any logged session to their plan and goals — including rows with nothing
