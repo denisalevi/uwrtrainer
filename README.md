@@ -135,6 +135,46 @@ The whole database is one file inside the `db-data` volume:
 docker compose cp app:/data/uwrtrainer.db ./backup-$(date +%F).db
 ```
 
+## Read-only feed API (for bots)
+
+An admin can create **API tokens** in Settings → Admin → API tokens. A token is bound to one
+team and can only read that team's activity feed — nothing else, and it can't change anything.
+The raw token (`uwr_…`) is shown once at creation; the app stores only its SHA-256 hash.
+Revoke it in the same place (takes effect immediately).
+
+```bash
+curl -H "Authorization: Bearer uwr_…" \
+  "https://<your-app>/api/v1/feed?since=2026-11-16&until=2026-11-20"
+```
+
+- `since` / `until`: inclusive days, `YYYY-MM-DD`, server-local. Default: the last 7 days.
+  Max window 92 days. Future-dated entries are never returned.
+- Rate limit: 30 requests/minute per token (`429` + `Retry-After`).
+- Errors: `401` bad/missing/revoked token, `400` bad range.
+
+Response (only what teammates already see in the feed; auto-generated "missed" rows, miss
+reasons, emails and ids are left out):
+
+```json
+{
+  "team": "My Team",
+  "since": "2026-11-16",
+  "until": "2026-11-20",
+  "count": 2,
+  "entries": [
+    { "date": "2026-11-19", "member": "Anna", "category": "RUGBY", "status": "DONE",
+      "durationMin": 90, "title": "Thursday pool", "note": null },
+    { "date": "2026-11-18", "member": "Linus", "category": "STRENGTH", "status": "DONE",
+      "durationMin": 50, "title": "Day A", "note": null,
+      "exercises": [ { "name": "Squat", "sets": ["40 kg × 5", "80 kg × 5", "90 kg × 6+"] } ] }
+  ]
+}
+```
+
+`category` is one of RUGBY, STRENGTH, CARDIO, MOBILITY, OTHER, TOURNAMENT; `status` is DONE or
+MISSED; `title` is the practice / tournament / routine / 5/3/1 day name or the free-text
+activity; `exercises` appears on done strength sessions only.
+
 ## Local development
 
 No Node.js on the host? Everything runs in a container:
