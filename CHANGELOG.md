@@ -11,6 +11,17 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-11-20
+
+### Added
+- **Read-only feed API for bots.** Admins can create API tokens in Settings → Admin →
+  API tokens. A token is tied to one team and can only read that team's activity feed via
+  `GET /api/v1/feed?since=YYYY-MM-DD&until=YYYY-MM-DD` (`Authorization: Bearer uwr_…`). The
+  token is shown once and stored only as a hash; the list shows when each token was last used,
+  and Revoke takes effect immediately. The payload holds only what teammates already see in the
+  feed (no emails, ids or miss reasons). Rate-limited to 30 requests/minute per token. See
+  README → "Read-only feed API".
+
 ## [0.37.0] - 2026-11-02
 
 ### Changed

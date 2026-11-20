@@ -708,6 +708,28 @@ export const en = {
   "routines.note": "Note",
 
   // ── Saved-link library (v0.36) ──
+  "apiTokens.title": "API tokens",
+  "apiTokens.hint": "Read-only access to a team's feed for bots and scripts.",
+  "apiTokens.intro":
+    "A token lets a program (e.g. the team's chat bot) read one team's activity feed: who logged what, when. It can't change anything or see emails, plans or miss reasons. Revoke a token as soon as it isn't needed or may have leaked.",
+  "apiTokens.name": "Name",
+  "apiTokens.namePlaceholder": "e.g. Team WhatsApp bot",
+  "apiTokens.team": "Team",
+  "apiTokens.create": "Create token",
+  "apiTokens.createdTitle": "Token “{name}” created",
+  "apiTokens.createdOnce":
+    "Copy it now and store it somewhere safe. It is shown only this once; the app keeps just a fingerprint of it.",
+  "apiTokens.tokenLabel": "New API token",
+  "apiTokens.copy": "Copy",
+  "apiTokens.errorName": "Give the token a name.",
+  "apiTokens.errorTeam": "Pick a team.",
+  "apiTokens.none": "No tokens yet.",
+  "apiTokens.active": "Active",
+  "apiTokens.revoked": "Revoked",
+  "apiTokens.revoke": "Revoke",
+  "apiTokens.createdAt": "Created {date} by {by}",
+  "apiTokens.lastUsed": "last used {date}",
+  "apiTokens.revokedAt": "revoked {date}",
   "links.title": "Link library",
   "links.hint": "Your saved warm-up / cool-down links.",
   "links.intro":
@@ -1438,6 +1460,28 @@ export const de: Record<DictKey, string> = {
   "routines.note": "Notiz",
 
   // ── Link-Bibliothek (v0.36) ──
+  "apiTokens.title": "API-Tokens",
+  "apiTokens.hint": "Lesezugriff auf den Feed eines Teams für Bots und Skripte.",
+  "apiTokens.intro":
+    "Mit einem Token kann ein Programm (z. B. der Chat-Bot des Teams) den Aktivitäten-Feed eines Teams lesen: wer wann was eingetragen hat. Es kann nichts ändern und sieht keine E-Mails, Pläne oder Absagegründe. Widerrufe ein Token, sobald es nicht mehr gebraucht wird oder in falsche Hände geraten sein könnte.",
+  "apiTokens.name": "Name",
+  "apiTokens.namePlaceholder": "z. B. WhatsApp-Bot des Teams",
+  "apiTokens.team": "Team",
+  "apiTokens.create": "Token erstellen",
+  "apiTokens.createdTitle": "Token „{name}“ erstellt",
+  "apiTokens.createdOnce":
+    "Kopiere es jetzt und bewahre es sicher auf. Es wird nur dieses eine Mal angezeigt; die App speichert nur einen Fingerabdruck davon.",
+  "apiTokens.tokenLabel": "Neues API-Token",
+  "apiTokens.copy": "Kopieren",
+  "apiTokens.errorName": "Gib dem Token einen Namen.",
+  "apiTokens.errorTeam": "Wähle ein Team.",
+  "apiTokens.none": "Noch keine Tokens.",
+  "apiTokens.active": "Aktiv",
+  "apiTokens.revoked": "Widerrufen",
+  "apiTokens.revoke": "Widerrufen",
+  "apiTokens.createdAt": "Erstellt am {date} von {by}",
+  "apiTokens.lastUsed": "zuletzt benutzt {date}",
+  "apiTokens.revokedAt": "widerrufen am {date}",
   "links.title": "Link-Bibliothek",
   "links.hint": "Deine gespeicherten Aufwärm- und Cool-down-Links.",
   "links.intro":

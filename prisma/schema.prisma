@@ -67,6 +67,7 @@ model User {
   routines          Routine[]
   authTokens        AuthToken[]
   savedLinks        SavedLink[]
+  apiTokens         ApiToken[]
 }
 
 /// Single-use emailed auth token (only its SHA-256 hash is stored; the raw token lives
@@ -95,6 +96,29 @@ model Team {
 
   memberships   TeamMembership[]
   practiceSlots PracticeSlot[]
+  apiTokens     ApiToken[]
+}
+
+// Read-only API token for machine clients (e.g. a team chat bot reading the activity feed).
+// Admin-created in Settings, bound to ONE team and one scope. Only the SHA-256 hash of the
+// raw token is stored (the raw value is shown once at creation). Revoking sets revokedAt;
+// rows are kept so the list shows what existed and when it was last used.
+model ApiToken {
+  id          String    @id @default(cuid())
+  name        String
+  tokenHash   String    @unique
+  // First characters of the raw token ("uwr_AbCd"), shown in the list to tell tokens apart.
+  prefix      String
+  scope       String    @default("feed:read")
+  teamId      String
+  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([teamId])
 }
 
 /// User <-> Team many-to-many. A user's active team is User.activeTeamId (fallback: first membership).

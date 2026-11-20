@@ -86,7 +86,7 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
 
 - **Next.js 16 App Router**, React 19, TypeScript, Tailwind v4 (hand-rolled UI primitives in
   `src/components/ui.tsx`, no component library).
-- **Server Components + Server Actions** for all data flow; no REST API layer. Mutations live in
+- **Server Components + Server Actions** for all data flow; no REST API layer (sole exception: the read-only feed API below). Mutations live in
   `src/app/actions/{auth,training,trainer,settings}.ts` (each `"use server"`).
 - **Prisma 7 + SQLite via the libSQL driver adapter** (`PrismaLibSql`). Client singleton in
   `src/lib/db.ts`; generated client in `src/generated/prisma` (gitignored — run `prisma generate`).
@@ -170,6 +170,16 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
   → Link library (`settings/links-section.tsx`) lists/adds/deletes and shares. Deleting: owners
   delete their own row; a TRAINER acting on someone else's shared link only unshares it
   (`teamId = null`) — team moderation never destroys a member's private entry.
+- **Read-only feed API** (0.38): `GET /api/v1/feed` (`src/app/api/v1/feed/route.ts`) — the
+  only REST endpoint. Auth = `Authorization: Bearer uwr_…` API token (`ApiToken` model: bound to
+  one team, scope `feed:read`, SHA-256-hashed, revocable via `revokedAt`, `lastUsedAt` written at
+  most every 5 min). `/api` is outside `src/proxy.ts`, so the route handler is the only auth
+  check. Pure helpers `src/lib/api-tokens.ts` (token gen/hash, bearer parsing, `since`/`until`
+  range, in-memory `RateLimiter` 30/min/token) and payload mapping `src/lib/feed-api.ts`
+  (feed-visible fields only — no ids/emails/miss reasons), both unit-tested; DB side
+  `src/lib/api-token-store.ts`; admin UI Settings → Admin → API tokens
+  (`settings/api-tokens-section.tsx` + client `components/api-token-create-form.tsx`, raw token
+  shown once via `useActionState`), actions `actions/api-tokens.ts` (ADMIN only). Usage in README.
 - **i18n**: `src/lib/i18n/` — `en`/`de` dictionaries (flat dotted keys), server helper
   `getServerT()`, client `useT()` (`src/components/i18n-provider.tsx`). Locale is **per user**
   (`User.locale`), applied in the root layout.

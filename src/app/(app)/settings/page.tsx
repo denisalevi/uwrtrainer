@@ -23,6 +23,7 @@ import { TeamsSection, AdminTeamMembers, AdminUserManagement, AdminReassignAccou
 import { DeleteOwnAccount } from "./delete-own-account";
 import { PracticeSlotsSettings } from "./practice-slots";
 import { LinksSection } from "./links-section";
+import { ApiTokensSection } from "./api-tokens-section";
 
 /** A titled group of collapsible settings cards; trainer/admin groups get a coloured accent. */
 function SettingsGroup({
@@ -425,6 +426,10 @@ export default async function SettingsPage({
 
           <Collapsible title={t("users.reassignTitle")} hint={t("users.reassignHint")}>
             <AdminReassignAccount />
+          </Collapsible>
+
+          <Collapsible title={t("apiTokens.title")} hint={t("apiTokens.hint")}>
+            <ApiTokensSection user={user} />
           </Collapsible>
 
           <Collapsible title={t("set.signupNotify")} hint={t("set.signupNotifyHint")}>
