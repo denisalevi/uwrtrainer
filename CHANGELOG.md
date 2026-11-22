@@ -11,6 +11,22 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-11-22
+
+### Added
+- **Two new leaderboards** after the rugby ones: **Tournament days** and **Sessions besides
+  rugby** (every logged session that is neither rugby nor a tournament). Both are on by default
+  and also on the dashboard and in the goals API (`TOURNAMENT_DAYS` / `OTHER_SESSIONS`,
+  per member `tournamentDays` / `otherSessions`).
+- **Season instead of year:** trainers set the season's first and last day in Settings →
+  Trainer → Season; the third leaderboard tab shows "Saison (1.11.–12.5.)" and counts that
+  range. Entering new dates starts a new season. Until a season is set, the tab shows the
+  calendar year. Goals API: `period=season` replaces `period=year`.
+
+### Changed
+- **Season points go up to 100 like a month:** the % of the plan reached over all the season's
+  months together, instead of adding up the months.
+
 ## [0.43.0] - 2026-11-22
 
 ### Changed

@@ -23,6 +23,12 @@ export function monthTargetFromWeekly(shares: WeeklyShare[]): number {
   return Math.floor(raw + 1e-9);
 }
 
+/** A monthly goal when only `days` of the month's `monthDays` count (season edges): rounded down. */
+export function monthTargetForPart(target: number, days: number, monthDays: number): number {
+  if (days >= monthDays) return target;
+  return Math.floor((target * days) / monthDays + 1e-9);
+}
+
 export type MonthGoal = { target: number; done: number };
 
 export type MonthScore = {
@@ -57,8 +63,9 @@ export function scoreMonthGoals(
 }
 
 /**
- * Several months (a year): points add up; the % is Σ reached / Σ target, so a busy month
- * weighs more than a light one — the same "every planned session counts" idea.
+ * Several months (a year): the % is Σ reached / Σ target, so a busy month weighs more than a
+ * light one (every planned session counts the same), and the points are that %, 0–100 — a
+ * year tops out at 100 like a month (Denis, 2026-11-22).
  */
 export function combineMonths(months: MonthScore[]): {
   adherencePct: number | null;
@@ -68,10 +75,11 @@ export function combineMonths(months: MonthScore[]): {
 } {
   const target = months.reduce((s, m) => s + m.target, 0);
   const reached = months.reduce((s, m) => s + m.reached, 0);
+  const adherencePct = target > 0 ? reached / target : null;
   return {
-    adherencePct: target > 0 ? reached / target : null,
+    adherencePct,
     target,
     reached,
-    points: months.reduce((s, m) => s + m.points, 0),
+    points: adherencePct == null ? 0 : Math.round(adherencePct * DEFAULT_SCORING.basePoints),
   };
 }

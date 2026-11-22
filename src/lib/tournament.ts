@@ -54,6 +54,22 @@ export function tournamentLabel(details: string | null): string | null {
   }
 }
 
+/** Distinct days with a DONE tournament (the "Tournament days" leaderboard). */
+export function tournamentDays(logs: { status: string; category: string; date: Date }[]): number {
+  return new Set(
+    logs
+      .filter((l) => l.status === "DONE" && l.category === TOURNAMENT_CATEGORY)
+      .map((l) => `${l.date.getFullYear()}-${l.date.getMonth()}-${l.date.getDate()}`),
+  ).size;
+}
+
+/** DONE sessions that are neither rugby nor tournaments (the "Sessions besides rugby" board). */
+export function otherSessions(logs: { status: string; category: string }[]): number {
+  return logs.filter(
+    (l) => l.status === "DONE" && l.category !== "RUGBY" && l.category !== TOURNAMENT_CATEGORY,
+  ).length;
+}
+
 /**
  * The "Rugby practices attended" value: every DONE rugby session, plus one per day with a DONE
  * tournament (Denis, 2026-11-22: "Turniere auch mit rein. Jeder Tag ein Training"). Several
@@ -63,10 +79,5 @@ export function rugbyPracticesAttended(
   logs: { status: string; category: string; date: Date }[],
 ): number {
   const rugby = logs.filter((l) => l.status === "DONE" && l.category === "RUGBY").length;
-  const tournamentDays = new Set(
-    logs
-      .filter((l) => l.status === "DONE" && l.category === TOURNAMENT_CATEGORY)
-      .map((l) => `${l.date.getFullYear()}-${l.date.getMonth()}-${l.date.getDate()}`),
-  );
-  return rugby + tournamentDays.size;
+  return rugby + tournamentDays(logs);
 }

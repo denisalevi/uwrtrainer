@@ -8,8 +8,10 @@ import {
   type GoalsSourceMonth,
   type GoalsSourceWeek,
 } from "./goals-api";
+import { resolveSeason } from "./season";
 
 const now = new Date(2026, 10, 22, 12, 0); // Sun 2026-11-22, local
+const season = resolveSeason("2026-11-01", "2027-05-12", now);
 
 describe("parseGoalsRange", () => {
   const q = (o: Partial<Record<"period" | "date" | "since" | "until", string>>) => ({
@@ -20,7 +22,7 @@ describe("parseGoalsRange", () => {
   });
 
   it("defaults to this week (Mon–Sun)", () => {
-    const r = parseGoalsRange(q({}), now);
+    const r = parseGoalsRange(q({}), now, season);
     if ("error" in r) throw new Error(r.error);
     expect(r).toMatchObject({ period: "week", since: "2026-11-16", until: "2026-11-22" });
     expect(r.start).toEqual(new Date(2026, 10, 16));
@@ -28,29 +30,32 @@ describe("parseGoalsRange", () => {
   });
 
   it("calendar month around a date, like the leaderboard", () => {
-    const r = parseGoalsRange(q({ period: "month", date: "2026-10-15" }), now);
+    const r = parseGoalsRange(q({ period: "month", date: "2026-10-15" }), now, season);
     if ("error" in r) throw new Error(r.error);
     expect(r).toMatchObject({ period: "month", since: "2026-10-01", until: "2026-10-31" });
     expect(r.end).toEqual(new Date(2026, 10, 1));
   });
 
-  it("year", () => {
-    const r = parseGoalsRange(q({ period: "year" }), now);
+  it("season = the configured team season, no date allowed; year is gone", () => {
+    const r = parseGoalsRange(q({ period: "season" }), now, season);
     if ("error" in r) throw new Error(r.error);
-    expect(r).toMatchObject({ since: "2026-01-01", until: "2026-12-31" });
+    expect(r).toMatchObject({ period: "season", since: "2026-11-01", until: "2027-05-12" });
+    expect(r.end).toEqual(new Date(2027, 4, 13));
+    expect(parseGoalsRange(q({ period: "season", date: "2026-12-01" }), now, season)).toHaveProperty("error");
+    expect(parseGoalsRange(q({ period: "year" }), now, season)).toHaveProperty("error");
   });
 
   it("custom since/until", () => {
-    const r = parseGoalsRange(q({ since: "2026-11-01", until: "2026-11-14" }), now);
+    const r = parseGoalsRange(q({ since: "2026-11-01", until: "2026-11-14" }), now, season);
     if ("error" in r) throw new Error(r.error);
     expect(r).toMatchObject({ period: "custom", since: "2026-11-01", until: "2026-11-14" });
   });
 
   it("rejects bad input and mixing", () => {
-    expect(parseGoalsRange(q({ period: "decade" }), now)).toHaveProperty("error");
-    expect(parseGoalsRange(q({ period: "month", date: "15.10.2026" }), now)).toHaveProperty("error");
-    expect(parseGoalsRange(q({ period: "month", since: "2026-11-01" }), now)).toHaveProperty("error");
-    expect(parseGoalsRange(q({ since: "2026-01-01", until: "2026-11-01" }), now)).toHaveProperty("error");
+    expect(parseGoalsRange(q({ period: "decade" }), now, season)).toHaveProperty("error");
+    expect(parseGoalsRange(q({ period: "month", date: "15.10.2026" }), now, season)).toHaveProperty("error");
+    expect(parseGoalsRange(q({ period: "month", since: "2026-11-01" }), now, season)).toHaveProperty("error");
+    expect(parseGoalsRange(q({ since: "2026-01-01", until: "2026-11-01" }), now, season)).toHaveProperty("error");
   });
 });
 
@@ -68,7 +73,7 @@ const week = (
 });
 
 describe("toGoalsApiMember", () => {
-  const extra = { streak: 2, rugbyPractices: 5, primaryPractices: 3, totalSessions: 9 };
+  const extra = { streak: 2, rugbyPractices: 5, primaryPractices: 3, tournamentDays: 1, otherSessions: 4, totalSessions: 9 };
 
   it("sums points, averages adherence over planned weeks, flags the running week", () => {
     const m = toGoalsApiMember(
@@ -119,7 +124,7 @@ describe("toGoalsApiMember", () => {
   });
 
   it("null average without any plan", () => {
-    const m = toGoalsApiMember("Bo", [], { streak: 0, rugbyPractices: 0, primaryPractices: 0, totalSessions: 0 }, now);
+    const m = toGoalsApiMember("Bo", [], { streak: 0, rugbyPractices: 0, primaryPractices: 0, tournamentDays: 0, otherSessions: 0, totalSessions: 0 }, now);
     expect(m.avgAdherencePct).toBeNull();
     expect(m.points).toBe(0);
   });
@@ -127,7 +132,7 @@ describe("toGoalsApiMember", () => {
 
 describe("leaderboards", () => {
   const mk = (member: string, points: number, rugbyPractices: number, streak = 0) =>
-    toGoalsApiMember(member, [week(new Date(2026, 10, 9), 1, points)], { streak, rugbyPractices, primaryPractices: 0, totalSessions: 0 }, now);
+    toGoalsApiMember(member, [week(new Date(2026, 10, 9), 1, points)], { streak, rugbyPractices, primaryPractices: 0, tournamentDays: 0, otherSessions: 0, totalSessions: 0 }, now);
 
   it("sorts members and ranks with ties, dropping zero values", () => {
     const members = sortGoalsMembers([mk("Cem", 50, 2), mk("Anna", 100, 2, 3), mk("Bo", 100, 0)]);
@@ -153,7 +158,7 @@ describe("toGoalsApiMonthMember (month view)", () => {
     ],
     score: { adherencePct: target ? reached / target : 0, target, reached, points, hasPlan: target > 0 },
   });
-  const extra = { streak: 1, rugbyPractices: 4, primaryPractices: 2, totalSessions: 12 };
+  const extra = { streak: 1, rugbyPractices: 4, primaryPractices: 2, tournamentDays: 2, otherSessions: 6, totalSessions: 12 };
 
   it("maps months and goals, with the final % over the period", () => {
     const m = toGoalsApiMonthMember("Ann", [month(2026, 9, 11, 10, 91), month(2026, 10, 11, 11, 100), month(2026, 11, 11, 0, 0)], extra, now);
@@ -167,7 +172,7 @@ describe("toGoalsApiMonthMember (month view)", () => {
     expect(m.months[0].goals[1]).toMatchObject({ cadence: "MONTH", label: "Climbing", reached: true });
     expect(m).toMatchObject({
       member: "Ann",
-      points: 191,
+      points: 95, // the period %, capped at 100 like the app's season board
       plannedSessions: 22,
       reachedSessions: 21,
       adherencePct: 95,

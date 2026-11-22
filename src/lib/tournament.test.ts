@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { startOfWeek, addWeeks } from "./dates";
-import { exemptWeekStarts, rugbyPracticesAttended, tournamentLabel } from "./tournament";
+import { exemptWeekStarts, otherSessions, rugbyPracticesAttended, tournamentDays, tournamentLabel } from "./tournament";
 import { applyWeekExemption, scoreWeek, fullAdherenceStreak, DEFAULT_SCORING } from "./scoring";
 
 // A Saturday game — the typical case (weeks are Monday-based, so its week IS the run-up week).
@@ -94,5 +94,20 @@ describe("rugbyPracticesAttended", () => {
         log("CARDIO", 4),
       ]),
     ).toBe(4);
+  });
+
+  it("tournament days and sessions besides rugby", () => {
+    const logs = [
+      log("TOURNAMENT", 14, "DONE", 9),
+      log("TOURNAMENT", 14, "DONE", 15),
+      log("TOURNAMENT", 15),
+      log("RUGBY", 3),
+      log("CARDIO", 4),
+      log("STRENGTH", 5),
+      log("OTHER", 6),
+      log("CARDIO", 7, "MISSED"),
+    ];
+    expect(tournamentDays(logs)).toBe(2);
+    expect(otherSessions(logs)).toBe(3);
   });
 });

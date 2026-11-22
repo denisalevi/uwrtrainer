@@ -7,11 +7,11 @@ import { localDayKey, parseFeedRange } from "@/lib/api-tokens";
 import { DEFAULT_SCORING } from "@/lib/scoring";
 import { competitionRanks } from "@/lib/rank";
 
-export const GOALS_PERIODS = ["week", "month", "year"] as const;
+export const GOALS_PERIODS = ["week", "month", "season"] as const;
 export type GoalsPeriod = (typeof GOALS_PERIODS)[number];
 
 export type GoalsRange = {
-  /** "week" | "month" | "year", or "custom" for since/until. */
+  /** "week" | "month" | "season", or "custom" for since/until. */
   period: GoalsPeriod | "custom";
   /** Inclusive local-midnight start, exclusive end — the same [start, end) the leaderboard uses. */
   start: Date;
@@ -30,13 +30,15 @@ function parseDay(v: string): Date | null {
 }
 
 /**
- * Resolve the query: either `period` (week | month | year, default week) around `date`
- * (YYYY-MM-DD, default today) — exactly the leaderboard's periodRange — or an explicit
- * `since`/`until` window (inclusive days, max 92 like the feed). Mixing both is an error.
+ * Resolve the query: either `period` (week | month around `date`, YYYY-MM-DD, default today;
+ * or season = the team season from Settings, `date` not allowed) — exactly the leaderboard's
+ * ranges — or an explicit `since`/`until` window (inclusive days, max 92 like the feed).
+ * Mixing both is an error.
  */
 export function parseGoalsRange(
   params: { period: string | null; date: string | null; since: string | null; until: string | null },
   now: Date,
+  season: { start: Date; end: Date; since: string; until: string },
 ): GoalsRange | { error: string } {
   const custom = params.since != null || params.until != null;
   if (custom && (params.period != null || params.date != null)) {
@@ -48,7 +50,11 @@ export function parseGoalsRange(
     return { period: "custom", ...r };
   }
   const period = (params.period ?? "week") as GoalsPeriod;
-  if (!GOALS_PERIODS.includes(period)) return { error: "period must be week, month or year" };
+  if (!GOALS_PERIODS.includes(period)) return { error: "period must be week, month or season" };
+  if (period === "season") {
+    if (params.date != null) return { error: "period=season takes no date (it is the team season)" };
+    return { period, start: season.start, end: season.end, since: season.since, until: season.until };
+  }
   const ref = params.date != null ? parseDay(params.date) : now;
   if (!ref) return { error: "date must be a date in YYYY-MM-DD format" };
   const { start, end } = periodRange(period, ref);
@@ -111,6 +117,10 @@ export type GoalsApiMember = {
   rugbyPractices: number;
   /** DONE primary-tier practices in the period (the "1st-team league practices" leaderboard). */
   primaryPractices: number;
+  /** Days with a DONE tournament (the "Tournament days" leaderboard). */
+  tournamentDays: number;
+  /** DONE sessions that are neither rugby nor tournaments (the "Sessions besides rugby" leaderboard). */
+  otherSessions: number;
   /** All DONE sessions in the period, any category, planned or not. */
   totalSessions: number;
   /** Sum of weekly targets over the started weeks (how much was planned)… */
@@ -123,10 +133,20 @@ export type GoalsApiMember = {
 
 const pct = (v: number) => Math.round(v * 100);
 
+/** Per-member counts that don't depend on the plan (countPracticesForUsers + streak). */
+export type GoalsMemberExtra = {
+  streak: number;
+  rugbyPractices: number;
+  primaryPractices: number;
+  tournamentDays: number;
+  otherSessions: number;
+  totalSessions: number;
+};
+
 export function toGoalsApiMember(
   name: string,
   weeks: GoalsSourceWeek[],
-  extra: { streak: number; rugbyPractices: number; primaryPractices: number; totalSessions: number },
+  extra: GoalsMemberExtra,
   now: Date,
 ): GoalsApiMember {
   const thisWeek = startOfWeek(now).getTime();
@@ -165,6 +185,8 @@ export function toGoalsApiMember(
     streak: extra.streak,
     rugbyPractices: extra.rugbyPractices,
     primaryPractices: extra.primaryPractices,
+    tournamentDays: extra.tournamentDays,
+    otherSessions: extra.otherSessions,
     totalSessions: extra.totalSessions,
     plannedSessions: goalItems.reduce((sum, it) => sum + it.target, 0),
     reachedSessions: goalItems.reduce((sum, it) => sum + Math.min(it.done, it.target), 0),
@@ -221,7 +243,7 @@ export type GoalsApiMonth = {
 
 export type GoalsApiMonthMember = {
   member: string;
-  /** The in-app month/year "adherence points" leaderboard value (sum of month points). */
+  /** The in-app month/year "adherence points" leaderboard value: the period's %, 0–100. */
   points: number;
   /** Final % for the period: reachedSessions / plannedSessions, 0–100; null without plan. */
   adherencePct: number | null;
@@ -232,6 +254,8 @@ export type GoalsApiMonthMember = {
   totalSessions: number;
   rugbyPractices: number;
   primaryPractices: number;
+  tournamentDays: number;
+  otherSessions: number;
   streak: number;
   /** Calendar months, oldest first (months not started yet are left out). */
   months: GoalsApiMonth[];
@@ -240,7 +264,7 @@ export type GoalsApiMonthMember = {
 export function toGoalsApiMonthMember(
   name: string,
   months: GoalsSourceMonth[],
-  extra: { streak: number; rugbyPractices: number; primaryPractices: number; totalSessions: number },
+  extra: GoalsMemberExtra,
   now: Date,
 ): GoalsApiMonthMember {
   const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
@@ -249,13 +273,16 @@ export function toGoalsApiMonthMember(
   const reached = months.reduce((s, m) => s + m.score.reached, 0);
   return {
     member: name,
-    points: months.reduce((s, m) => s + m.score.points, 0),
+    // Like the app's month/year board: the period's %, 0–100 (a year tops out at 100 too).
+    points: planned > 0 ? pct(reached / planned) : 0,
     adherencePct: planned > 0 ? pct(reached / planned) : null,
     plannedSessions: planned,
     reachedSessions: reached,
     totalSessions: extra.totalSessions,
     rugbyPractices: extra.rugbyPractices,
     primaryPractices: extra.primaryPractices,
+    tournamentDays: extra.tournamentDays,
+    otherSessions: extra.otherSessions,
     streak: extra.streak,
     months: months.map((m) => ({
       month: localDayKey(m.monthStart).slice(0, 7),
@@ -289,6 +316,8 @@ export const LEADERBOARD_FIELDS = {
   ADHERENCE_POINTS: "points",
   RUGBY_PRACTICES: "rugbyPractices",
   PRIMARY_PRACTICES: "primaryPractices",
+  TOURNAMENT_DAYS: "tournamentDays",
+  OTHER_SESSIONS: "otherSessions",
   STREAK: "streak",
 } as const satisfies Record<string, keyof GoalsApiMember & keyof GoalsApiMonthMember>;
 

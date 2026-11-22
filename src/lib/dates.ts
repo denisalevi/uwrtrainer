@@ -3,6 +3,9 @@
 
 export type Period = "week" | "month" | "year";
 
+/** Leaderboard tabs: the season comes from Settings (season.ts) instead of a calendar year. */
+export type LeaderboardPeriod = "week" | "month" | "season";
+
 export function startOfWeek(d: Date): Date {
   const date = new Date(d);
   date.setHours(0, 0, 0, 0);

@@ -181,22 +181,30 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
   (`settings/api-tokens-section.tsx` + client `components/api-token-create-form.tsx`, raw token
   shown once via `useActionState`), actions `actions/api-tokens.ts` (ADMIN only). Usage in README.
   **`GET /api/v1/goals`** (0.39, same tokens): leaderboard metrics + weekly plan-vs-done per
-  member for `period=week|month|year[&date=]` or `since/until`. Scores come from
+  member for `period=week|month[&date=]`, `period=season` or `since/until`. Scores come from
   `scoreWeeksForUsers()` / `countPracticesForUsers()` in `stats.ts`, which `getLeaderboard` also
   uses — keep it that way so the API and the leaderboards page can't drift. Pure range/payload
   helpers in `src/lib/goals-api.ts` (unit-tested). 10 req/min/token.
   0.40 adds per-member `totalSessions` / `plannedSessions` / `reachedSessions`.
-  0.41: `period=month|year` returns the month view (`members[].months`) from `scoreMonthsForUsers`.
+  0.41: `period=month|season` returns the month view (`members[].months`) from `scoreMonthsForUsers`.
 - **Monthly goals + month view** (0.41): `PlanItem.cadence` = `"WEEK"|"MONTH"` (`targetPerWeek`
   then holds the per-month target; slot markers are always WEEK; caps in `MAX_PLAN_TARGET`).
   Weekly scoring (`buildScoreItems`: weekly board, streak, dashboard week, auto-missed in
-  `missed.ts`) ignores MONTH items. The month/year boards, the dashboard "This month" card and
+  `missed.ts`) ignores MONTH items. The month/season boards, the dashboard "This month" card and
   the goals API month view use `scoreMonthsForUsers()` in `stats.ts` + pure rules in
   `src/lib/month-scoring.ts` (unit-tested): calendar month, no weeks; weekly goal → floor(Σ
   weekly target × days of each overlapping week in the month / 7), exempt weeks skipped, plan of
   each week's Sunday; monthly goals from the plan on the month's last day; % = reached/target
   (capped per goal); month points = month % (0–100). Agreed with Denis
   2026-11-22 — don't reintroduce weeks into the month view.
+- **Season + count boards** (0.44): the third leaderboard tab is the **season** (`Setting`
+  keys `season.start`/`season.end`, pure helpers `src/lib/season.ts`, DB read
+  `season-store.ts`, set in Settings → Trainer → Season via `setSeason`; calendar year while
+  unset). Season points = Σ reached / Σ target over its started months, 0–100
+  (`combineMonths`); edge months are clipped to the season (`scoreOneMonth` window,
+  `monthTargetForPart`). Metrics `TOURNAMENT_DAYS` / `OTHER_SESSIONS` (helpers in
+  `tournament.ts`, seeded by migration `20261122140000_more_leaderboards`); a tournament day
+  also counts as one rugby practice attended (0.43).
   Members' free-text reasons (`WeekNote`, `missReason`) are deliberately NOT exposed by the API
   (Denis's call).
 - **i18n**: `src/lib/i18n/` — `en`/`de` dictionaries (flat dotted keys), server helper
