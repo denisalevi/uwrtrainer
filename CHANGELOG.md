@@ -11,6 +11,13 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.44.1] - 2026-11-22
+
+### Fixed
+- Dashboard month card: the total ("2 / 9  22 %") stays on one line, and only the percentage
+  is bold.
+- Dashboard month card: a note names the tournament weeks that lowered the month's targets.
+
 ## [0.44.0] - 2026-11-22
 
 ### Added

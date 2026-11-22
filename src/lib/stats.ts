@@ -385,6 +385,8 @@ export type MonthGoalRow = {
 
 export type ScoredMonth = {
   monthStart: Date;
+  /** Mondays of tournament-exempt weeks left out of the weekly goals' month targets. */
+  exemptWeeks: Date[];
   goals: MonthGoalRow[];
   score: MonthScore;
 };
@@ -419,8 +421,12 @@ function scoreOneMonth(
 
   // Weekly goals: each week overlapping the month contributes target × its days in the month
   // (exempt weeks contribute nothing), using the plan of that week (active at its Sunday).
+  const skipped: Date[] = [];
   for (const ws of weekStartsInRange(from0, me)) {
-    if (exemptWeeks?.has(ws.getTime())) continue;
+    if (exemptWeeks?.has(ws.getTime())) {
+      skipped.push(ws);
+      continue;
+    }
     const we = addWeeks(ws, 1);
     const from = ws < from0 ? from0 : ws;
     const to = we > me ? me : we;
@@ -469,7 +475,9 @@ function scoreOneMonth(
       done: countGoalDone(monthLogs, g.category),
     }))
     .filter((g) => g.target > 0);
-  return { monthStart: ms, goals: rows, score: scoreMonthGoals(rows) };
+  // Only worth mentioning when a weekly goal was actually reduced by it.
+  const exempt = rows.some((g) => g.cadence === "WEEK") ? skipped : [];
+  return { monthStart: ms, exemptWeeks: exempt, goals: rows, score: scoreMonthGoals(rows) };
 }
 
 /**
