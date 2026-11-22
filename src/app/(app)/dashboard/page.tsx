@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/dal";
 import { getServerT } from "@/lib/i18n/server";
-import { getCurrentWeekDetail, getCurrentWeekMetrics } from "@/lib/stats";
+import { getCurrentMonth, getCurrentWeekDetail, getCurrentWeekMetrics } from "@/lib/stats";
 import { prisma } from "@/lib/db";
 import { isTrainer, type LeaderboardMetric } from "@/lib/constants";
 import { Card, CardBody, Button, Badge, ProgressBar, SectionTitle } from "@/components/ui";
@@ -10,10 +10,11 @@ import { SessionLogList } from "@/components/session-log-list";
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const { t } = await getServerT();
+  const { t, locale } = await getServerT();
   const trainer = isTrainer(user.role);
-  const [detail, metrics, boards, recent] = await Promise.all([
+  const [detail, month, metrics, boards, recent] = await Promise.all([
     getCurrentWeekDetail(user.id),
+    getCurrentMonth(user.id),
     getCurrentWeekMetrics(user.id),
     prisma.leaderboard.findMany({ where: { enabled: true }, orderBy: { sortOrder: "asc" } }),
     prisma.sessionLog.findMany({
@@ -67,7 +68,7 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      {detail.score.hasPlan ? (
+      {detail.score.hasPlan && (
         <section className="space-y-2">
           <SectionTitle>{t("dash.title")}</SectionTitle>
           <Card>
@@ -98,7 +99,45 @@ export default async function DashboardPage() {
             </CardBody>
           </Card>
         </section>
-      ) : (
+      )}
+
+      {month.score.hasPlan && (
+        <section className="space-y-2">
+          <SectionTitle>
+            {t("dash.monthGoals", {
+              month: month.monthStart.toLocaleDateString(locale, { month: "long" }),
+            })}
+          </SectionTitle>
+          <Card>
+            <CardBody className="space-y-4">
+              {month.goals.map((g, i) => (
+                <div key={i}>
+                  <div className="mb-1 flex items-center justify-between text-sm">
+                    <span className="font-medium text-slate-800">
+                      {g.category === "OTHER" && g.label ? g.label : t(`cat.${g.category}` as DictKey)}
+                      <span className="ml-2 text-xs font-normal text-slate-400">
+                        {g.planned} {t(g.cadence === "MONTH" ? "plan.perMonth" : "plan.perWeek")}
+                      </span>
+                    </span>
+                    <span className="text-slate-500">
+                      {t("dash.targetProgress", { done: g.done, target: g.target })}
+                    </span>
+                  </div>
+                  <ProgressBar value={g.done / g.target} />
+                </div>
+              ))}
+              <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-sm">
+                <span className="text-slate-500">{t("dash.monthGoalsHint")}</span>
+                <span className="font-semibold text-teal-700">
+                  {month.score.reached} / {month.score.target} · {Math.round(month.score.adherencePct * 100)} %
+                </span>
+              </div>
+            </CardBody>
+          </Card>
+        </section>
+      )}
+
+      {!detail.score.hasPlan && !month.score.hasPlan && (
         <Card>
           <CardBody>
             <p className="font-medium text-slate-800">{t("dash.noPlan")}</p>

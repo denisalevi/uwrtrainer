@@ -14,9 +14,18 @@ import {
   addDays,
   periodRange,
   weekStartsInRange,
+  monthStartsInRange,
+  nextMonth,
   type Period,
 } from "@/lib/dates";
-import type { Category, LeaderboardMetric, PracticeTier } from "@/lib/constants";
+import {
+  monthTargetFromWeekly,
+  scoreMonthGoals,
+  combineMonths,
+  type MonthScore,
+  type WeeklyShare,
+} from "@/lib/month-scoring";
+import type { Category, LeaderboardMetric, PlanCadence, PracticeTier } from "@/lib/constants";
 import { selectActivePlan } from "@/lib/plan-version";
 import { isSlotInSeasonForWeek } from "@/lib/practice-window";
 
@@ -36,6 +45,8 @@ type PlanWithItems = {
   items: {
     category: string;
     target: number;
+    /** WEEK goals score per Mon–Sun week; MONTH goals only in the month view (month-scoring.ts). */
+    cadence: PlanCadence;
     practiceSlotId: string | null;
     tier: PracticeTier | null;
     note: string | null;
@@ -64,7 +75,8 @@ function buildScoreItems(
   slotDayOfWeek: number | null;
   inSeason: boolean;
 })[] {
-  return items.map((it) => {
+  // The weekly score (weekly board, streak, dashboard week) only knows weekly goals.
+  return items.filter((it) => it.cadence !== "MONTH").map((it) => {
     let done: number;
     if (it.practiceSlotId) {
       // A specific committed practice slot — count completions of that slot.
@@ -124,6 +136,8 @@ async function loadPlans(userIds?: string[]): Promise<PlanWithItems[]> {
     items: p.items.map((it) => ({
       category: it.category,
       target: it.targetPerWeek,
+      // Practice-slot markers are weekly by definition, whatever the column says.
+      cadence: (it.cadence === "MONTH" && !it.practiceSlotId ? "MONTH" : "WEEK") as PlanCadence,
       practiceSlotId: it.practiceSlotId,
       tier: (it.practiceSlot?.tier as PracticeTier | undefined) ?? null,
       note: it.note,
@@ -281,11 +295,11 @@ export type ScoredWeek = {
 };
 
 /**
- * Every week overlapping [start, end) scored for each user, exactly as the adherence
- * leaderboard does it: logs are counted only inside [start, end) (so a "month" counts the
- * month's days of its edge weeks), the plan active at each week's Sunday applies, and
- * tournament-exempt weeks count as fully adherent. Shared by getLeaderboard and the
- * read-only goals API so both always agree.
+ * Every week overlapping [start, end) scored for each user, exactly as the WEEKLY adherence
+ * leaderboard does it: logs are counted only inside [start, end), the plan active at each
+ * week's Sunday applies, weekly goals only, and tournament-exempt weeks count as fully
+ * adherent. Month/year boards use the calendar-month view instead (scoreMonthsForUsers).
+ * Shared by getLeaderboard and the read-only goals API so both always agree.
  */
 export async function scoreWeeksForUsers(
   userIds: string[],
@@ -337,7 +351,139 @@ export async function countPracticesForUsers(
   return out;
 }
 
-export type LeaderRow = { userId: string; name: string; value: number };
+// ---- Month view (month-scoring.ts has the rules) ----
+
+export type MonthGoalRow = {
+  category: Category;
+  /** The custom activity name for OTHER goals, else null. */
+  label: string | null;
+  cadence: PlanCadence;
+  /** The goal as planned: per week, or per month. */
+  planned: number;
+  /** Target for this calendar month (weekly goals: × days / 7, rounded down). */
+  target: number;
+  /** DONE sessions dated in the month. */
+  done: number;
+};
+
+export type ScoredMonth = {
+  monthStart: Date;
+  goals: MonthGoalRow[];
+  score: MonthScore;
+};
+
+/** Same matching as the weekly count goals: rugby counts every DONE rugby session. */
+function countGoalDone(logs: LogRow[], category: string): number {
+  return logs.filter(
+    (l) => l.status === "DONE" && l.category === category && (category === "RUGBY" || !l.practiceSlotId),
+  ).length;
+}
+
+function scoreOneMonth(
+  plans: PlanWithItems[],
+  userId: string,
+  logs: LogRow[],
+  exemptWeeks: Set<number> | undefined,
+  ms: Date,
+): ScoredMonth {
+  const me = nextMonth(ms);
+  const monthLogs = logs.filter((l) => l.date >= ms && l.date < me);
+  type Acc = { category: string; label: string | null; cadence: PlanCadence; planned: number; shares: WeeklyShare[]; target: number };
+  const goals = new Map<string, Acc>();
+  const keyOf = (category: string, note: string | null) =>
+    `${category}|${category === "OTHER" ? (note ?? "").trim() : ""}`;
+
+  // Weekly goals: each week overlapping the month contributes target × its days in the month
+  // (exempt weeks contribute nothing), using the plan of that week (active at its Sunday).
+  for (const ws of weekStartsInRange(ms, me)) {
+    if (exemptWeeks?.has(ws.getTime())) continue;
+    const we = addWeeks(ws, 1);
+    const from = ws < ms ? ms : ws;
+    const to = we > me ? me : we;
+    const days = Math.round((to.getTime() - from.getTime()) / 86_400_000);
+    for (const it of activeItems(plans, userId, addDays(ws, 6))) {
+      if (it.cadence === "MONTH" || it.practiceSlotId || it.target <= 0) continue;
+      const k = keyOf(it.category, it.note);
+      const acc = goals.get(k) ?? {
+        category: it.category,
+        label: it.category === "OTHER" ? it.note : null,
+        cadence: "WEEK" as PlanCadence,
+        planned: it.target,
+        shares: [],
+        target: 0,
+      };
+      acc.planned = it.target; // latest weekly target wins for display
+      acc.shares.push({ target: it.target, days });
+      goals.set(k, acc);
+    }
+  }
+  // Monthly goals: the plan active on the month's last day, target as entered.
+  for (const it of activeItems(plans, userId, addDays(me, -1))) {
+    if (it.cadence !== "MONTH" || it.target <= 0) continue;
+    const k = keyOf(it.category, it.note);
+    goals.set(k, {
+      category: it.category,
+      label: it.category === "OTHER" ? it.note : null,
+      cadence: "MONTH",
+      planned: it.target,
+      shares: [],
+      target: it.target,
+    });
+  }
+
+  const rows: MonthGoalRow[] = [...goals.values()]
+    .map((g) => ({
+      category: g.category as Category,
+      label: g.label,
+      cadence: g.cadence,
+      planned: g.planned,
+      target: g.cadence === "MONTH" ? g.target : monthTargetFromWeekly(g.shares),
+      done: countGoalDone(monthLogs, g.category),
+    }))
+    .filter((g) => g.target > 0);
+  return { monthStart: ms, goals: rows, score: scoreMonthGoals(rows) };
+}
+
+/**
+ * The month view for each user: every calendar month overlapping [start, end) — one for the
+ * month leaderboard, twelve for the year. Shared by getLeaderboard, the dashboard and the
+ * read-only goals API so all three always show the same numbers.
+ */
+export async function scoreMonthsForUsers(
+  userIds: string[],
+  start: Date,
+  end: Date,
+): Promise<Map<string, ScoredMonth[]>> {
+  const out = new Map<string, ScoredMonth[]>();
+  if (userIds.length === 0) return out;
+  const months = monthStartsInRange(start, end);
+  if (months.length === 0) return out;
+  const from = months[0];
+  const to = nextMonth(months[months.length - 1]);
+  const plans = await loadPlans(userIds);
+  const logsByUser = await loadLogs(userIds, from, to);
+  const exemptByUser = await loadExemptWeeks(userIds, startOfWeek(from), addWeeks(startOfWeek(to), 1));
+  for (const id of userIds) {
+    const logs = logsByUser.get(id) ?? [];
+    out.set(id, months.map((ms) => scoreOneMonth(plans, id, logs, exemptByUser.get(id), ms)));
+  }
+  return out;
+}
+
+/** This calendar month for one player (dashboard month card). */
+export async function getCurrentMonth(userId: string): Promise<ScoredMonth> {
+  const { start, end } = periodRange("month");
+  return (await scoreMonthsForUsers([userId], start, end)).get(userId)![0];
+}
+
+export type LeaderRow = {
+  userId: string;
+  name: string;
+  value: number;
+  /** Month/year adherence board only: sessions reached / planned in the month view. */
+  reached?: number;
+  target?: number;
+};
 
 /** Compute a leaderboard for a metric over a period, sorted descending. */
 export async function getLeaderboard(
@@ -355,12 +501,21 @@ export async function getLeaderboard(
   if (userIds.length === 0) return [];
 
   const values = new Map<string, number>();
+  const extra = new Map<string, { reached: number; target: number }>();
 
   if (metric === "RUGBY_PRACTICES" || metric === "PRIMARY_PRACTICES") {
     const counts = await countPracticesForUsers(userIds, start, end);
     for (const u of users) {
       const c = counts.get(u.id);
       values.set(u.id, (metric === "RUGBY_PRACTICES" ? c?.rugby : c?.primary) ?? 0);
+    }
+  } else if (metric === "ADHERENCE_POINTS" && period !== "week") {
+    // Month/year: the calendar-month view, 100 points per fully kept month (month-scoring.ts).
+    const monthsByUser = await scoreMonthsForUsers(userIds, start, end);
+    for (const u of users) {
+      const c = combineMonths((monthsByUser.get(u.id) ?? []).map((m) => m.score));
+      values.set(u.id, c.points);
+      extra.set(u.id, { reached: c.reached, target: c.target });
     }
   } else if (metric === "ADHERENCE_POINTS") {
     const weeksByUser = await scoreWeeksForUsers(userIds, start, end);
@@ -375,7 +530,7 @@ export async function getLeaderboard(
   }
 
   return users
-    .map((u) => ({ userId: u.id, name: u.name, value: values.get(u.id) ?? 0 }))
+    .map((u) => ({ userId: u.id, name: u.name, value: values.get(u.id) ?? 0, ...extra.get(u.id) }))
     .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
 }
 

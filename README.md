@@ -177,46 +177,78 @@ activity; `exercises` appears on done strength sessions only.
 
 ### Goals and leaderboards: `GET /api/v1/goals`
 
-Same token, same rules. Everything the leaderboards page shows, plus each member's weekly
-plan (targets per category / committed practice) against what they did.
+Same token, same rules. Everything the leaderboards page shows, plus each member's plan
+against what they did. Two shapes, matching the two views in the app:
 
-- `?period=week|month|year` (default `week`) with optional `&date=YYYY-MM-DD` to pick which
-  week/month/year — exactly the leaderboard's periods (a month counts the weeks overlapping it,
-  but only the month's own days; tournament-exempt weeks count as 100%). Or a custom
-  `?since=…&until=…` window (max 92 days). Don't mix the two.
-- Rate limit 10 requests/minute per token.
+- `?period=week` (default; optional `&date=YYYY-MM-DD` picks the week) or a custom
+  `?since=…&until=…` window (max 92 days): the **week view**. `members[].weeks` holds the weekly
+  goals per Mon–Sun week, exactly like the weekly leaderboard (tournament-exempt weeks count as
+  100%). Monthly goals are not part of it.
+- `?period=month|year` (optional `&date=`): the **month view**, no weeks. Every goal becomes a
+  target for the calendar month: a weekly goal is `planned × days in the month / 7`, rounded down
+  (2 per week in November → 8), leaving out days of tournament-exempt weeks; a monthly goal keeps
+  its target. Done = sessions dated in the month. The month % is reached / target over all goals,
+  each capped at its target. A fully kept month is worth 100 points (+ up to 10 overshoot
+  bonus); a year adds up its months.
+- Rate limit 10 requests/minute per token. Don't mix `period`/`date` with `since`/`until`.
+
+Month view (`period=month&date=2026-10-15`):
 
 ```json
 {
-  "team": "My Team", "period": "month", "since": "2026-11-01", "until": "2026-11-30",
+  "team": "My Team", "period": "month", "since": "2026-10-01", "until": "2026-10-31",
   "leaderboards": {
-    "ADHERENCE_POINTS":  [ { "rank": 1, "member": "Linus", "value": 100 }, { "rank": 2, "member": "Denis", "value": 81 } ],
-    "RUGBY_PRACTICES":   [ { "rank": 1, "member": "Denis", "value": 2 } ],
-    "PRIMARY_PRACTICES": [ { "rank": 1, "member": "Denis", "value": 1 } ],
-    "STREAK": []
+    "ADHERENCE_POINTS":  [ { "rank": 1, "member": "Denis", "value": 96 } ],
+    "RUGBY_PRACTICES":   [ { "rank": 1, "member": "Denis", "value": 9 } ],
+    "PRIMARY_PRACTICES": [],
+    "STREAK":            [ { "rank": 1, "member": "Denis", "value": 2 } ]
   },
   "members": [
-    { "member": "Linus", "points": 100, "avgAdherencePct": 33, "weeksWithPlan": 3, "fullWeeks": 1,
-      "streak": 0, "rugbyPractices": 1, "primaryPractices": 1,
-      "weeks": [
-        { "weekStart": "2026-11-16", "complete": false, "hasPlan": true, "exempt": false,
-          "adherencePct": 50, "points": 50,
+    { "member": "Denis", "points": 96, "adherencePct": 94,
+      "plannedSessions": 17, "reachedSessions": 16, "totalSessions": 17,
+      "rugbyPractices": 9, "primaryPractices": 0, "streak": 2,
+      "months": [
+        { "month": "2026-10", "complete": true, "hasPlan": true, "adherencePct": 94,
+          "target": 17, "reached": 16, "points": 96,
           "goals": [
-            { "category": "RUGBY", "practice": "Tuesday pool", "tier": "PRIMARY", "target": 1, "done": 1 },
-            { "category": "STRENGTH", "practice": null, "tier": null, "target": 2, "done": 0 } ] } ] }
+            { "category": "RUGBY", "label": null, "cadence": "WEEK", "planned": 2, "target": 8, "done": 9, "reached": true },
+            { "category": "CARDIO", "label": null, "cadence": "MONTH", "planned": 6, "target": 6, "done": 6, "reached": true },
+            { "category": "OTHER", "label": "Climbing", "cadence": "MONTH", "planned": 3, "target": 3, "done": 2, "reached": false } ] } ] }
   ]
 }
 ```
 
-Per member there are also `totalSessions` (all DONE sessions in the period, planned or not),
-`plannedSessions` (sum of the weekly targets) and `reachedSessions` (done, capped at each
-target) — enough to tell "big plan, half reached, lots done" from "small plan, fully kept".
+`adherencePct` (0–100) is the final % for the whole period = `reachedSessions / plannedSessions`.
+`cadence` says whether a goal was planned per week (`WEEK`, `planned` = per week) or per month
+(`MONTH`). Months that haven't started are left out; the running month has `complete: false`.
 
-`leaderboards` lists every metric (including ones disabled or trainer-only on the page),
-value > 0 only, ties share a rank. `members` is sorted by points; `points` is that period's
-"Plan adherence points". `streak` is the current streak of completed 100% weeks (independent
-of the period, as in the app). `weeks` are oldest first; weeks that haven't started are left
-out, and the running week has `complete: false`. Plan notes and miss reasons are not included.
+Week view (`period=week`):
+
+```json
+{
+  "team": "My Team", "period": "week", "since": "2026-11-16", "until": "2026-11-22",
+  "leaderboards": { "ADHERENCE_POINTS": [ { "rank": 1, "member": "Linus", "value": 50 } ], "…": [] },
+  "members": [
+    { "member": "Linus", "points": 50, "avgAdherencePct": 50, "weeksWithPlan": 1, "fullWeeks": 0,
+      "streak": 0, "rugbyPractices": 1, "primaryPractices": 1,
+      "totalSessions": 1, "plannedSessions": 3, "reachedSessions": 1,
+      "weeks": [
+        { "weekStart": "2026-11-16", "complete": false, "hasPlan": true, "exempt": false,
+          "adherencePct": 50, "points": 50,
+          "goals": [
+            { "category": "RUGBY", "cadence": "WEEK", "practice": "Tuesday pool", "tier": "PRIMARY", "target": 1, "done": 1 },
+            { "category": "STRENGTH", "cadence": "WEEK", "practice": null, "tier": null, "target": 2, "done": 0 } ] } ] }
+  ]
+}
+```
+
+Both: `totalSessions` = all DONE sessions in the period, planned or not; `plannedSessions` /
+`reachedSessions` = sum of targets / done capped at each target — enough to tell "big plan, half
+reached, lots done" from "small plan, fully kept". `leaderboards` lists every metric (including
+ones disabled or trainer-only on the page), value > 0 only, ties share a rank. `members` is
+sorted by points; `points` is that period's "Plan adherence points" exactly as the app shows
+them. `streak` is the current streak of completed 100% weeks (independent of the period, as in
+the app). Plan notes and miss reasons are not included.
 
 ## Local development
 

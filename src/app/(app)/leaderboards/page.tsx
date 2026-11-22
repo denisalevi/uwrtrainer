@@ -55,6 +55,10 @@ export default async function LeaderboardsPage({
         ))}
       </div>
 
+      {period !== "week" && boards.some((b) => b.board.metric === "ADHERENCE_POINTS") && (
+        <p className="text-xs text-slate-500">{t("lb.monthHint")}</p>
+      )}
+
       {boards.length === 0 ? (
         <p className="text-sm text-slate-500">{t(trainer ? "lb.noneTrainer" : "lb.none")}</p>
       ) : (
@@ -86,6 +90,11 @@ export default async function LeaderboardsPage({
                           {ranks[i] === 1 ? "🥇" : ranks[i] === 2 ? "🥈" : ranks[i] === 3 ? "🥉" : ranks[i]}
                         </span>
                         <span className="flex-1 font-medium text-slate-800">{row.name}</span>
+                        {row.target != null && row.target > 0 && (
+                          <span className="text-xs text-slate-400">
+                            {row.reached}/{row.target}
+                          </span>
+                        )}
                         <span className="font-bold text-teal-700">
                           {board.metric === "STREAK" ? `🔥 ${row.value}` : row.value}
                         </span>

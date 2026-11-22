@@ -4,20 +4,24 @@
 //   ?period=week|month|year[&date=YYYY-MM-DD]   (the leaderboard's periods; default: this week)
 //   ?since=YYYY-MM-DD&until=YYYY-MM-DD          (custom window, max 92 days)
 //
-// Scores come from scoreWeeksForUsers — the same function the adherence leaderboard uses — so
-// `points` for period=month equals the in-app month leaderboard 1:1. Members already see each
+// period=week and since/until: weekly goals per Mon–Sun week (members[].weeks), from
+// scoreWeeksForUsers — the weekly board's function. period=month|year: the calendar-month view
+// without weeks (members[].months, weekly goals converted × days / 7 rounded down, plus monthly
+// goals), from scoreMonthsForUsers — the month/year boards' function. Either way `points`
+// equals the in-app leaderboard 1:1. Members already see each
 // other's plans and adherence in the app; still no ids, emails, plan notes, trainer notes or
 // miss reasons.
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticateApiToken } from "@/lib/api-token-store";
 import { RateLimiter, parseBearer } from "@/lib/api-tokens";
-import { countPracticesForUsers, getStreak, scoreWeeksForUsers } from "@/lib/stats";
+import { countPracticesForUsers, getStreak, scoreMonthsForUsers, scoreWeeksForUsers } from "@/lib/stats";
 import {
   buildLeaderboards,
   parseGoalsRange,
   sortGoalsMembers,
   toGoalsApiMember,
+  toGoalsApiMonthMember,
 } from "@/lib/goals-api";
 
 // Heavier than the feed (plans + scoring per member): 10 requests per minute per token.
@@ -56,27 +60,27 @@ export async function GET(request: NextRequest) {
     }),
   ]);
   const ids = users.map((u) => u.id);
-  const [weeksByUser, practices, streaks] = await Promise.all([
-    scoreWeeksForUsers(ids, range.start, range.end),
+  const monthView = range.period === "month" || range.period === "year";
+  const [weeksByUser, monthsByUser, practices, streaks] = await Promise.all([
+    monthView ? null : scoreWeeksForUsers(ids, range.start, range.end),
+    monthView ? scoreMonthsForUsers(ids, range.start, range.end) : null,
     countPracticesForUsers(ids, range.start, range.end),
     Promise.all(users.map((u) => getStreak(u.id))),
   ]);
+  const extra = (id: string, i: number) => ({
+    streak: streaks[i],
+    rugbyPractices: practices.get(id)?.rugby ?? 0,
+    primaryPractices: practices.get(id)?.primary ?? 0,
+    totalSessions: practices.get(id)?.sessions ?? 0,
+  });
 
-  const members = sortGoalsMembers(
-    users.map((u, i) =>
-      toGoalsApiMember(
-        u.name,
-        weeksByUser.get(u.id) ?? [],
-        {
-          streak: streaks[i],
-          rugbyPractices: practices.get(u.id)?.rugby ?? 0,
-          primaryPractices: practices.get(u.id)?.primary ?? 0,
-          totalSessions: practices.get(u.id)?.sessions ?? 0,
-        },
-        now,
-      ),
-    ),
-  );
+  const members = monthsByUser
+    ? sortGoalsMembers(
+        users.map((u, i) => toGoalsApiMonthMember(u.name, monthsByUser.get(u.id) ?? [], extra(u.id, i), now)),
+      )
+    : sortGoalsMembers(
+        users.map((u, i) => toGoalsApiMember(u.name, weeksByUser?.get(u.id) ?? [], extra(u.id, i), now)),
+      );
 
   return Response.json(
     {

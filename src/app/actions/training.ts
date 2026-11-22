@@ -5,7 +5,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
-import { isTrainer, CATEGORIES, SESSION_STATUSES } from "@/lib/constants";
+import {
+  isTrainer,
+  CATEGORIES,
+  SESSION_STATUSES,
+  MAX_PLAN_TARGET,
+  type PlanCadence,
+} from "@/lib/constants";
 import { reconcileRugbyMissed, selfHealCountWeek } from "@/lib/missed";
 import { isSlotAvailableOn } from "@/lib/practice-window";
 import { planItemsEqual } from "@/lib/plan-version";
@@ -710,8 +716,9 @@ export async function logTournament(formData: FormData) {
  * Replace a player's active plan from a simple form:
  *  - cat_RUGBY = number -> authoritative weekly rugby target (a single RUGBY count item)
  *  - slot_<id> = "on"  -> a marker (target 0) for the specific practice(s) committed to
- *  - cat_<CATEGORY> = number (times/week, 0 = not committed)
- *  - other_name_<i> + other_n_<i> -> custom OTHER activities (label + times/week)
+ *  - cat_<CATEGORY> = number (times per week or month, 0 = not committed)
+ *  - cad_<CATEGORY> = "WEEK" | "MONTH" (default WEEK) -> that goal's cadence
+ *  - other_name_<i> + other_n_<i> + other_cad_<i> -> custom OTHER activities
  *  - availabilityNote
  * Self-only: a user may only save their own plan. If `userId` is present and differs
  * from the caller, the action throws (trainers cannot edit another player's plan).
@@ -732,8 +739,14 @@ export async function savePlan(formData: FormData) {
     category: string;
     practiceSlotId: string | null;
     targetPerWeek: number;
+    cadence?: PlanCadence;
     note?: string | null;
   };
+  // Per-goal cadence (cad_<CATEGORY> / other_cad_<i>): WEEK (default) or MONTH, with the
+  // target capped per cadence.
+  const cadenceOf = (key: string): PlanCadence =>
+    formData.get(key) === "MONTH" ? "MONTH" : "WEEK";
+  const capped = (n: number, cadence: PlanCadence) => Math.min(n, MAX_PLAN_TARGET[cadence]);
 
   // Rugby is now an authoritative weekly NUMBER (cat_RUGBY). The committed practice slots are
   // stored as pure markers (targetPerWeek 0 → ignored by scoreWeek) so the UI can still show
@@ -741,7 +754,14 @@ export async function savePlan(formData: FormData) {
   const rugbyN = Number(formData.get("cat_RUGBY") ?? 0);
   const rugbyItem: Item[] =
     Number.isFinite(rugbyN) && rugbyN > 0
-      ? [{ category: "RUGBY", practiceSlotId: null, targetPerWeek: Math.min(rugbyN, 21) }]
+      ? [
+          {
+            category: "RUGBY",
+            practiceSlotId: null,
+            targetPerWeek: capped(rugbyN, cadenceOf("cad_RUGBY")),
+            cadence: cadenceOf("cad_RUGBY"),
+          },
+        ]
       : [];
 
   const slots = await prisma.practiceSlot.findMany({
@@ -756,7 +776,12 @@ export async function savePlan(formData: FormData) {
   const catItems: Item[] = CATEGORIES.filter((c) => c !== "RUGBY" && c !== "OTHER")
     .map((c) => ({ c, n: Number(formData.get(`cat_${c}`) ?? 0) }))
     .filter((x) => Number.isFinite(x.n) && x.n > 0)
-    .map((x) => ({ category: x.c, targetPerWeek: Math.min(x.n, 21), practiceSlotId: null }));
+    .map((x) => ({
+      category: x.c,
+      targetPerWeek: capped(x.n, cadenceOf(`cad_${x.c}`)),
+      cadence: cadenceOf(`cad_${x.c}`),
+      practiceSlotId: null,
+    }));
 
   // Custom "Other" activities: indexed label + number pairs (other_name_<i> / other_n_<i>).
   const otherItems: Item[] = [];
@@ -769,7 +794,8 @@ export async function savePlan(formData: FormData) {
       otherItems.push({
         category: "OTHER",
         practiceSlotId: null,
-        targetPerWeek: Math.min(n, 21),
+        targetPerWeek: capped(n, cadenceOf(`other_cad_${m[1]}`)),
+        cadence: cadenceOf(`other_cad_${m[1]}`),
         note: label,
       });
     }
