@@ -47,9 +47,11 @@ from a single Docker Compose stack.
 - **Adherence scoring** — full adherence is worth a fixed weekly base regardless of plan
   size; missing a mandatory practice hurts more than an optional one; doing more than planned
   earns no bonus (points = adherence %, 0–100 per week). All tunable in [`src/lib/scoring.ts`](src/lib/scoring.ts).
-- **Multiple leaderboards** — adherence points, rugby practices, mandatory practices, and
-  streaks. Each can be turned **on/off** independently and set **trainers-only** or
-  **everyone**, by week / month / year.
+- **Multiple leaderboards** — adherence points, rugby practices, mandatory practices,
+  tournament days, sessions besides rugby, and streaks. Each can be turned **on/off**
+  independently and set **trainers-only** or **everyone**, by week / month / season (the
+  season's first and last day are set in Settings → Trainer → Season; new dates start a new
+  season).
 - **Installable PWA** — add to your phone's home screen; cached app shell.
 
 ## Tech stack
@@ -184,12 +186,15 @@ against what they did. Two shapes, matching the two views in the app:
   `?since=…&until=…` window (max 92 days): the **week view**. `members[].weeks` holds the weekly
   goals per Mon–Sun week, exactly like the weekly leaderboard (tournament-exempt weeks count as
   100%). Monthly goals are not part of it.
-- `?period=month|year` (optional `&date=`): the **month view**, no weeks. Every goal becomes a
+- `?period=month` (optional `&date=`) or `?period=season` (the team season from Settings, no
+  `date`; the calendar year while none is set): the **month view**, no weeks. Every goal becomes a
   target for the calendar month: a weekly goal is `planned × days in the month / 7`, rounded down
   (2 per week in November → 8), leaving out days of tournament-exempt weeks; a monthly goal keeps
   its target. Done = sessions dated in the month. The month % is reached / target over all goals,
-  each capped at its target. Month points = the month % (100 for a fully kept month, no
-  bonus); a year adds up its months.
+  each capped at its target. Points = that % (100 for a fully kept month, no bonus). A
+  season is the same over all its months together (Σ reached / Σ target, so also 0–100); months
+  that haven't started are left out, and a season starting or ending mid-month counts only its
+  own days of that month.
 - Rate limit 10 requests/minute per token. Don't mix `period`/`date` with `since`/`until`.
 
 Month view (`period=month&date=2026-10-15`):
@@ -201,12 +206,14 @@ Month view (`period=month&date=2026-10-15`):
     "ADHERENCE_POINTS":  [ { "rank": 1, "member": "Denis", "value": 96 } ],
     "RUGBY_PRACTICES":   [ { "rank": 1, "member": "Denis", "value": 9 } ],
     "PRIMARY_PRACTICES": [],
+    "TOURNAMENT_DAYS":   [ { "rank": 1, "member": "Denis", "value": 2 } ],
+    "OTHER_SESSIONS":    [ { "rank": 1, "member": "Denis", "value": 8 } ],
     "STREAK":            [ { "rank": 1, "member": "Denis", "value": 2 } ]
   },
   "members": [
     { "member": "Denis", "points": 96, "adherencePct": 94,
       "plannedSessions": 17, "reachedSessions": 16, "totalSessions": 17,
-      "rugbyPractices": 9, "primaryPractices": 0, "streak": 2,
+      "rugbyPractices": 9, "primaryPractices": 0, "tournamentDays": 2, "otherSessions": 8, "streak": 2,
       "months": [
         { "month": "2026-10", "complete": true, "hasPlan": true, "adherencePct": 94,
           "target": 17, "reached": 16, "points": 96,
@@ -243,7 +250,8 @@ Week view (`period=week`):
 ```
 
 Both: `rugbyPractices` = DONE rugby sessions plus one per tournament day (the "Rugby practices
-attended" board); `totalSessions` = all DONE sessions in the period, planned or not; `plannedSessions` /
+attended" board); `tournamentDays` = days with a logged tournament; `otherSessions` = DONE
+sessions that are neither rugby nor tournaments; `totalSessions` = all DONE sessions in the period, planned or not; `plannedSessions` /
 `reachedSessions` = sum of targets / done capped at each target — enough to tell "big plan, half
 reached, lots done" from "small plan, fully kept". `leaderboards` lists every metric (including
 ones disabled or trainer-only on the page), value > 0 only, ties share a rank. `members` is

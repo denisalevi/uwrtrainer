@@ -1,19 +1,20 @@
 // GET /api/v1/goals — read-only goal attainment per team member, for machine clients.
 //
 //   Authorization: Bearer uwr_…   (same feed:read tokens as /api/v1/feed)
-//   ?period=week|month|year[&date=YYYY-MM-DD]   (the leaderboard's periods; default: this week)
+//   ?period=week|month[&date=YYYY-MM-DD] | period=season   (the leaderboard's periods; default: this week)
 //   ?since=YYYY-MM-DD&until=YYYY-MM-DD          (custom window, max 92 days)
 //
 // period=week and since/until: weekly goals per Mon–Sun week (members[].weeks), from
-// scoreWeeksForUsers — the weekly board's function. period=month|year: the calendar-month view
+// scoreWeeksForUsers — the weekly board's function. period=month|season: the calendar-month view
 // without weeks (members[].months, weekly goals converted × days / 7 rounded down, plus monthly
-// goals), from scoreMonthsForUsers — the month/year boards' function. Either way `points`
+// goals), from scoreMonthsForUsers — the month/season boards' function. Either way `points`
 // equals the in-app leaderboard 1:1. Members already see each
 // other's plans and adherence in the app; still no ids, emails, plan notes, trainer notes or
 // miss reasons.
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticateApiToken } from "@/lib/api-token-store";
+import { getSeason } from "@/lib/season-store";
 import { RateLimiter, parseBearer } from "@/lib/api-tokens";
 import { countPracticesForUsers, getStreak, scoreMonthsForUsers, scoreWeeksForUsers } from "@/lib/stats";
 import {
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest) {
   const range = parseGoalsRange(
     { period: p.get("period"), date: p.get("date"), since: p.get("since"), until: p.get("until") },
     now,
+    await getSeason(now),
   );
   if ("error" in range) return error(400, range.error);
 
@@ -60,7 +62,7 @@ export async function GET(request: NextRequest) {
     }),
   ]);
   const ids = users.map((u) => u.id);
-  const monthView = range.period === "month" || range.period === "year";
+  const monthView = range.period === "month" || range.period === "season";
   const [weeksByUser, monthsByUser, practices, streaks] = await Promise.all([
     monthView ? null : scoreWeeksForUsers(ids, range.start, range.end),
     monthView ? scoreMonthsForUsers(ids, range.start, range.end) : null,
@@ -71,6 +73,8 @@ export async function GET(request: NextRequest) {
     streak: streaks[i],
     rugbyPractices: practices.get(id)?.rugby ?? 0,
     primaryPractices: practices.get(id)?.primary ?? 0,
+    tournamentDays: practices.get(id)?.tournamentDays ?? 0,
+    otherSessions: practices.get(id)?.otherSessions ?? 0,
     totalSessions: practices.get(id)?.sessions ?? 0,
   });
 

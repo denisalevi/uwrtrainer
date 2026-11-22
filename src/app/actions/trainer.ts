@@ -11,6 +11,7 @@ import {
   LEADERBOARD_VISIBILITY,
 } from "@/lib/constants";
 import { TOURNAMENT_EXEMPTION_KEY, isTournamentExemption } from "@/lib/tournament";
+import { SEASON_END_KEY, SEASON_START_KEY, validateSeason } from "@/lib/season";
 
 async function requireTrainerAction() {
   const user = await getCurrentUser();
@@ -140,6 +141,22 @@ export async function setTournamentExemption(formData: FormData) {
   });
   revalidatePath("/settings");
   revalidatePath("/dashboard");
+  revalidatePath("/leaderboards");
+  redirect("/settings");
+}
+
+/** Team season (Settings → Trainer → Season): first/last day for the Season leaderboard. */
+export async function setSeason(formData: FormData) {
+  await requireTrainerAction();
+  const v = validateSeason(String(formData.get("seasonStart") ?? ""), String(formData.get("seasonEnd") ?? ""));
+  if (!v) redirect("/settings?season=invalid");
+  for (const [key, value] of [
+    [SEASON_START_KEY, v.start],
+    [SEASON_END_KEY, v.end],
+  ] as const) {
+    await prisma.setting.upsert({ where: { key }, create: { key, value }, update: { value } });
+  }
+  revalidatePath("/settings");
   revalidatePath("/leaderboards");
   redirect("/settings");
 }

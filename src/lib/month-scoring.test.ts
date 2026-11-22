@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { combineMonths, monthTargetFromWeekly, scoreMonthGoals } from "./month-scoring";
+import { combineMonths, monthTargetForPart, monthTargetFromWeekly, scoreMonthGoals } from "./month-scoring";
 
 describe("monthTargetFromWeekly", () => {
   it("rounds weekly target × days / 7 down", () => {
@@ -47,12 +47,21 @@ describe("scoreMonthGoals", () => {
 });
 
 describe("combineMonths", () => {
-  it("sums points and weights the % by planned sessions", () => {
+  it("weights the % by planned sessions; points = that %, max 100", () => {
     const c = combineMonths([scoreMonthGoals([{ target: 8, done: 8 }]), scoreMonthGoals([{ target: 2, done: 0 }])]);
-    expect(c.points).toBe(100);
+    expect(c.points).toBe(80);
+    expect(combineMonths([scoreMonthGoals([{ target: 8, done: 9 }]), scoreMonthGoals([{ target: 2, done: 2 }])]).points).toBe(100);
     expect(c.target).toBe(10);
     expect(c.reached).toBe(8);
     expect(c.adherencePct).toBe(0.8);
     expect(combineMonths([]).adherencePct).toBeNull();
+  });
+});
+
+describe("monthTargetForPart (season edges)", () => {
+  it("keeps the full target for a whole month and rounds a part down", () => {
+    expect(monthTargetForPart(6, 31, 31)).toBe(6);
+    expect(monthTargetForPart(6, 12, 31)).toBe(2); // 2.32
+    expect(monthTargetForPart(3, 0, 30)).toBe(0);
   });
 });

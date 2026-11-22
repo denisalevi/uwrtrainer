@@ -5,11 +5,13 @@ import { prisma } from "@/lib/db";
 import { getLeaderboard } from "@/lib/stats";
 import { competitionRanks } from "@/lib/rank";
 import { isTrainer, type LeaderboardMetric } from "@/lib/constants";
-import type { Period } from "@/lib/dates";
+import type { LeaderboardPeriod } from "@/lib/dates";
+import { getSeason } from "@/lib/season-store";
+import { seasonLabel } from "@/lib/season";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Card, Badge, SectionTitle, cn } from "@/components/ui";
 
-const PERIODS: Period[] = ["week", "month", "year"];
+const PERIODS: LeaderboardPeriod[] = ["week", "month", "season"];
 
 export default async function LeaderboardsPage({
   searchParams,
@@ -21,7 +23,16 @@ export default async function LeaderboardsPage({
   const trainer = isTrainer(user.role);
 
   const sp = await searchParams;
-  const period: Period = PERIODS.includes(sp.period as Period) ? (sp.period as Period) : "week";
+  const period: LeaderboardPeriod = PERIODS.includes(sp.period as LeaderboardPeriod)
+    ? (sp.period as LeaderboardPeriod)
+    : "week";
+  const season = await getSeason();
+  const tabLabel = (p: LeaderboardPeriod) =>
+    p === "season"
+      ? season.configured
+        ? `${t("common.season")} (${seasonLabel(season)})`
+        : t("common.season")
+      : t(`common.${p}` as DictKey);
 
   const boardConfigs = await prisma.leaderboard.findMany({
     where: { enabled: true, ...(trainer ? {} : { visibility: "EVERYONE" }) },
@@ -50,7 +61,7 @@ export default async function LeaderboardsPage({
               period === p ? "bg-white text-slate-900 shadow-sm" : "text-slate-600",
             )}
           >
-            {t(`common.${p}` as DictKey)}
+            {tabLabel(p)}
           </Link>
         ))}
       </div>

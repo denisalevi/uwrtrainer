@@ -13,7 +13,8 @@ import {
 } from "@/app/actions/settings";
 import { getSignupNotifyTrainers } from "@/lib/notify";
 import { mailEnabled } from "@/lib/mail";
-import { createTeam, updateLeaderboards, setTournamentExemption } from "@/app/actions/trainer";
+import { createTeam, updateLeaderboards, setTournamentExemption, setSeason } from "@/app/actions/trainer";
+import { getSeason } from "@/lib/season-store";
 import { getTournamentExemptionMode } from "@/lib/exempt-weeks";
 import { logout } from "@/app/actions/auth";
 import type { DictKey } from "@/lib/i18n/dictionaries";
@@ -59,10 +60,10 @@ function SettingsGroup({
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ joinError?: string }>;
+  searchParams: Promise<{ joinError?: string; season?: string }>;
 }) {
   const user = await requireUser();
-  const { joinError } = await searchParams;
+  const { joinError, season: seasonError } = await searchParams;
   const { t, locale } = await getServerT();
   const trainer = isTrainer(user.role);
   const admin = user.role === "ADMIN";
@@ -70,6 +71,7 @@ export default async function SettingsPage({
     ? await prisma.leaderboard.findMany({ orderBy: { sortOrder: "asc" } })
     : [];
   const tournamentExemption = trainer ? await getTournamentExemptionMode() : null;
+  const season = trainer ? await getSeason() : null;
   const signupNotifyTrainers = admin ? await getSignupNotifyTrainers() : false;
   // Self-delete: contact for full data deletion + last-admin lockout guard.
   const adminUsers = await prisma.user.findMany({
@@ -380,6 +382,42 @@ export default async function SettingsPage({
                   </div>
                 </div>
               ))}
+              <Button type="submit" className="w-full">
+                {t("common.save")}
+              </Button>
+            </form>
+          </Collapsible>
+
+          <Collapsible title={t("set.season")} hint={t("set.seasonIntro")}>
+            <form action={setSeason} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="seasonStart">{t("set.seasonStart")}</Label>
+                  <Input
+                    id="seasonStart"
+                    name="seasonStart"
+                    type="date"
+                    required
+                    defaultValue={season?.configured ? season.since : ""}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="seasonEnd">{t("set.seasonEnd")}</Label>
+                  <Input
+                    id="seasonEnd"
+                    name="seasonEnd"
+                    type="date"
+                    required
+                    defaultValue={season?.configured ? season.until : ""}
+                  />
+                </div>
+              </div>
+              {seasonError === "invalid" && (
+                <p className="text-sm text-red-600">{t("set.seasonInvalid")}</p>
+              )}
+              {season && !season.configured && (
+                <p className="text-xs text-slate-500">{t("set.seasonNotSet")}</p>
+              )}
               <Button type="submit" className="w-full">
                 {t("common.save")}
               </Button>

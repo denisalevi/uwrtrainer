@@ -180,6 +180,8 @@ export const LEADERBOARD_METRICS = [
   "ADHERENCE_POINTS",
   "RUGBY_PRACTICES",
   "PRIMARY_PRACTICES",
+  "TOURNAMENT_DAYS",
+  "OTHER_SESSIONS",
   "STREAK",
 ] as const;
 export type LeaderboardMetric = (typeof LEADERBOARD_METRICS)[number];

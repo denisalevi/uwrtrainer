@@ -8,7 +8,7 @@ import {
   type WeekScore,
 } from "@/lib/scoring";
 import { loadExemptWeeks } from "@/lib/exempt-weeks";
-import { rugbyPracticesAttended } from "@/lib/tournament";
+import { otherSessions, rugbyPracticesAttended, tournamentDays } from "@/lib/tournament";
 import {
   startOfWeek,
   addWeeks,
@@ -17,10 +17,12 @@ import {
   weekStartsInRange,
   monthStartsInRange,
   nextMonth,
-  type Period,
+  type LeaderboardPeriod,
 } from "@/lib/dates";
+import { getSeason } from "@/lib/season-store";
 import {
   monthTargetFromWeekly,
+  monthTargetForPart,
   scoreMonthGoals,
   combineMonths,
   type MonthScore,
@@ -284,6 +286,8 @@ export async function getCurrentWeekMetrics(
     ADHERENCE_POINTS: score.points,
     RUGBY_PRACTICES: rugbyPracticesAttended(logs),
     PRIMARY_PRACTICES: logs.filter((l) => l.status === "DONE" && l.tier === "PRIMARY").length,
+    TOURNAMENT_DAYS: tournamentDays(logs),
+    OTHER_SESSIONS: otherSessions(logs),
     STREAK: await getStreak(userId),
   };
 }
@@ -333,20 +337,31 @@ export async function scoreWeeksForUsers(
 /**
  * Rugby practices attended (DONE rugby sessions + one per tournament day) and DONE
  * primary-tier practices per user in [start, end) — the
- * RUGBY_PRACTICES / PRIMARY_PRACTICES leaderboard values — plus all DONE sessions.
+ * RUGBY_PRACTICES / PRIMARY_PRACTICES leaderboard values — plus tournament days, DONE
+ * sessions besides rugby/tournaments (TOURNAMENT_DAYS / OTHER_SESSIONS) and all DONE sessions.
  */
+export type PracticeCounts = {
+  rugby: number;
+  primary: number;
+  tournamentDays: number;
+  otherSessions: number;
+  sessions: number;
+};
+
 export async function countPracticesForUsers(
   userIds: string[],
   start: Date,
   end: Date,
-): Promise<Map<string, { rugby: number; primary: number; sessions: number }>> {
+): Promise<Map<string, PracticeCounts>> {
   const logsByUser = await loadLogs(userIds, start, end);
-  const out = new Map<string, { rugby: number; primary: number; sessions: number }>();
+  const out = new Map<string, PracticeCounts>();
   for (const id of userIds) {
     const logs = logsByUser.get(id) ?? [];
     out.set(id, {
       rugby: rugbyPracticesAttended(logs),
       primary: logs.filter((l) => l.status === "DONE" && l.tier === "PRIMARY").length,
+      tournamentDays: tournamentDays(logs),
+      otherSessions: otherSessions(logs),
       sessions: logs.filter((l) => l.status === "DONE").length,
     });
   }
@@ -387,9 +402,16 @@ function scoreOneMonth(
   logs: LogRow[],
   exemptWeeks: Set<number> | undefined,
   ms: Date,
+  window: { start: Date; end: Date },
 ): ScoredMonth {
-  const me = nextMonth(ms);
-  const monthLogs = logs.filter((l) => l.date >= ms && l.date < me);
+  const monthEnd = nextMonth(ms);
+  // A season can start/end mid-month: only the part of the month inside the range counts.
+  const from0 = window.start > ms ? window.start : ms;
+  const me = window.end < monthEnd ? window.end : monthEnd;
+  const daysOf = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / 86_400_000);
+  const partDays = daysOf(from0, me);
+  const monthDays = daysOf(ms, monthEnd);
+  const monthLogs = logs.filter((l) => l.date >= from0 && l.date < me);
   type Acc = { category: string; label: string | null; cadence: PlanCadence; planned: number; shares: WeeklyShare[]; target: number };
   const goals = new Map<string, Acc>();
   const keyOf = (category: string, note: string | null) =>
@@ -397,10 +419,10 @@ function scoreOneMonth(
 
   // Weekly goals: each week overlapping the month contributes target × its days in the month
   // (exempt weeks contribute nothing), using the plan of that week (active at its Sunday).
-  for (const ws of weekStartsInRange(ms, me)) {
+  for (const ws of weekStartsInRange(from0, me)) {
     if (exemptWeeks?.has(ws.getTime())) continue;
     const we = addWeeks(ws, 1);
-    const from = ws < ms ? ms : ws;
+    const from = ws < from0 ? from0 : ws;
     const to = we > me ? me : we;
     const days = Math.round((to.getTime() - from.getTime()) / 86_400_000);
     for (const it of activeItems(plans, userId, addDays(ws, 6))) {
@@ -419,7 +441,8 @@ function scoreOneMonth(
       goals.set(k, acc);
     }
   }
-  // Monthly goals: the plan active on the month's last day, target as entered.
+  // Monthly goals: the plan active on the month's last (counted) day, target as entered —
+  // scaled down (rounded down) when only part of the month is in the range.
   for (const it of activeItems(plans, userId, addDays(me, -1))) {
     if (it.cadence !== "MONTH" || it.target <= 0) continue;
     const k = keyOf(it.category, it.note);
@@ -439,7 +462,10 @@ function scoreOneMonth(
       label: g.label,
       cadence: g.cadence,
       planned: g.planned,
-      target: g.cadence === "MONTH" ? g.target : monthTargetFromWeekly(g.shares),
+      target:
+        g.cadence === "MONTH"
+          ? monthTargetForPart(g.target, partDays, monthDays)
+          : monthTargetFromWeekly(g.shares),
       done: countGoalDone(monthLogs, g.category),
     }))
     .filter((g) => g.target > 0);
@@ -448,17 +474,20 @@ function scoreOneMonth(
 
 /**
  * The month view for each user: every calendar month overlapping [start, end) — one for the
- * month leaderboard, twelve for the year. Shared by getLeaderboard, the dashboard and the
+ * month leaderboard, all the season's months for the season board (edge months clipped to
+ * the range). Shared by getLeaderboard, the dashboard and the
  * read-only goals API so all three always show the same numbers.
  */
 export async function scoreMonthsForUsers(
   userIds: string[],
   start: Date,
   end: Date,
+  now: Date = new Date(),
 ): Promise<Map<string, ScoredMonth[]>> {
   const out = new Map<string, ScoredMonth[]>();
   if (userIds.length === 0) return out;
-  const months = monthStartsInRange(start, end);
+  // Months that haven't started carry no data; leaving them out keeps a season's % honest.
+  const months = monthStartsInRange(start, end).filter((ms) => ms <= now);
   if (months.length === 0) return out;
   const from = months[0];
   const to = nextMonth(months[months.length - 1]);
@@ -467,7 +496,10 @@ export async function scoreMonthsForUsers(
   const exemptByUser = await loadExemptWeeks(userIds, startOfWeek(from), addWeeks(startOfWeek(to), 1));
   for (const id of userIds) {
     const logs = logsByUser.get(id) ?? [];
-    out.set(id, months.map((ms) => scoreOneMonth(plans, id, logs, exemptByUser.get(id), ms)));
+    out.set(
+      id,
+      months.map((ms) => scoreOneMonth(plans, id, logs, exemptByUser.get(id), ms, { start, end })),
+    );
   }
   return out;
 }
@@ -482,7 +514,7 @@ export type LeaderRow = {
   userId: string;
   name: string;
   value: number;
-  /** Month/year adherence board only: sessions reached / planned in the month view. */
+  /** Month/season adherence board only: sessions reached / planned in the month view. */
   reached?: number;
   target?: number;
 };
@@ -490,11 +522,11 @@ export type LeaderRow = {
 /** Compute a leaderboard for a metric over a period, sorted descending. */
 export async function getLeaderboard(
   metric: LeaderboardMetric,
-  period: Period,
+  period: LeaderboardPeriod,
   teamId: string | null,
 ): Promise<LeaderRow[]> {
   if (!teamId) return [];
-  const { start, end } = periodRange(period);
+  const { start, end } = period === "season" ? await getSeason() : periodRange(period);
   const users = await prisma.user.findMany({
     where: { memberships: { some: { teamId } } },
     select: { id: true, name: true },
@@ -505,11 +537,21 @@ export async function getLeaderboard(
   const values = new Map<string, number>();
   const extra = new Map<string, { reached: number; target: number }>();
 
-  if (metric === "RUGBY_PRACTICES" || metric === "PRIMARY_PRACTICES") {
+  if (
+    metric === "RUGBY_PRACTICES" ||
+    metric === "PRIMARY_PRACTICES" ||
+    metric === "TOURNAMENT_DAYS" ||
+    metric === "OTHER_SESSIONS"
+  ) {
     const counts = await countPracticesForUsers(userIds, start, end);
+    const field = {
+      RUGBY_PRACTICES: "rugby",
+      PRIMARY_PRACTICES: "primary",
+      TOURNAMENT_DAYS: "tournamentDays",
+      OTHER_SESSIONS: "otherSessions",
+    } as const;
     for (const u of users) {
-      const c = counts.get(u.id);
-      values.set(u.id, (metric === "RUGBY_PRACTICES" ? c?.rugby : c?.primary) ?? 0);
+      values.set(u.id, counts.get(u.id)?.[field[metric]] ?? 0);
     }
   } else if (metric === "ADHERENCE_POINTS" && period !== "week") {
     // Month/year: the calendar-month view, 100 points per fully kept month (month-scoring.ts).
