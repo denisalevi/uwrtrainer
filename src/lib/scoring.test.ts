@@ -71,12 +71,11 @@ describe("scoreWeek", () => {
     expect(scoreWeek(onlyMandatory).basePoints).toBe(100);
   });
 
-  it("overshoot earns a small capped bonus that cannot dominate adherence", () => {
+  it("doing more than planned earns no bonus: points are plain adherence", () => {
     const overshoot: ScoreItem[] = [{ category: "CARDIO", target: 1, done: 100 }];
     const r = scoreWeek(overshoot);
     expect(r.adherencePct).toBeCloseTo(1);
-    expect(r.overshootBonus).toBe(DEFAULT_SCORING.overshootBonusCap);
-    expect(r.points).toBe(100 + DEFAULT_SCORING.overshootBonusCap);
+    expect(r.points).toBe(100);
   });
 });
 

@@ -74,7 +74,7 @@ describe("toGoalsApiMember", () => {
     const m = toGoalsApiMember(
       "Anna",
       [
-        week(new Date(2026, 10, 9), 1, 104, {
+        week(new Date(2026, 10, 9), 1, 100, {
           items: [
             { category: "RUGBY", tier: "PRIMARY", target: 1, done: 1, label: "Tue pool" },
             { category: "STRENGTH", tier: null, target: 2, done: 3, label: null },
@@ -90,7 +90,7 @@ describe("toGoalsApiMember", () => {
     );
     expect(m).toMatchObject({
       member: "Anna",
-      points: 154,
+      points: 150,
       avgAdherencePct: 75,
       weeksWithPlan: 2,
       fullWeeks: 1,
@@ -107,7 +107,7 @@ describe("toGoalsApiMember", () => {
       hasPlan: true,
       exempt: false,
       adherencePct: 100,
-      points: 104,
+      points: 100,
       goals: [
         { category: "RUGBY", cadence: "WEEK", practice: "Tue pool", tier: "PRIMARY", target: 1, done: 1 },
         { category: "STRENGTH", cadence: "WEEK", practice: null, tier: null, target: 2, done: 3 },

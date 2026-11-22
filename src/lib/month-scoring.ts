@@ -9,8 +9,8 @@
 //  - A monthly goal keeps its target as entered.
 //  - Done = DONE sessions dated in the calendar month.
 //  - Month % = reached / target over all goals, each goal capped at its target (overshoot on
-//    one goal can't cover a gap on another). Month points = round(% × 100) plus the usual small
-//    overshoot bonus (2 per extra session, max 10), so a fully kept month is worth 100.
+//    one goal can't cover a gap on another). Month points = round(% × 100): the month % itself,
+//    so a fully kept month is worth 100. No bonus for doing more than planned (Denis, 2026-11-22).
 //  - The weekly leaderboard and the streak stay strictly weekly and ignore monthly goals.
 import { DEFAULT_SCORING, type ScoringConfig } from "@/lib/scoring";
 
@@ -32,7 +32,6 @@ export type MonthScore = {
   target: number;
   /** Σ done capped per goal ("7" in "7 of 8"). */
   reached: number;
-  overshootBonus: number;
   points: number;
   hasPlan: boolean;
 };
@@ -44,21 +43,15 @@ export function scoreMonthGoals(
   const planned = goals.filter((g) => g.target > 0);
   const target = planned.reduce((s, g) => s + g.target, 0);
   if (target === 0) {
-    return { adherencePct: 0, target: 0, reached: 0, overshootBonus: 0, points: 0, hasPlan: false };
+    return { adherencePct: 0, target: 0, reached: 0, points: 0, hasPlan: false };
   }
   const reached = planned.reduce((s, g) => s + Math.min(g.done, g.target), 0);
-  const overshoot = planned.reduce((s, g) => s + Math.max(0, g.done - g.target), 0);
   const adherencePct = reached / target;
-  const overshootBonus = Math.min(
-    overshoot * config.overshootBonusPerSession,
-    config.overshootBonusCap,
-  );
   return {
     adherencePct,
     target,
     reached,
-    overshootBonus,
-    points: Math.round(adherencePct * config.basePoints) + overshootBonus,
+    points: Math.round(adherencePct * config.basePoints),
     hasPlan: true,
   };
 }

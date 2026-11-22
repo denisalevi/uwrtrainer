@@ -48,9 +48,9 @@ describe("applyWeekExemption", () => {
     expect(exempt.hasPlan).toBe(true);
   });
 
-  it("never makes a week WORSE — a fully adhered week keeps its overshoot bonus", () => {
+  it("never makes a week WORSE — a fully adhered week stays at full points", () => {
     const score = scoreWeek([{ category: "RUGBY", target: 2, done: 4 }]);
-    expect(score.points).toBeGreaterThan(DEFAULT_SCORING.basePoints);
+    expect(score.points).toBe(DEFAULT_SCORING.basePoints);
     expect(applyWeekExemption(score).points).toBe(score.points);
   });
 

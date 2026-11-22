@@ -11,6 +11,13 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-11-22
+
+### Removed
+- **Bonus points for doing more than planned** (2 per extra session, max 10). Weekly points are
+  now plain adherence, 0–100; month points are the month %, 0–100. Tournament weeks still count
+  as 100.
+
 ## [0.41.0] - 2026-11-22
 
 ### Added
@@ -22,7 +29,7 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 - **Month and year leaderboards use the calendar month, no weeks.** A weekly goal becomes a
   monthly target of weekly target × days / 7, rounded down (2 per week in November = 8); days of
   tournament-exempt weeks don't count. Month % = reached / target over all goals, each capped at
-  its target; a fully kept month is worth 100 points (+ the small overshoot bonus), a year adds
+  its target; month points = the month % (a fully kept month is worth 100), a year adds
   up its months. The board shows "reached/target" next to the points. Previously a month summed
   the points of the 5–6 weeks overlapping it, with the edge weeks only partly counted.
 - The weekly leaderboard, weekly auto-missed rows and the streak stay strictly weekly and
