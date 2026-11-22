@@ -175,6 +175,45 @@ reasons, emails and ids are left out):
 MISSED; `title` is the practice / tournament / routine / 5/3/1 day name or the free-text
 activity; `exercises` appears on done strength sessions only.
 
+### Goals and leaderboards: `GET /api/v1/goals`
+
+Same token, same rules. Everything the leaderboards page shows, plus each member's weekly
+plan (targets per category / committed practice) against what they did.
+
+- `?period=week|month|year` (default `week`) with optional `&date=YYYY-MM-DD` to pick which
+  week/month/year — exactly the leaderboard's periods (a month counts the weeks overlapping it,
+  but only the month's own days; tournament-exempt weeks count as 100%). Or a custom
+  `?since=…&until=…` window (max 92 days). Don't mix the two.
+- Rate limit 10 requests/minute per token.
+
+```json
+{
+  "team": "My Team", "period": "month", "since": "2026-11-01", "until": "2026-11-30",
+  "leaderboards": {
+    "ADHERENCE_POINTS":  [ { "rank": 1, "member": "Linus", "value": 100 }, { "rank": 2, "member": "Denis", "value": 81 } ],
+    "RUGBY_PRACTICES":   [ { "rank": 1, "member": "Denis", "value": 2 } ],
+    "PRIMARY_PRACTICES": [ { "rank": 1, "member": "Denis", "value": 1 } ],
+    "STREAK": []
+  },
+  "members": [
+    { "member": "Linus", "points": 100, "avgAdherencePct": 33, "weeksWithPlan": 3, "fullWeeks": 1,
+      "streak": 0, "rugbyPractices": 1, "primaryPractices": 1,
+      "weeks": [
+        { "weekStart": "2026-11-16", "complete": false, "hasPlan": true, "exempt": false,
+          "adherencePct": 50, "points": 50,
+          "goals": [
+            { "category": "RUGBY", "practice": "Tuesday pool", "tier": "PRIMARY", "target": 1, "done": 1 },
+            { "category": "STRENGTH", "practice": null, "tier": null, "target": 2, "done": 0 } ] } ] }
+  ]
+}
+```
+
+`leaderboards` lists every metric (including ones disabled or trainer-only on the page),
+value > 0 only, ties share a rank. `members` is sorted by points; `points` is that period's
+"Plan adherence points". `streak` is the current streak of completed 100% weeks (independent
+of the period, as in the app). `weeks` are oldest first; weeks that haven't started are left
+out, and the running week has `complete: false`. Plan notes are not included.
+
 ## Local development
 
 No Node.js on the host? Everything runs in a container:
