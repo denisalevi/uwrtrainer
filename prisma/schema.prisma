@@ -110,9 +110,6 @@ model ApiToken {
   // First characters of the raw token ("uwr_AbCd"), shown in the list to tell tokens apart.
   prefix      String
   scope       String    @default("feed:read")
-  // Opt-in: also expose members' free-text miss reasons and weekly "why not reached" notes
-  // (can be health data, e.g. "sick"). Off by default; toggled per token in Settings.
-  includeReasons Boolean @default(false)
   teamId      String
   team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdById String?

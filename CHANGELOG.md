@@ -17,9 +17,6 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 - **Goals API totals:** per member `totalSessions` (everything done in the period),
   `plannedSessions` and `reachedSessions`, so a bot's monthly review can credit both people who
   kept a small plan and people who did a lot against an ambitious one.
-- **Reasons, opt-in per API token:** Settings → API tokens → "Allow reasons" lets a token also
-  read members' free-text reasons (why a session was missed, why a week fell short) in the goals
-  and feed APIs. Off by default, because these can contain health details.
 
 ## [0.39.0] - 2026-11-22
 

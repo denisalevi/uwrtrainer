@@ -6,17 +6,14 @@
 //
 // Scores come from scoreWeeksForUsers — the same function the adherence leaderboard uses — so
 // `points` for period=month equals the in-app month leaderboard 1:1. Members already see each
-// other's plans and adherence in the app; still no ids, emails, plan notes or trainer notes.
-// Members' free-text reasons only when the token has includeReasons (admin opt-in).
+// other's plans and adherence in the app; still no ids, emails, plan notes, trainer notes or
+// miss reasons.
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticateApiToken } from "@/lib/api-token-store";
 import { RateLimiter, parseBearer } from "@/lib/api-tokens";
 import { countPracticesForUsers, getStreak, scoreWeeksForUsers } from "@/lib/stats";
-import { startOfWeek } from "@/lib/dates";
-import { localDayKey } from "@/lib/api-tokens";
 import {
-  type GoalsApiWeekReasons,
   buildLeaderboards,
   parseGoalsRange,
   sortGoalsMembers,
@@ -65,53 +62,6 @@ export async function GET(request: NextRequest) {
     Promise.all(users.map((u) => getStreak(u.id))),
   ]);
 
-  // Free-text reasons only for tokens an admin explicitly opted in (can be health data).
-  const reasonsByUser = new Map<string, Map<number, GoalsApiWeekReasons>>();
-  if (token.includeReasons && ids.length > 0) {
-    const [notes, missed] = await Promise.all([
-      prisma.weekNote.findMany({
-        where: { userId: { in: ids }, weekStart: { gte: startOfWeek(range.start), lt: range.end } },
-        select: { userId: true, weekStart: true, reason: true },
-      }),
-      prisma.sessionLog.findMany({
-        where: {
-          userId: { in: ids },
-          status: "MISSED",
-          missReason: { not: null },
-          date: { gte: range.start, lt: range.end },
-        },
-        orderBy: { date: "asc" },
-        select: {
-          userId: true,
-          date: true,
-          category: true,
-          missReason: true,
-          practiceSlot: { select: { label: true } },
-        },
-      }),
-    ]);
-    const slot = (userId: string, ws: number) => {
-      let m = reasonsByUser.get(userId);
-      if (!m) reasonsByUser.set(userId, (m = new Map()));
-      let r = m.get(ws);
-      if (!r) m.set(ws, (r = { note: null, missed: [] }));
-      return r;
-    };
-    for (const n of notes) {
-      if (n.reason.trim()) slot(n.userId, startOfWeek(n.weekStart).getTime()).note = n.reason.trim();
-    }
-    for (const l of missed) {
-      const reason = l.missReason?.trim();
-      if (!reason) continue;
-      slot(l.userId, startOfWeek(l.date).getTime()).missed.push({
-        date: localDayKey(l.date),
-        category: l.category,
-        practice: l.practiceSlot?.label ?? null,
-        reason,
-      });
-    }
-  }
-
   const members = sortGoalsMembers(
     users.map((u, i) =>
       toGoalsApiMember(
@@ -124,7 +74,6 @@ export async function GET(request: NextRequest) {
           totalSessions: practices.get(u.id)?.sessions ?? 0,
         },
         now,
-        token.includeReasons ? (reasonsByUser.get(u.id) ?? new Map()) : undefined,
       ),
     ),
   );
@@ -135,7 +84,6 @@ export async function GET(request: NextRequest) {
       period: range.period,
       since: range.since,
       until: range.until,
-      includesReasons: token.includeReasons,
       leaderboards: buildLeaderboards(members),
       members,
     },

@@ -5,7 +5,7 @@
 //
 // The token is bound to one team; the response holds that team's DONE/MISSED sessions in the
 // window, with only what teammates already see in the in-app feed. Auto-generated MISSED rows
-// are excluded (as in the feed); miss reasons only if the token has includeReasons. /api is outside the session proxy
+// are excluded (as in the feed), and so are miss reasons. /api is outside the session proxy
 // (src/proxy.ts matcher), so this handler is the only auth check — keep it that way.
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
@@ -59,7 +59,6 @@ export async function GET(request: NextRequest) {
         status: true,
         durationMin: true,
         details: true,
-        missReason: token.includeReasons,
         user: { select: { name: true } },
         practiceSlot: { select: { label: true } },
       },
@@ -72,8 +71,7 @@ export async function GET(request: NextRequest) {
       since: range.since,
       until: range.until,
       count: rows.length,
-      includesReasons: token.includeReasons,
-      entries: rows.map((r) => toFeedApiEntry(r, token.includeReasons)),
+      entries: rows.map(toFeedApiEntry),
     },
     { headers: NO_STORE },
   );

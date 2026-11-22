@@ -152,8 +152,8 @@ curl -H "Authorization: Bearer uwr_…" \
 - Rate limit: 30 requests/minute per token (`429` + `Retry-After`).
 - Errors: `401` bad/missing/revoked token, `400` bad range.
 
-Response (only what teammates already see in the feed; auto-generated "missed" rows, emails
-and ids are left out, miss reasons unless the token allows them — see below):
+Response (only what teammates already see in the feed; auto-generated "missed" rows, miss
+reasons, emails and ids are left out):
 
 ```json
 {
@@ -212,18 +212,11 @@ Per member there are also `totalSessions` (all DONE sessions in the period, plan
 `plannedSessions` (sum of the weekly targets) and `reachedSessions` (done, capped at each
 target) — enough to tell "big plan, half reached, lots done" from "small plan, fully kept".
 
-**Reasons (opt-in per token):** by default neither endpoint returns members' free-text reasons.
-An admin can switch a token to "Allow reasons" in Settings → API tokens (they may contain
-health details such as "sick"). Then each goals week gets
-`"reasons": { "note": "…weekly why-not note…", "missed": [ { "date", "category", "practice", "reason" } ] }`,
-feed entries for missed sessions get `missReason`, and both responses say
-`"includesReasons": true`.
-
 `leaderboards` lists every metric (including ones disabled or trainer-only on the page),
 value > 0 only, ties share a rank. `members` is sorted by points; `points` is that period's
 "Plan adherence points". `streak` is the current streak of completed 100% weeks (independent
 of the period, as in the app). `weeks` are oldest first; weeks that haven't started are left
-out, and the running week has `complete: false`. Plan notes are not included.
+out, and the running week has `complete: false`. Plan notes and miss reasons are not included.
 
 ## Local development
 

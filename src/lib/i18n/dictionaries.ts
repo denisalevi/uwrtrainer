@@ -711,7 +711,7 @@ export const en = {
   "apiTokens.title": "API tokens",
   "apiTokens.hint": "Read-only access to a team's feed for bots and scripts.",
   "apiTokens.intro":
-    "A token lets a program (e.g. the team's chat bot) read one team's activity feed, plans and leaderboards: who trained what, when, and who reached their goals. It can't change anything or see emails, and sees reasons only if you allow it. Revoke a token as soon as it isn't needed or may have leaked.",
+    "A token lets a program (e.g. the team's chat bot) read one team's activity feed, plans and leaderboards: who trained what, when, and who reached their goals. It can't change anything or see emails or miss reasons. Revoke a token as soon as it isn't needed or may have leaked.",
   "apiTokens.name": "Name",
   "apiTokens.namePlaceholder": "e.g. Team WhatsApp bot",
   "apiTokens.team": "Team",
@@ -730,11 +730,6 @@ export const en = {
   "apiTokens.createdAt": "Created {date} by {by}",
   "apiTokens.lastUsed": "last used {date}",
   "apiTokens.revokedAt": "revoked {date}",
-  "apiTokens.reasonsOn": "Allow reasons",
-  "apiTokens.reasonsOff": "Hide reasons",
-  "apiTokens.reasonsBadge": "Reasons",
-  "apiTokens.reasonsHint":
-    "“Allow reasons” also gives that token members' free-text reasons (why a session was missed, why a week fell short). These can contain health details, so it's off by default.",
   "links.title": "Link library",
   "links.hint": "Your saved warm-up / cool-down links.",
   "links.intro":
@@ -1468,7 +1463,7 @@ export const de: Record<DictKey, string> = {
   "apiTokens.title": "API-Tokens",
   "apiTokens.hint": "Lesezugriff auf den Feed eines Teams für Bots und Skripte.",
   "apiTokens.intro":
-    "Mit einem Token kann ein Programm (z.\u00a0B. der Chat-Bot des Teams) den Aktivit\u00e4ten-Feed, die Pl\u00e4ne und die Ranglisten eines Teams lesen: wer wann was trainiert hat und wer seine Ziele erreicht hat. Es kann nichts \u00e4ndern, sieht keine E-Mails und Gr\u00fcnde nur, wenn du sie freigibst. Widerrufe ein Token, sobald es nicht mehr gebraucht wird oder in falsche H\u00e4nde geraten sein k\u00f6nnte.",
+    "Mit einem Token kann ein Programm (z.\u00a0B. der Chat-Bot des Teams) den Aktivit\u00e4ten-Feed, die Pl\u00e4ne und die Ranglisten eines Teams lesen: wer wann was trainiert hat und wer seine Ziele erreicht hat. Es kann nichts \u00e4ndern und sieht keine E-Mails oder Absagegr\u00fcnde. Widerrufe ein Token, sobald es nicht mehr gebraucht wird oder in falsche H\u00e4nde geraten sein k\u00f6nnte.",
   "apiTokens.name": "Name",
   "apiTokens.namePlaceholder": "z. B. WhatsApp-Bot des Teams",
   "apiTokens.team": "Team",
@@ -1487,11 +1482,6 @@ export const de: Record<DictKey, string> = {
   "apiTokens.createdAt": "Erstellt am {date} von {by}",
   "apiTokens.lastUsed": "zuletzt benutzt {date}",
   "apiTokens.revokedAt": "widerrufen am {date}",
-  "apiTokens.reasonsOn": "Gründe freigeben",
-  "apiTokens.reasonsOff": "Gründe verbergen",
-  "apiTokens.reasonsBadge": "Gründe",
-  "apiTokens.reasonsHint":
-    "„Gründe freigeben“ gibt dem Token zusätzlich die Freitext-Gründe der Mitglieder (warum ein Training ausfiel, warum eine Woche nicht geklappt hat). Die können Gesundheitsangaben enthalten, deshalb ist es standardmäßig aus.",
   "links.title": "Link-Bibliothek",
   "links.hint": "Deine gespeicherten Aufwärm- und Cool-down-Links.",
   "links.intro":

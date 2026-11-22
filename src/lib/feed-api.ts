@@ -1,6 +1,6 @@
 // Pure mapping from SessionLog rows to the JSON shape of GET /api/v1/feed.
 // Deliberately minimal: only what a teammate already sees in the in-app feed — no user ids,
-// emails, plans or trainer notes; miss reasons only for opted-in tokens. Unit-tested in feed-api.test.ts.
+// emails, miss reasons, plans or trainer notes. Unit-tested in feed-api.test.ts.
 import { localDayKey } from "@/lib/api-tokens";
 import { TOURNAMENT_CATEGORY, tournamentLabel } from "@/lib/tournament";
 import { extraPracticeLabel } from "@/lib/extra-practice";
@@ -11,7 +11,6 @@ export type FeedApiSourceRow = {
   status: string;
   durationMin: number | null;
   details: string | null;
-  missReason?: string | null;
   user: { name: string };
   practiceSlot: { label: string } | null;
 };
@@ -37,8 +36,6 @@ export type FeedApiEntry = {
   note: string | null;
   /** Strength sessions only. */
   exercises?: FeedApiExercise[];
-  /** Missed sessions, only for tokens with "allow reasons". */
-  missReason?: string | null;
 };
 
 type Set = { weight?: unknown; reps?: unknown; seconds?: unknown; amrap?: unknown };
@@ -99,7 +96,7 @@ function exercisesOf(d: Details): FeedApiExercise[] {
   return out;
 }
 
-export function toFeedApiEntry(row: FeedApiSourceRow, includeReasons = false): FeedApiEntry {
+export function toFeedApiEntry(row: FeedApiSourceRow): FeedApiEntry {
   const d = parseDetails(row.details);
   const isStrength = row.category === "STRENGTH";
   const title =
@@ -119,6 +116,5 @@ export function toFeedApiEntry(row: FeedApiSourceRow, includeReasons = false): F
     note: str(d.note) ?? str(d.zone) ?? (isStrength ? str(d.notes) : null),
   };
   if (isStrength && row.status === "DONE") entry.exercises = exercisesOf(d);
-  if (includeReasons && row.status === "MISSED") entry.missReason = str(row.missReason);
   return entry;
 }
