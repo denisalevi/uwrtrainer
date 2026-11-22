@@ -126,21 +126,6 @@ export default async function DashboardPage() {
                   <ProgressBar value={g.done / g.target} />
                 </div>
               ))}
-              {month.exemptWeeks.length > 0 && (
-                <p className="text-xs text-slate-500">
-                  🏆{" "}
-                  {t("dash.monthExempt", {
-                    weeks: month.exemptWeeks
-                      .map((ws) => {
-                        const end = new Date(ws);
-                        end.setDate(end.getDate() + 6);
-                        const f = (d: Date) => `${d.getDate()}.${d.getMonth() + 1}.`;
-                        return `${f(ws)}–${f(end)}`;
-                      })
-                      .join(", "),
-                  })}
-                </p>
-              )}
               <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
                 <span className="min-w-0 text-xs text-slate-500">{t("dash.monthGoalsHint")}</span>
                 <span className="shrink-0 whitespace-nowrap text-sm text-slate-500">
