@@ -195,7 +195,7 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
   `src/lib/month-scoring.ts` (unit-tested): calendar month, no weeks; weekly goal → floor(Σ
   weekly target × days of each overlapping week in the month / 7), exempt weeks skipped, plan of
   each week's Sunday; monthly goals from the plan on the month's last day; % = reached/target
-  (capped per goal); 100 points per fully kept month + overshoot bonus. Agreed with Denis
+  (capped per goal); month points = month % (0–100). Agreed with Denis
   2026-11-22 — don't reintroduce weeks into the month view.
   Members' free-text reasons (`WeekNote`, `missReason`) are deliberately NOT exposed by the API
   (Denis's call).
@@ -257,8 +257,8 @@ bleeding-edge stack:
 
 Scoring philosophy (from coach feedback, encoded in `scoring.ts`): reward **adherence to the
 agreed plan over raw volume** — full adherence is a fixed weekly base regardless of plan size;
-missing a mandatory practice hurts more than an optional one; overshoot earns a small capped
-bonus. All weights are tunable in `DEFAULT_SCORING`.
+missing a mandatory practice hurts more than an optional one; doing more than planned earns no
+bonus (removed 2026-11-22 at Denis's request — points are plain adherence, 0–100). All weights are tunable in `DEFAULT_SCORING`.
 
 ## Roadmap (not yet built)
 

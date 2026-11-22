@@ -45,8 +45,8 @@ from a single Docker Compose stack.
 - **Multi-team** — several teams in one instance, with join codes, an account-less roster
   (claim your entry when you sign up), and per-team feeds/leaderboards.
 - **Adherence scoring** — full adherence is worth a fixed weekly base regardless of plan
-  size; missing a mandatory practice hurts more than an optional one; overshoot earns a small
-  capped bonus. All tunable in [`src/lib/scoring.ts`](src/lib/scoring.ts).
+  size; missing a mandatory practice hurts more than an optional one; doing more than planned
+  earns no bonus (points = adherence %, 0–100 per week). All tunable in [`src/lib/scoring.ts`](src/lib/scoring.ts).
 - **Multiple leaderboards** — adherence points, rugby practices, mandatory practices, and
   streaks. Each can be turned **on/off** independently and set **trainers-only** or
   **everyone**, by week / month / year.
@@ -188,7 +188,7 @@ against what they did. Two shapes, matching the two views in the app:
   target for the calendar month: a weekly goal is `planned × days in the month / 7`, rounded down
   (2 per week in November → 8), leaving out days of tournament-exempt weeks; a monthly goal keeps
   its target. Done = sessions dated in the month. The month % is reached / target over all goals,
-  each capped at its target. A fully kept month is worth 100 points (+ up to 10 overshoot
+  each capped at its target. Month points = the month % (100 for a fully kept month, no
   bonus); a year adds up its months.
 - Rate limit 10 requests/minute per token. Don't mix `period`/`date` with `since`/`until`.
 

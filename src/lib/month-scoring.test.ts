@@ -30,15 +30,14 @@ describe("scoreMonthGoals", () => {
     expect(scoreMonthGoals([{ target: 8, done: 8 }]).points).toBe(100);
   });
 
-  it("overshoot can't cover another goal's gap, but earns the small capped bonus", () => {
+  it("overshoot can't cover another goal's gap and earns no bonus", () => {
     const s = scoreMonthGoals([
       { target: 4, done: 10 },
       { target: 4, done: 2 },
     ]);
     expect(s.reached).toBe(6);
     expect(s.adherencePct).toBe(0.75);
-    expect(s.overshootBonus).toBe(10); // 6 extra × 2, capped at 10
-    expect(s.points).toBe(85);
+    expect(s.points).toBe(75);
   });
 
   it("no plan → 0", () => {

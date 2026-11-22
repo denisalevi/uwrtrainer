@@ -214,7 +214,7 @@ export type GoalsApiMonth = {
   /** Σ targets and Σ done capped per goal ("7 of 8"). */
   target: number;
   reached: number;
-  /** 100 for a fully kept month, + a small overshoot bonus (max 10). */
+  /** = the month % (100 for a fully kept month, no bonus). */
   points: number;
   goals: GoalsApiMonthGoal[];
 };
