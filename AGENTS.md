@@ -86,7 +86,7 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
 
 - **Next.js 16 App Router**, React 19, TypeScript, Tailwind v4 (hand-rolled UI primitives in
   `src/components/ui.tsx`, no component library).
-- **Server Components + Server Actions** for all data flow; no REST API layer (sole exception: the read-only feed API below). Mutations live in
+- **Server Components + Server Actions** for all data flow; no REST API layer (sole exception: the read-only feed/goals API below). Mutations live in
   `src/app/actions/{auth,training,trainer,settings}.ts` (each `"use server"`).
 - **Prisma 7 + SQLite via the libSQL driver adapter** (`PrismaLibSql`). Client singleton in
   `src/lib/db.ts`; generated client in `src/generated/prisma` (gitignored — run `prisma generate`).
@@ -180,6 +180,11 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
   `src/lib/api-token-store.ts`; admin UI Settings → Admin → API tokens
   (`settings/api-tokens-section.tsx` + client `components/api-token-create-form.tsx`, raw token
   shown once via `useActionState`), actions `actions/api-tokens.ts` (ADMIN only). Usage in README.
+  **`GET /api/v1/goals`** (0.39, same tokens): leaderboard metrics + weekly plan-vs-done per
+  member for `period=week|month|year[&date=]` or `since/until`. Scores come from
+  `scoreWeeksForUsers()` / `countPracticesForUsers()` in `stats.ts`, which `getLeaderboard` also
+  uses — keep it that way so the API and the leaderboards page can't drift. Pure range/payload
+  helpers in `src/lib/goals-api.ts` (unit-tested). 10 req/min/token.
 - **i18n**: `src/lib/i18n/` — `en`/`de` dictionaries (flat dotted keys), server helper
   `getServerT()`, client `useT()` (`src/components/i18n-provider.tsx`). Locale is **per user**
   (`User.locale`), applied in the root layout.

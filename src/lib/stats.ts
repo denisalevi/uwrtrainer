@@ -273,6 +273,69 @@ export async function getCurrentWeekMetrics(
   };
 }
 
+export type ScoredWeek = {
+  weekStart: Date;
+  score: WeekScore;
+  exempt: boolean;
+  items: WeekPlanItem[];
+};
+
+/**
+ * Every week overlapping [start, end) scored for each user, exactly as the adherence
+ * leaderboard does it: logs are counted only inside [start, end) (so a "month" counts the
+ * month's days of its edge weeks), the plan active at each week's Sunday applies, and
+ * tournament-exempt weeks count as fully adherent. Shared by getLeaderboard and the
+ * read-only goals API so both always agree.
+ */
+export async function scoreWeeksForUsers(
+  userIds: string[],
+  start: Date,
+  end: Date,
+): Promise<Map<string, ScoredWeek[]>> {
+  const out = new Map<string, ScoredWeek[]>();
+  if (userIds.length === 0) return out;
+  const plans = await loadPlans(userIds);
+  const logsByUser = await loadLogs(userIds, start, end);
+  const exemptByUser = await loadExemptWeeks(userIds, start, end);
+  const weeks = weekStartsInRange(start, end);
+  for (const id of userIds) {
+    const logs = logsByUser.get(id) ?? [];
+    const exemptWeeks = exemptByUser.get(id);
+    out.set(
+      id,
+      weeks.map((ws) => {
+        const items = buildScoreItems(activeItems(plans, id, addDays(ws, 6)), logsInWeek(logs, ws), ws);
+        const exempt = exemptWeeks?.has(ws.getTime()) ?? false;
+        let score = scoreWeek(items);
+        if (exempt) score = applyWeekExemption(score);
+        return { weekStart: ws, score, exempt, items };
+      }),
+    );
+  }
+  return out;
+}
+
+/**
+ * DONE rugby practices and DONE primary-tier practices per user in [start, end) — the
+ * RUGBY_PRACTICES / PRIMARY_PRACTICES leaderboard values.
+ */
+export async function countPracticesForUsers(
+  userIds: string[],
+  start: Date,
+  end: Date,
+): Promise<Map<string, { rugby: number; primary: number }>> {
+  const logsByUser = await loadLogs(userIds, start, end);
+  const out = new Map<string, { rugby: number; primary: number }>();
+  for (const id of userIds) {
+    const logs = logsByUser.get(id) ?? [];
+    out.set(id, {
+      rugby: logs.filter((l) => l.status === "DONE" && l.category === "RUGBY").length,
+      primary: logs.filter((l) => l.status === "DONE" && l.tier === "PRIMARY").length,
+    });
+  }
+  return out;
+}
+
 export type LeaderRow = { userId: string; name: string; value: number };
 
 /** Compute a leaderboard for a metric over a period, sorted descending. */
@@ -290,35 +353,18 @@ export async function getLeaderboard(
   const userIds = users.map((u) => u.id);
   if (userIds.length === 0) return [];
 
-  let values = new Map<string, number>();
+  const values = new Map<string, number>();
 
   if (metric === "RUGBY_PRACTICES" || metric === "PRIMARY_PRACTICES") {
-    const logsByUser = await loadLogs(userIds, start, end);
+    const counts = await countPracticesForUsers(userIds, start, end);
     for (const u of users) {
-      const logs = logsByUser.get(u.id) ?? [];
-      const count = logs.filter((l) => {
-        if (l.status !== "DONE") return false;
-        if (metric === "RUGBY_PRACTICES") return l.category === "RUGBY";
-        return l.tier === "PRIMARY";
-      }).length;
-      values.set(u.id, count);
+      const c = counts.get(u.id);
+      values.set(u.id, (metric === "RUGBY_PRACTICES" ? c?.rugby : c?.primary) ?? 0);
     }
   } else if (metric === "ADHERENCE_POINTS") {
-    const plans = await loadPlans(userIds);
-    const logsByUser = await loadLogs(userIds, start, end);
-    const exemptByUser = await loadExemptWeeks(userIds, start, end);
-    const weeks = weekStartsInRange(start, end);
+    const weeksByUser = await scoreWeeksForUsers(userIds, start, end);
     for (const u of users) {
-      const logs = logsByUser.get(u.id) ?? [];
-      const exemptWeeks = exemptByUser.get(u.id);
-      let total = 0;
-      for (const ws of weeks) {
-        const items = buildScoreItems(activeItems(plans, u.id, addDays(ws, 6)), logsInWeek(logs, ws), ws);
-        let s = scoreWeek(items);
-        if (exemptWeeks?.has(ws.getTime())) s = applyWeekExemption(s);
-        total += s.points;
-      }
-      values.set(u.id, total);
+      values.set(u.id, (weeksByUser.get(u.id) ?? []).reduce((sum, w) => sum + w.score.points, 0));
     }
   } else {
     // STREAK — current streak, independent of the selected period.

@@ -11,6 +11,19 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-11-22
+
+### Added
+- **Goals API for bots:** `GET /api/v1/goals` (same API tokens as the feed) returns everything
+  the leaderboards page shows — adherence points, rugby and 1st-team practices, streaks, ranked —
+  plus each member's weekly plan (targets per category or committed practice) against what
+  they did, average adherence and full weeks. Periods match the leaderboard exactly
+  (`period=week|month|year`, optional `date=`), or a custom `since`/`until`. See README.
+
+### Changed
+- The adherence and practice leaderboards now share their scoring code with the goals API, so
+  both always show the same numbers (no behaviour change).
+
 ## [0.38.0] - 2026-11-20
 
 ### Added
