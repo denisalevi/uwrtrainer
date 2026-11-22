@@ -11,6 +11,14 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.44.2] - 2026-11-22
+
+### Changed
+- **A tournament week counts as done in the month view.** The month's target stays the full
+  month, and the tournament week's share of each weekly goal is credited as if it had been
+  done (1 per week, one tournament week, one session logged: 2 of 4). Monthly goals are not
+  affected.
+
 ## [0.44.1] - 2026-11-22
 
 ### Changed

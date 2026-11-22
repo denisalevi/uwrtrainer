@@ -402,6 +402,7 @@ function scoreOneMonth(
   logs: LogRow[],
   ms: Date,
   window: { start: Date; end: Date },
+  exemptWeeks?: Set<number>,
 ): ScoredMonth {
   const monthEnd = nextMonth(ms);
   // A season can start/end mid-month: only the part of the month inside the range counts.
@@ -411,19 +412,32 @@ function scoreOneMonth(
   const partDays = daysOf(from0, me);
   const monthDays = daysOf(ms, monthEnd);
   const monthLogs = logs.filter((l) => l.date >= from0 && l.date < me);
-  type Acc = { category: string; label: string | null; cadence: PlanCadence; planned: number; shares: WeeklyShare[]; target: number };
+  type Acc = {
+    category: string;
+    label: string | null;
+    cadence: PlanCadence;
+    planned: number;
+    shares: WeeklyShare[];
+    target: number;
+    /** Sessions credited on top of the logged ones for tournament weeks. */
+    credit: number;
+  };
   const goals = new Map<string, Acc>();
   const keyOf = (category: string, note: string | null) =>
     `${category}|${category === "OTHER" ? (note ?? "").trim() : ""}`;
 
   // Weekly goals: each week overlapping the month contributes target × its days in the month
-  // using the plan of that week (active at its Sunday). Tournaments have NO effect here
-  // (Denis, 2026-11-22): they only make the week count as fulfilled in the weekly view.
+  // using the plan of that week (active at its Sunday). A tournament week keeps its share of
+  // the target and counts AS IF DONE (Denis, 2026-11-22): its weekly goals are credited up to
+  // that week's share (rounded up), so 1 per week with one tournament week reads 2 of 4
+  // after one more session. Monthly goals are not touched by tournaments.
   for (const ws of weekStartsInRange(from0, me)) {
     const we = addWeeks(ws, 1);
     const from = ws < from0 ? from0 : ws;
     const to = we > me ? me : we;
     const days = Math.round((to.getTime() - from.getTime()) / 86_400_000);
+    const exempt = exemptWeeks?.has(ws.getTime()) ?? false;
+    const weekLogs = exempt ? monthLogs.filter((l) => l.date >= from && l.date < to) : [];
     for (const it of activeItems(plans, userId, addDays(ws, 6))) {
       if (it.cadence === "MONTH" || it.practiceSlotId || it.target <= 0) continue;
       const k = keyOf(it.category, it.note);
@@ -434,9 +448,14 @@ function scoreOneMonth(
         planned: it.target,
         shares: [],
         target: 0,
+        credit: 0,
       };
       acc.planned = it.target; // latest weekly target wins for display
       acc.shares.push({ target: it.target, days });
+      if (exempt) {
+        const share = Math.ceil((it.target * days) / 7 - 1e-9);
+        acc.credit += Math.max(0, share - countGoalDone(weekLogs, it.category));
+      }
       goals.set(k, acc);
     }
   }
@@ -452,6 +471,7 @@ function scoreOneMonth(
       planned: it.target,
       shares: [],
       target: it.target,
+      credit: 0,
     });
   }
 
@@ -465,7 +485,7 @@ function scoreOneMonth(
         g.cadence === "MONTH"
           ? monthTargetForPart(g.target, partDays, monthDays)
           : monthTargetFromWeekly(g.shares),
-      done: countGoalDone(monthLogs, g.category),
+      done: countGoalDone(monthLogs, g.category) + g.credit,
     }))
     .filter((g) => g.target > 0);
   return { monthStart: ms, goals: rows, score: scoreMonthGoals(rows) };
@@ -492,11 +512,12 @@ export async function scoreMonthsForUsers(
   const to = nextMonth(months[months.length - 1]);
   const plans = await loadPlans(userIds);
   const logsByUser = await loadLogs(userIds, from, to);
+  const exemptByUser = await loadExemptWeeks(userIds, startOfWeek(from), to);
   for (const id of userIds) {
     const logs = logsByUser.get(id) ?? [];
     out.set(
       id,
-      months.map((ms) => scoreOneMonth(plans, id, logs, ms, { start, end })),
+      months.map((ms) => scoreOneMonth(plans, id, logs, ms, { start, end }, exemptByUser.get(id))),
     );
   }
   return out;

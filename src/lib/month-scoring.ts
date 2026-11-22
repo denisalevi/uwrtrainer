@@ -3,8 +3,9 @@
 //
 //  - The month view has no weeks, only the calendar month.
 //  - A weekly goal becomes a monthly target: weekly target × days / 7, ROUNDED DOWN (the
-//    goodwill): 2 per week in November = 2 × 30 / 7 = 8.57 → 8. Tournaments have no effect
-//    on the month (they only make their week count as fulfilled in the weekly view). If the
+//    goodwill): 2 per week in November = 2 × 30 / 7 = 8.57 → 8. A tournament week keeps its
+//    share of the target and counts as if done: its weekly goals are credited up to that
+//    week's share, rounded up (stats.ts scoreOneMonth). Monthly goals get no credit. If the
 //    plan changed mid-month each week's share uses the plan of that week (the same plan the
 //    weekly score uses).
 //  - A monthly goal keeps its target as entered.
