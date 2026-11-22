@@ -107,7 +107,7 @@ export type GoalsApiMember = {
   fullWeeks: number;
   /** Current streak of completed 100% weeks (independent of the period, as in the app). */
   streak: number;
-  /** DONE rugby practices in the period (the "Rugby practices attended" leaderboard). */
+  /** DONE rugby practices + one per tournament day in the period (the "Rugby practices attended" leaderboard). */
   rugbyPractices: number;
   /** DONE primary-tier practices in the period (the "1st-team league practices" leaderboard). */
   primaryPractices: number;

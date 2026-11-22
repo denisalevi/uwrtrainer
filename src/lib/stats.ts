@@ -8,6 +8,7 @@ import {
   type WeekScore,
 } from "@/lib/scoring";
 import { loadExemptWeeks } from "@/lib/exempt-weeks";
+import { rugbyPracticesAttended } from "@/lib/tournament";
 import {
   startOfWeek,
   addWeeks,
@@ -281,7 +282,7 @@ export async function getCurrentWeekMetrics(
   if (exempt) score = applyWeekExemption(score);
   return {
     ADHERENCE_POINTS: score.points,
-    RUGBY_PRACTICES: logs.filter((l) => l.status === "DONE" && l.category === "RUGBY").length,
+    RUGBY_PRACTICES: rugbyPracticesAttended(logs),
     PRIMARY_PRACTICES: logs.filter((l) => l.status === "DONE" && l.tier === "PRIMARY").length,
     STREAK: await getStreak(userId),
   };
@@ -330,7 +331,8 @@ export async function scoreWeeksForUsers(
 }
 
 /**
- * DONE rugby practices and DONE primary-tier practices per user in [start, end) — the
+ * Rugby practices attended (DONE rugby sessions + one per tournament day) and DONE
+ * primary-tier practices per user in [start, end) — the
  * RUGBY_PRACTICES / PRIMARY_PRACTICES leaderboard values — plus all DONE sessions.
  */
 export async function countPracticesForUsers(
@@ -343,7 +345,7 @@ export async function countPracticesForUsers(
   for (const id of userIds) {
     const logs = logsByUser.get(id) ?? [];
     out.set(id, {
-      rugby: logs.filter((l) => l.status === "DONE" && l.category === "RUGBY").length,
+      rugby: rugbyPracticesAttended(logs),
       primary: logs.filter((l) => l.status === "DONE" && l.tier === "PRIMARY").length,
       sessions: logs.filter((l) => l.status === "DONE").length,
     });

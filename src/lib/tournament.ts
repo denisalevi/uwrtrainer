@@ -1,7 +1,8 @@
 // Tournament / league game support (issue #31). A tournament is logged like a group practice
-// (tick off who played) but is NOT a rugby practice: it has its own log category, counts on no
-// leaderboard, and instead EXEMPTS the selected players' weekly goals — a game weekend shouldn't
-// cost anyone adherence points. Which weeks are exempt is a team-wide trainer setting.
+// (tick off who played) but is NOT a rugby practice for goals: it has its own log category and
+// instead EXEMPTS the selected players' weekly goals — a game weekend shouldn't cost anyone
+// adherence points. Since 0.43 each tournament day counts on the "Rugby practices attended"
+// leaderboard (rugbyPracticesAttended). Which weeks are exempt is a team-wide trainer setting.
 
 import { startOfWeek, addWeeks } from "@/lib/dates";
 
@@ -51,4 +52,21 @@ export function tournamentLabel(details: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The "Rugby practices attended" value: every DONE rugby session, plus one per day with a DONE
+ * tournament (Denis, 2026-11-22: "Turniere auch mit rein. Jeder Tag ein Training"). Several
+ * tournament rows on the same day count once.
+ */
+export function rugbyPracticesAttended(
+  logs: { status: string; category: string; date: Date }[],
+): number {
+  const rugby = logs.filter((l) => l.status === "DONE" && l.category === "RUGBY").length;
+  const tournamentDays = new Set(
+    logs
+      .filter((l) => l.status === "DONE" && l.category === TOURNAMENT_CATEGORY)
+      .map((l) => `${l.date.getFullYear()}-${l.date.getMonth()}-${l.date.getDate()}`),
+  );
+  return rugby + tournamentDays.size;
 }

@@ -11,6 +11,13 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-11-22
+
+### Changed
+- **Tournaments count as rugby practices attended:** every day with a logged tournament adds
+  one to the "Rugby practices attended" leaderboard (and the goals API's `rugbyPractices`).
+  Weekly goals are unchanged: tournament weeks still pause them.
+
 ## [0.42.0] - 2026-11-22
 
 ### Removed
