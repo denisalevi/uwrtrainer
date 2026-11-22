@@ -185,6 +185,10 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
   `scoreWeeksForUsers()` / `countPracticesForUsers()` in `stats.ts`, which `getLeaderboard` also
   uses — keep it that way so the API and the leaderboards page can't drift. Pure range/payload
   helpers in `src/lib/goals-api.ts` (unit-tested). 10 req/min/token.
+  **Reasons opt-in** (0.40): `ApiToken.includeReasons` (default false, toggled per token in
+  Settings by ADMIN, `setApiTokenReasons`) adds members' free-text reasons — `WeekNote.reason`
+  and `SessionLog.missReason` — to goals weeks (`reasons`) and missed feed entries
+  (`missReason`). They can be health data: never expose them without that flag.
 - **i18n**: `src/lib/i18n/` — `en`/`de` dictionaries (flat dotted keys), server helper
   `getServerT()`, client `useT()` (`src/components/i18n-provider.tsx`). Locale is **per user**
   (`User.locale`), applied in the root layout.

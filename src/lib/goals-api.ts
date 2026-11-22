@@ -92,6 +92,15 @@ export type GoalsApiWeek = {
   adherencePct: number | null;
   points: number;
   goals: GoalsApiGoal[];
+  /** Only for tokens with "allow reasons": the member's own words for this week. */
+  reasons?: GoalsApiWeekReasons;
+};
+
+export type GoalsApiWeekReasons = {
+  /** The weekly "why didn't it work out" note, if the member wrote one. */
+  note: string | null;
+  /** Missed sessions that carry a reason. */
+  missed: Array<{ date: string; category: string; practice: string | null; reason: string }>;
 };
 
 export type GoalsApiMember = {
@@ -109,6 +118,12 @@ export type GoalsApiMember = {
   rugbyPractices: number;
   /** DONE primary-tier practices in the period (the "1st-team league practices" leaderboard). */
   primaryPractices: number;
+  /** All DONE sessions in the period, any category, planned or not. */
+  totalSessions: number;
+  /** Sum of weekly targets over the started weeks (how much was planned)… */
+  plannedSessions: number;
+  /** …and how much of that was reached (done capped at each target). */
+  reachedSessions: number;
   /** Weekly plan vs. done, oldest first. */
   weeks: GoalsApiWeek[];
 };
@@ -118,8 +133,10 @@ const pct = (v: number) => Math.round(v * 100);
 export function toGoalsApiMember(
   name: string,
   weeks: GoalsSourceWeek[],
-  extra: { streak: number; rugbyPractices: number; primaryPractices: number },
+  extra: { streak: number; rugbyPractices: number; primaryPractices: number; totalSessions: number },
   now: Date,
+  /** Present only for opted-in tokens; keyed by weekStart ms. */
+  reasons?: Map<number, GoalsApiWeekReasons>,
 ): GoalsApiMember {
   const thisWeek = startOfWeek(now).getTime();
   // Weeks that haven't started yet carry no data (and 0 points) — leave them out so they
@@ -143,7 +160,9 @@ export function toGoalsApiMember(
         target: it.target,
         done: it.done,
       })),
+    ...(reasons ? { reasons: reasons.get(w.weekStart.getTime()) ?? { note: null, missed: [] } } : {}),
   }));
+  const goalItems = weeks.flatMap((w) => w.items.filter((it) => it.target > 0));
   return {
     member: name,
     points: weeks.reduce((s, w) => s + w.score.points, 0),
@@ -155,6 +174,9 @@ export function toGoalsApiMember(
     streak: extra.streak,
     rugbyPractices: extra.rugbyPractices,
     primaryPractices: extra.primaryPractices,
+    totalSessions: extra.totalSessions,
+    plannedSessions: goalItems.reduce((sum, it) => sum + it.target, 0),
+    reachedSessions: goalItems.reduce((sum, it) => sum + Math.min(it.done, it.target), 0),
     weeks: out,
   };
 }

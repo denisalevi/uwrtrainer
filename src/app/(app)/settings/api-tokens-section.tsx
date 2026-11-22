@@ -2,7 +2,7 @@ import { getServerT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/db";
 import type { CurrentUser } from "@/lib/dal";
 import { listApiTokens } from "@/lib/api-token-store";
-import { revokeApiToken } from "@/app/actions/api-tokens";
+import { revokeApiToken, setApiTokenReasons } from "@/app/actions/api-tokens";
 import { ApiTokenCreateForm } from "@/components/api-token-create-form";
 import { Badge, Button } from "@/components/ui";
 
@@ -24,8 +24,11 @@ export async function ApiTokensSection({ user }: { user: CurrentUser }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-600">{t("apiTokens.intro")}</p>
+      <p className="text-xs text-slate-500">{t("apiTokens.reasonsHint")}</p>
       <p className="text-xs text-slate-500">
         <code className="rounded bg-slate-100 px-1">GET /api/v1/feed?since=YYYY-MM-DD&amp;until=YYYY-MM-DD</code>
+        {" · "}
+        <code className="rounded bg-slate-100 px-1">GET /api/v1/goals?period=month&amp;date=YYYY-MM-DD</code>
         {" · "}
         <code className="rounded bg-slate-100 px-1">Authorization: Bearer uwr_…</code>
       </p>
@@ -46,6 +49,9 @@ export async function ApiTokensSection({ user }: { user: CurrentUser }) {
                   ) : (
                     <Badge tone="green">{t("apiTokens.active")}</Badge>
                   )}
+                  {tok.includeReasons && !tok.revokedAt && (
+                    <Badge tone="amber">{t("apiTokens.reasonsBadge")}</Badge>
+                  )}
                 </p>
                 <p className="text-xs text-slate-500">
                   <code>{tok.prefix}…</code> · {tok.team.name} · {tok.scope}
@@ -57,6 +63,15 @@ export async function ApiTokensSection({ user }: { user: CurrentUser }) {
                   {tok.revokedAt ? ` · ${t("apiTokens.revokedAt", { date: fmt(tok.revokedAt) })}` : ""}
                 </p>
               </div>
+              {!tok.revokedAt && (
+                <form action={setApiTokenReasons}>
+                  <input type="hidden" name="id" value={tok.id} />
+                  <input type="hidden" name="on" value={tok.includeReasons ? "false" : "true"} />
+                  <Button type="submit" variant="ghost" size="sm" title={t("apiTokens.reasonsHint")}>
+                    {t(tok.includeReasons ? "apiTokens.reasonsOff" : "apiTokens.reasonsOn")}
+                  </Button>
+                </form>
+              )}
               {!tok.revokedAt && (
                 <form action={revokeApiToken}>
                   <input type="hidden" name="id" value={tok.id} />
