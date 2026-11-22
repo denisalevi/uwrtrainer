@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { startOfWeek, addWeeks } from "./dates";
-import { exemptWeekStarts, tournamentLabel } from "./tournament";
+import { exemptWeekStarts, rugbyPracticesAttended, tournamentLabel } from "./tournament";
 import { applyWeekExemption, scoreWeek, fullAdherenceStreak, DEFAULT_SCORING } from "./scoring";
 
 // A Saturday game — the typical case (weeks are Monday-based, so its week IS the run-up week).
@@ -72,5 +72,27 @@ describe("tournamentLabel", () => {
     expect(tournamentLabel(JSON.stringify({ kind: "tournament" }))).toBeNull();
     expect(tournamentLabel("not json")).toBeNull();
     expect(tournamentLabel(null)).toBeNull();
+  });
+});
+
+describe("rugbyPracticesAttended", () => {
+  const log = (category: string, d: number, status = "DONE", h = 10) => ({
+    category,
+    status,
+    date: new Date(2026, 10, d, h),
+  });
+  it("counts DONE rugby sessions plus one per tournament day", () => {
+    expect(
+      rugbyPracticesAttended([
+        log("RUGBY", 3),
+        log("RUGBY", 5),
+        log("RUGBY", 6, "MISSED"),
+        log("TOURNAMENT", 14, "DONE", 9),
+        log("TOURNAMENT", 14, "DONE", 15), // same day: once
+        log("TOURNAMENT", 15),
+        log("TOURNAMENT", 21, "MISSED"),
+        log("CARDIO", 4),
+      ]),
+    ).toBe(4);
   });
 });

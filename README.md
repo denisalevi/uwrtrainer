@@ -242,7 +242,8 @@ Week view (`period=week`):
 }
 ```
 
-Both: `totalSessions` = all DONE sessions in the period, planned or not; `plannedSessions` /
+Both: `rugbyPractices` = DONE rugby sessions plus one per tournament day (the "Rugby practices
+attended" board); `totalSessions` = all DONE sessions in the period, planned or not; `plannedSessions` /
 `reachedSessions` = sum of targets / done capped at each target — enough to tell "big plan, half
 reached, lots done" from "small plan, fully kept". `leaderboards` lists every metric (including
 ones disabled or trainer-only on the page), value > 0 only, ties share a rank. `members` is
