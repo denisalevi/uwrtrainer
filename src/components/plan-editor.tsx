@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { getServerT } from "@/lib/i18n/server";
 import { savePlan } from "@/app/actions/training";
-import { CATEGORIES, type Category } from "@/lib/constants";
+import { CATEGORIES, MAX_PLAN_TARGET, type Category, type PlanCadence } from "@/lib/constants";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { Button, Card, CardBody, Input, Label, Textarea, Badge, SectionTitle } from "@/components/ui";
 import { CustomActivities } from "@/components/custom-activities";
@@ -37,13 +37,30 @@ export async function PlanEditor({ userId }: { userId: string }) {
   if (!activePlan) {
     for (const s of slots) if (s.tier === "PRIMARY") committedSlotIds.add(s.id);
   }
-  const catTarget = (c: Category) =>
-    items.find((i) => i.category === c && !i.practiceSlotId)?.targetPerWeek ?? 0;
+  const catItem = (c: Category) => items.find((i) => i.category === c && !i.practiceSlotId);
+  const catTarget = (c: Category) => catItem(c)?.targetPerWeek ?? 0;
+  const catCadence = (c: Category): PlanCadence =>
+    catItem(c)?.cadence === "MONTH" ? "MONTH" : "WEEK";
+  const cadenceSelect = (name: string, value: PlanCadence) => (
+    <select
+      name={name}
+      defaultValue={value}
+      aria-label={t("plan.cadence")}
+      className="rounded-lg border border-slate-300 bg-white px-1.5 py-2 text-xs text-slate-600"
+    >
+      <option value="WEEK">{t("plan.perWeek")}</option>
+      <option value="MONTH">{t("plan.perMonth")}</option>
+    </select>
+  );
 
   // Saved custom OTHER activities (label in `note`) seed the dynamic rows below.
   const otherItems = items
     .filter((i) => i.category === "OTHER")
-    .map((i) => ({ name: i.note ?? "", n: i.targetPerWeek }));
+    .map((i) => ({
+      name: i.note ?? "",
+      n: i.targetPerWeek,
+      cadence: (i.cadence === "MONTH" ? "MONTH" : "WEEK") as PlanCadence,
+    }));
 
   return (
     <form action={savePlan} className="space-y-5">
@@ -51,6 +68,7 @@ export async function PlanEditor({ userId }: { userId: string }) {
 
       <section className="space-y-2">
         <SectionTitle>{t("plan.sessionsPerWeek")}</SectionTitle>
+        <p className="text-xs text-slate-500">{t("plan.cadenceHint")}</p>
         <Card>
           <CardBody className="space-y-3">
             <div className="flex items-center justify-between gap-3">
@@ -60,12 +78,12 @@ export async function PlanEditor({ userId }: { userId: string }) {
                   type="number"
                   name="cat_RUGBY"
                   min={0}
-                  max={21}
+                  max={MAX_PLAN_TARGET.MONTH}
                   defaultValue={catTarget("RUGBY")}
                   inputMode="numeric"
                   className="w-20 text-center"
                 />
-                <span className="text-xs text-slate-500">{t("plan.perWeek")}</span>
+                {cadenceSelect("cad_RUGBY", catCadence("RUGBY"))}
               </div>
             </div>
             {CATEGORIES.filter((c) => c !== "RUGBY" && c !== "OTHER").map((c) => (
@@ -76,12 +94,12 @@ export async function PlanEditor({ userId }: { userId: string }) {
                     type="number"
                     name={`cat_${c}`}
                     min={0}
-                    max={21}
+                    max={MAX_PLAN_TARGET.MONTH}
                     defaultValue={catTarget(c)}
                     inputMode="numeric"
                     className="w-20 text-center"
                   />
-                  <span className="text-xs text-slate-500">{t("plan.perWeek")}</span>
+                  {cadenceSelect(`cad_${c}`, catCadence(c))}
                 </div>
               </div>
             ))}

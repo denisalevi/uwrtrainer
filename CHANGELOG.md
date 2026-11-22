@@ -11,6 +11,26 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-11-22
+
+### Added
+- **Monthly goals:** every goal in "My plan" has a "per week / per month" switch. Monthly goals
+  count every session in the calendar month and are shown on the dashboard as "3 / 6 done"
+  in a new "This month" card (which also shows the weekly goals converted to the month).
+
+### Changed
+- **Month and year leaderboards use the calendar month, no weeks.** A weekly goal becomes a
+  monthly target of weekly target × days / 7, rounded down (2 per week in November = 8); days of
+  tournament-exempt weeks don't count. Month % = reached / target over all goals, each capped at
+  its target; a fully kept month is worth 100 points (+ the small overshoot bonus), a year adds
+  up its months. The board shows "reached/target" next to the points. Previously a month summed
+  the points of the 5–6 weeks overlapping it, with the edge weeks only partly counted.
+- The weekly leaderboard, weekly auto-missed rows and the streak stay strictly weekly and
+  ignore monthly goals.
+- **Goals API:** `period=month|year` now returns the month view (`members[].months` with
+  `adherencePct`, `target`/`reached`, `points` and per-goal `cadence`/`planned`/`target`/`done`),
+  the same numbers as the app; week goals gain `cadence: "WEEK"`. See README.
+
 ## [0.40.0] - 2026-11-22
 
 ### Added

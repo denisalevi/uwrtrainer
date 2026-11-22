@@ -229,10 +229,17 @@ function matchesOtherNote(details: string | null, noteLabel: string | null): boo
 
 /** The active count commitments (practiceSlotId null, target>0) for a user in the given week. */
 function countItemsFromPlan(
-  items: { category: string; practiceSlotId: string | null; targetPerWeek: number; note: string | null }[],
+  items: {
+    category: string;
+    practiceSlotId: string | null;
+    targetPerWeek: number;
+    cadence?: string | null;
+    note: string | null;
+  }[],
 ): CountItem[] {
+  // Monthly goals have no weekly shortfall: they never produce weekly auto-MISSED rows.
   return items
-    .filter((it) => !it.practiceSlotId && it.targetPerWeek > 0)
+    .filter((it) => !it.practiceSlotId && it.targetPerWeek > 0 && it.cadence !== "MONTH")
     .map((it) => ({
       category: it.category,
       target: it.targetPerWeek,

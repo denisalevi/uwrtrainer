@@ -4,6 +4,8 @@ import {
   parseGoalsRange,
   sortGoalsMembers,
   toGoalsApiMember,
+  toGoalsApiMonthMember,
+  type GoalsSourceMonth,
   type GoalsSourceWeek,
 } from "./goals-api";
 
@@ -107,8 +109,8 @@ describe("toGoalsApiMember", () => {
       adherencePct: 100,
       points: 104,
       goals: [
-        { category: "RUGBY", practice: "Tue pool", tier: "PRIMARY", target: 1, done: 1 },
-        { category: "STRENGTH", practice: null, tier: null, target: 2, done: 3 },
+        { category: "RUGBY", cadence: "WEEK", practice: "Tue pool", tier: "PRIMARY", target: 1, done: 1 },
+        { category: "STRENGTH", cadence: "WEEK", practice: null, tier: null, target: 2, done: 3 },
       ],
     });
     expect(m.weeks[1].complete).toBe(false);
@@ -139,5 +141,45 @@ describe("leaderboards", () => {
     expect(lb.RUGBY_PRACTICES.map((r) => r.member)).toEqual(["Anna", "Cem"]);
     expect(lb.PRIMARY_PRACTICES).toEqual([]);
     expect(lb.STREAK).toEqual([{ rank: 1, member: "Anna", value: 3 }]);
+  });
+});
+
+describe("toGoalsApiMonthMember (month view)", () => {
+  const month = (y: number, m: number, target: number, reached: number, points: number): GoalsSourceMonth => ({
+    monthStart: new Date(y, m, 1),
+    goals: [
+      { category: "CARDIO", label: null, cadence: "WEEK", planned: 2, target: 8, done: 7 },
+      { category: "OTHER", label: "Climbing", cadence: "MONTH", planned: 3, target: 3, done: 3 },
+    ],
+    score: { adherencePct: target ? reached / target : 0, target, reached, points, hasPlan: target > 0 },
+  });
+  const extra = { streak: 1, rugbyPractices: 4, primaryPractices: 2, totalSessions: 12 };
+
+  it("maps months and goals, with the final % over the period", () => {
+    const m = toGoalsApiMonthMember("Ann", [month(2026, 9, 11, 10, 91), month(2026, 10, 11, 11, 100), month(2026, 11, 11, 0, 0)], extra, now);
+    expect(m.months.map((x) => x.month)).toEqual(["2026-10", "2026-11"]); // December not started
+    expect(m.months[0].complete).toBe(true);
+    expect(m.months[1].complete).toBe(false);
+    expect(m.months[0].adherencePct).toBe(91);
+    expect(m.months[0].goals[0]).toEqual({
+      category: "CARDIO", label: null, cadence: "WEEK", planned: 2, target: 8, done: 7, reached: false,
+    });
+    expect(m.months[0].goals[1]).toMatchObject({ cadence: "MONTH", label: "Climbing", reached: true });
+    expect(m).toMatchObject({
+      member: "Ann",
+      points: 191,
+      plannedSessions: 22,
+      reachedSessions: 21,
+      adherencePct: 95,
+      totalSessions: 12,
+      streak: 1,
+    });
+  });
+
+  it("null % without any plan; works in the shared leaderboards", () => {
+    const empty = toGoalsApiMonthMember("Bo", [], extra, now);
+    expect(empty.adherencePct).toBeNull();
+    const boards = buildLeaderboards(sortGoalsMembers([empty, toGoalsApiMonthMember("Ann", [month(2026, 10, 11, 11, 100)], extra, now)]));
+    expect(boards.ADHERENCE_POINTS).toEqual([{ rank: 1, member: "Ann", value: 100 }]);
   });
 });

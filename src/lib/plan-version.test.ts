@@ -91,4 +91,8 @@ describe("planItemsEqual", () => {
     expect(planItemsEqual(a, [{ ...a[0], practiceSlotId: "s2" }, a[1]])).toBe(false);
     expect(planItemsEqual(a, [a[0]])).toBe(false);
   });
+  it("detects a week/month switch; missing cadence means WEEK", () => {
+    expect(planItemsEqual(a, [a[0], { ...a[1], cadence: "MONTH" }])).toBe(false);
+    expect(planItemsEqual(a, [{ ...a[0], cadence: "WEEK" }, a[1]])).toBe(true);
+  });
 });

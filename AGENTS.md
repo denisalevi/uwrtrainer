@@ -185,8 +185,20 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
   `scoreWeeksForUsers()` / `countPracticesForUsers()` in `stats.ts`, which `getLeaderboard` also
   uses — keep it that way so the API and the leaderboards page can't drift. Pure range/payload
   helpers in `src/lib/goals-api.ts` (unit-tested). 10 req/min/token.
-  0.40 adds per-member `totalSessions` / `plannedSessions` / `reachedSessions`. Members' free-text
-  reasons (`WeekNote`, `missReason`) are deliberately NOT exposed by the API (Denis's call).
+  0.40 adds per-member `totalSessions` / `plannedSessions` / `reachedSessions`.
+  0.41: `period=month|year` returns the month view (`members[].months`) from `scoreMonthsForUsers`.
+- **Monthly goals + month view** (0.41): `PlanItem.cadence` = `"WEEK"|"MONTH"` (`targetPerWeek`
+  then holds the per-month target; slot markers are always WEEK; caps in `MAX_PLAN_TARGET`).
+  Weekly scoring (`buildScoreItems`: weekly board, streak, dashboard week, auto-missed in
+  `missed.ts`) ignores MONTH items. The month/year boards, the dashboard "This month" card and
+  the goals API month view use `scoreMonthsForUsers()` in `stats.ts` + pure rules in
+  `src/lib/month-scoring.ts` (unit-tested): calendar month, no weeks; weekly goal → floor(Σ
+  weekly target × days of each overlapping week in the month / 7), exempt weeks skipped, plan of
+  each week's Sunday; monthly goals from the plan on the month's last day; % = reached/target
+  (capped per goal); 100 points per fully kept month + overshoot bonus. Agreed with Denis
+  2026-11-22 — don't reintroduce weeks into the month view.
+  Members' free-text reasons (`WeekNote`, `missReason`) are deliberately NOT exposed by the API
+  (Denis's call).
 - **i18n**: `src/lib/i18n/` — `en`/`de` dictionaries (flat dotted keys), server helper
   `getServerT()`, client `useT()` (`src/components/i18n-provider.tsx`). Locale is **per user**
   (`User.locale`), applied in the root layout.

@@ -48,3 +48,19 @@ export function weekStartsInRange(start: Date, end: Date): Date[] {
   }
   return out;
 }
+
+/** First day of the calendar month after `d`'s month (local midnight). */
+export function nextMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 1);
+}
+
+/** Starts of the calendar months overlapping [start, end). */
+export function monthStartsInRange(start: Date, end: Date): Date[] {
+  const out: Date[] = [];
+  let cur = new Date(start.getFullYear(), start.getMonth(), 1);
+  while (cur < end) {
+    out.push(cur);
+    cur = nextMonth(cur);
+  }
+  return out;
+}

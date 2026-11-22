@@ -9,6 +9,12 @@ export type Category = (typeof CATEGORIES)[number];
 export const PRACTICE_TIERS = ["PRIMARY", "SECONDARY", "OPTIONAL"] as const;
 export type PracticeTier = (typeof PRACTICE_TIERS)[number];
 
+/** How often a plan goal repeats: per Mon–Sun week or per calendar month. */
+export const PLAN_CADENCES = ["WEEK", "MONTH"] as const;
+export type PlanCadence = (typeof PLAN_CADENCES)[number];
+/** Upper bound for a goal's target, per cadence. */
+export const MAX_PLAN_TARGET: Record<PlanCadence, number> = { WEEK: 21, MONTH: 93 };
+
 export const SESSION_STATUSES = ["DONE", "MISSED"] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 

@@ -72,6 +72,8 @@ export type GoalsSourceWeek = {
 
 export type GoalsApiGoal = {
   category: string;
+  /** Always "WEEK" here: weekly views only hold weekly goals (monthly ones: period=month). */
+  cadence: "WEEK";
   /** Committed practice name ("Tuesday pool"), null for a plain per-category goal. */
   practice: string | null;
   /** PRIMARY | SECONDARY | OPTIONAL for committed practices, else null. */
@@ -144,6 +146,7 @@ export function toGoalsApiMember(
       .filter((it) => it.target > 0)
       .map((it) => ({
         category: it.category,
+        cadence: "WEEK" as const,
         practice: it.label,
         tier: it.tier ?? null,
         target: it.target,
@@ -169,8 +172,114 @@ export function toGoalsApiMember(
   };
 }
 
+// ---- Month view (period=month|year): calendar months, no weeks (month-scoring.ts) ----
+
+export type GoalsSourceMonth = {
+  monthStart: Date;
+  goals: Array<{
+    category: string;
+    label: string | null;
+    cadence: "WEEK" | "MONTH";
+    planned: number;
+    target: number;
+    done: number;
+  }>;
+  score: { adherencePct: number; target: number; reached: number; points: number; hasPlan: boolean };
+};
+
+export type GoalsApiMonthGoal = {
+  category: string;
+  /** Custom activity name for OTHER goals, else null. */
+  label: string | null;
+  /** "WEEK" = a weekly goal converted to the month, "MONTH" = a monthly goal. */
+  cadence: "WEEK" | "MONTH";
+  /** As planned: sessions per week (WEEK) or per month (MONTH). */
+  planned: number;
+  /** Target for this month (weekly goals: planned × days / 7, rounded down). */
+  target: number;
+  /** DONE sessions dated in the month. */
+  done: number;
+  /** done >= target. */
+  reached: boolean;
+};
+
+export type GoalsApiMonth = {
+  /** yyyy-mm */
+  month: string;
+  /** False while the month is still running. */
+  complete: boolean;
+  hasPlan: boolean;
+  /** The month %: reached / target over all goals, each capped at its target. 0–100, null without plan. */
+  adherencePct: number | null;
+  /** Σ targets and Σ done capped per goal ("7 of 8"). */
+  target: number;
+  reached: number;
+  /** 100 for a fully kept month, + a small overshoot bonus (max 10). */
+  points: number;
+  goals: GoalsApiMonthGoal[];
+};
+
+export type GoalsApiMonthMember = {
+  member: string;
+  /** The in-app month/year "adherence points" leaderboard value (sum of month points). */
+  points: number;
+  /** Final % for the period: reachedSessions / plannedSessions, 0–100; null without plan. */
+  adherencePct: number | null;
+  /** Σ month targets over the period… */
+  plannedSessions: number;
+  /** …and Σ done capped per goal. */
+  reachedSessions: number;
+  totalSessions: number;
+  rugbyPractices: number;
+  primaryPractices: number;
+  streak: number;
+  /** Calendar months, oldest first (months not started yet are left out). */
+  months: GoalsApiMonth[];
+};
+
+export function toGoalsApiMonthMember(
+  name: string,
+  months: GoalsSourceMonth[],
+  extra: { streak: number; rugbyPractices: number; primaryPractices: number; totalSessions: number },
+  now: Date,
+): GoalsApiMonthMember {
+  const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  months = months.filter((m) => m.monthStart.getTime() <= thisMonth);
+  const planned = months.reduce((s, m) => s + m.score.target, 0);
+  const reached = months.reduce((s, m) => s + m.score.reached, 0);
+  return {
+    member: name,
+    points: months.reduce((s, m) => s + m.score.points, 0),
+    adherencePct: planned > 0 ? pct(reached / planned) : null,
+    plannedSessions: planned,
+    reachedSessions: reached,
+    totalSessions: extra.totalSessions,
+    rugbyPractices: extra.rugbyPractices,
+    primaryPractices: extra.primaryPractices,
+    streak: extra.streak,
+    months: months.map((m) => ({
+      month: localDayKey(m.monthStart).slice(0, 7),
+      complete: m.monthStart.getTime() < thisMonth,
+      hasPlan: m.score.hasPlan,
+      adherencePct: m.score.hasPlan ? pct(m.score.adherencePct) : null,
+      target: m.score.target,
+      reached: m.score.reached,
+      points: m.score.points,
+      goals: m.goals.map((g) => ({
+        category: g.category,
+        label: g.label,
+        cadence: g.cadence,
+        planned: g.planned,
+        target: g.target,
+        done: g.done,
+        reached: g.done >= g.target,
+      })),
+    })),
+  };
+}
+
 /** Leaderboard order: points desc, then name. */
-export function sortGoalsMembers(members: GoalsApiMember[]): GoalsApiMember[] {
+export function sortGoalsMembers<M extends { points: number; member: string }>(members: M[]): M[] {
   return [...members].sort((a, b) => b.points - a.points || a.member.localeCompare(b.member));
 }
 
@@ -181,7 +290,9 @@ export const LEADERBOARD_FIELDS = {
   RUGBY_PRACTICES: "rugbyPractices",
   PRIMARY_PRACTICES: "primaryPractices",
   STREAK: "streak",
-} as const satisfies Record<string, keyof GoalsApiMember>;
+} as const satisfies Record<string, keyof GoalsApiMember & keyof GoalsApiMonthMember>;
+
+type LeaderboardSource = Pick<GoalsApiMember, "member" | (typeof LEADERBOARD_FIELDS)[keyof typeof LEADERBOARD_FIELDS]>;
 
 export type GoalsLeaderboardRow = { rank: number; member: string; value: number };
 
@@ -190,7 +301,7 @@ export type GoalsLeaderboardRow = { rank: number; member: string; value: number 
  * by name, competition ranks (ties share a rank).
  */
 export function buildLeaderboards(
-  members: GoalsApiMember[],
+  members: LeaderboardSource[],
 ): Record<keyof typeof LEADERBOARD_FIELDS, GoalsLeaderboardRow[]> {
   const out = {} as Record<keyof typeof LEADERBOARD_FIELDS, GoalsLeaderboardRow[]>;
   for (const [metric, field] of Object.entries(LEADERBOARD_FIELDS) as Array<

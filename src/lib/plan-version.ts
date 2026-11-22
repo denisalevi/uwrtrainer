@@ -43,11 +43,13 @@ export type PlanItemInput = {
   category: string;
   practiceSlotId: string | null;
   targetPerWeek: number;
+  /** "WEEK" (default) | "MONTH". */
+  cadence?: string | null;
   note?: string | null;
 };
 
 function itemKey(i: PlanItemInput): string {
-  return [i.category, i.practiceSlotId ?? "", i.targetPerWeek, i.note ?? ""].join("|");
+  return [i.category, i.practiceSlotId ?? "", i.targetPerWeek, i.cadence ?? "WEEK", i.note ?? ""].join("|");
 }
 
 /**

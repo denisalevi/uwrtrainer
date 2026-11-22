@@ -174,6 +174,8 @@ model Plan {
 
 /// One commitment within a plan. category: "RUGBY" | "STRENGTH" | "CARDIO" | "MOBILITY".
 /// For RUGBY, practiceSlotId points at the specific team practice committed to.
+/// cadence: "WEEK" | "MONTH" — targetPerWeek holds the target per week, or per calendar month
+/// for a monthly goal (despite the column name). Practice-slot markers are always WEEK.
 model PlanItem {
   id                String        @id @default(cuid())
   planId            String
@@ -182,6 +184,7 @@ model PlanItem {
   practiceSlotId    String?
   practiceSlot      PracticeSlot? @relation(fields: [practiceSlotId], references: [id])
   targetPerWeek     Int           @default(1)
+  cadence           String        @default("WEEK")
   targetDurationMin Int?
   note              String?
 
