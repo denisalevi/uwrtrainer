@@ -317,20 +317,21 @@ export async function scoreWeeksForUsers(
 
 /**
  * DONE rugby practices and DONE primary-tier practices per user in [start, end) — the
- * RUGBY_PRACTICES / PRIMARY_PRACTICES leaderboard values.
+ * RUGBY_PRACTICES / PRIMARY_PRACTICES leaderboard values — plus all DONE sessions.
  */
 export async function countPracticesForUsers(
   userIds: string[],
   start: Date,
   end: Date,
-): Promise<Map<string, { rugby: number; primary: number }>> {
+): Promise<Map<string, { rugby: number; primary: number; sessions: number }>> {
   const logsByUser = await loadLogs(userIds, start, end);
-  const out = new Map<string, { rugby: number; primary: number }>();
+  const out = new Map<string, { rugby: number; primary: number; sessions: number }>();
   for (const id of userIds) {
     const logs = logsByUser.get(id) ?? [];
     out.set(id, {
       rugby: logs.filter((l) => l.status === "DONE" && l.category === "RUGBY").length,
       primary: logs.filter((l) => l.status === "DONE" && l.tier === "PRIMARY").length,
+      sessions: logs.filter((l) => l.status === "DONE").length,
     });
   }
   return out;
