@@ -114,31 +114,12 @@ describe("toGoalsApiMember", () => {
     expect(m.weeks[1].complete).toBe(false);
     expect(m.weeks[2].adherencePct).toBeNull();
     expect(m.weeks).toHaveLength(3);
-    expect(m.weeks[0]).not.toHaveProperty("reasons");
   });
 
   it("null average without any plan", () => {
     const m = toGoalsApiMember("Bo", [], { streak: 0, rugbyPractices: 0, primaryPractices: 0, totalSessions: 0 }, now);
     expect(m.avgAdherencePct).toBeNull();
     expect(m.points).toBe(0);
-  });
-});
-
-describe("reasons (opt-in)", () => {
-  it("attaches each week's reasons, empty when none, only when a map is passed", () => {
-    const ws = new Date(2026, 10, 9);
-    const reasons = new Map([
-      [ws.getTime(), { note: "Sick", missed: [{ date: "2026-11-10", category: "RUGBY", practice: "Tue pool", reason: "Fever" }] }],
-    ]);
-    const m = toGoalsApiMember(
-      "Anna",
-      [week(ws, 0.5, 50), week(new Date(2026, 10, 16), 1, 100)],
-      { streak: 0, rugbyPractices: 0, primaryPractices: 0, totalSessions: 0 },
-      now,
-      reasons,
-    );
-    expect(m.weeks[0].reasons).toEqual(reasons.get(ws.getTime()));
-    expect(m.weeks[1].reasons).toEqual({ note: null, missed: [] });
   });
 });
 

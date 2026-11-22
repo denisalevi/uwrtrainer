@@ -96,13 +96,6 @@ describe("toFeedApiEntry", () => {
     expect(toFeedApiEntry({ ...base, details: "{not json" })).toMatchObject({ title: null, note: null });
   });
 
-  it("adds miss reasons only when the token opted in", () => {
-    const row = { ...base, category: "RUGBY", status: "MISSED", missReason: " sick " };
-    expect(toFeedApiEntry(row)).not.toHaveProperty("missReason");
-    expect(toFeedApiEntry(row, true).missReason).toBe("sick");
-    expect(toFeedApiEntry({ ...row, status: "DONE" }, true)).not.toHaveProperty("missReason");
-  });
-
   it("omits exercises on a missed strength session", () => {
     const e = toFeedApiEntry({ ...base, category: "STRENGTH", status: "MISSED" });
     expect(e.exercises).toBeUndefined();

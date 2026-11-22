@@ -92,15 +92,6 @@ export type GoalsApiWeek = {
   adherencePct: number | null;
   points: number;
   goals: GoalsApiGoal[];
-  /** Only for tokens with "allow reasons": the member's own words for this week. */
-  reasons?: GoalsApiWeekReasons;
-};
-
-export type GoalsApiWeekReasons = {
-  /** The weekly "why didn't it work out" note, if the member wrote one. */
-  note: string | null;
-  /** Missed sessions that carry a reason. */
-  missed: Array<{ date: string; category: string; practice: string | null; reason: string }>;
 };
 
 export type GoalsApiMember = {
@@ -135,8 +126,6 @@ export function toGoalsApiMember(
   weeks: GoalsSourceWeek[],
   extra: { streak: number; rugbyPractices: number; primaryPractices: number; totalSessions: number },
   now: Date,
-  /** Present only for opted-in tokens; keyed by weekStart ms. */
-  reasons?: Map<number, GoalsApiWeekReasons>,
 ): GoalsApiMember {
   const thisWeek = startOfWeek(now).getTime();
   // Weeks that haven't started yet carry no data (and 0 points) — leave them out so they
@@ -160,7 +149,6 @@ export function toGoalsApiMember(
         target: it.target,
         done: it.done,
       })),
-    ...(reasons ? { reasons: reasons.get(w.weekStart.getTime()) ?? { note: null, missed: [] } } : {}),
   }));
   const goalItems = weeks.flatMap((w) => w.items.filter((it) => it.target > 0));
   return {

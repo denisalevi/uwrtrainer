@@ -55,18 +55,3 @@ export async function revokeApiToken(formData: FormData) {
   redirect("/settings");
 }
 
-/**
- * Opt a token in/out of members' free-text reasons (miss reasons, weekly "why not reached"
- * notes). Those can be health data, so it's an explicit per-token switch, off by default.
- */
-export async function setApiTokenReasons(formData: FormData) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  if (user.role !== "ADMIN") throw new Error("Forbidden");
-
-  const id = String(formData.get("id") ?? "");
-  const on = String(formData.get("on")) === "true";
-  await prisma.apiToken.updateMany({ where: { id, revokedAt: null }, data: { includeReasons: on } });
-  revalidatePath("/settings");
-  redirect("/settings");
-}
