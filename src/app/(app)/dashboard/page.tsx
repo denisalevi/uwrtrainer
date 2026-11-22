@@ -126,10 +126,13 @@ export default async function DashboardPage() {
                   <ProgressBar value={g.done / g.target} />
                 </div>
               ))}
-              <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-sm">
-                <span className="text-slate-500">{t("dash.monthGoalsHint")}</span>
-                <span className="font-semibold text-teal-700">
-                  {month.score.reached} / {month.score.target} · {Math.round(month.score.adherencePct * 100)} %
+              <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+                <span className="min-w-0 text-xs text-slate-500">{t("dash.monthGoalsHint")}</span>
+                <span className="shrink-0 whitespace-nowrap text-sm text-slate-500">
+                  {month.score.reached} / {month.score.target}
+                  <span className="ml-2 font-semibold text-teal-700">
+                    {Math.round(month.score.adherencePct * 100)} %
+                  </span>
                 </span>
               </div>
             </CardBody>

@@ -11,6 +11,17 @@ Release process: `npm version <patch|minor>` (bumps `package.json` and creates t
 
 ## [Unreleased]
 
+## [0.44.1] - 2026-11-22
+
+### Changed
+- **Tournaments no longer lower the month's targets.** A tournament week still counts as
+  fulfilled in the weekly view, but the month view ignores it: 1 per week is 4 in November,
+  tournament or not.
+
+### Fixed
+- Dashboard month card: the total ("2 / 9  22 %") stays on one line, and only the percentage
+  is bold.
+
 ## [0.44.0] - 2026-11-22
 
 ### Added

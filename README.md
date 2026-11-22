@@ -189,7 +189,7 @@ against what they did. Two shapes, matching the two views in the app:
 - `?period=month` (optional `&date=`) or `?period=season` (the team season from Settings, no
   `date`; the calendar year while none is set): the **month view**, no weeks. Every goal becomes a
   target for the calendar month: a weekly goal is `planned × days in the month / 7`, rounded down
-  (2 per week in November → 8), leaving out days of tournament-exempt weeks; a monthly goal keeps
+  (2 per week in November → 8; tournaments have no effect on the month); a monthly goal keeps
   its target. Done = sessions dated in the month. The month % is reached / target over all goals,
   each capped at its target. Points = that % (100 for a fully kept month, no bonus). A
   season is the same over all its months together (Σ reached / Σ target, so also 0–100); months

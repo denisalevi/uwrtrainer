@@ -400,7 +400,6 @@ function scoreOneMonth(
   plans: PlanWithItems[],
   userId: string,
   logs: LogRow[],
-  exemptWeeks: Set<number> | undefined,
   ms: Date,
   window: { start: Date; end: Date },
 ): ScoredMonth {
@@ -418,9 +417,9 @@ function scoreOneMonth(
     `${category}|${category === "OTHER" ? (note ?? "").trim() : ""}`;
 
   // Weekly goals: each week overlapping the month contributes target × its days in the month
-  // (exempt weeks contribute nothing), using the plan of that week (active at its Sunday).
+  // using the plan of that week (active at its Sunday). Tournaments have NO effect here
+  // (Denis, 2026-11-22): they only make the week count as fulfilled in the weekly view.
   for (const ws of weekStartsInRange(from0, me)) {
-    if (exemptWeeks?.has(ws.getTime())) continue;
     const we = addWeeks(ws, 1);
     const from = ws < from0 ? from0 : ws;
     const to = we > me ? me : we;
@@ -493,12 +492,11 @@ export async function scoreMonthsForUsers(
   const to = nextMonth(months[months.length - 1]);
   const plans = await loadPlans(userIds);
   const logsByUser = await loadLogs(userIds, from, to);
-  const exemptByUser = await loadExemptWeeks(userIds, startOfWeek(from), addWeeks(startOfWeek(to), 1));
   for (const id of userIds) {
     const logs = logsByUser.get(id) ?? [];
     out.set(
       id,
-      months.map((ms) => scoreOneMonth(plans, id, logs, exemptByUser.get(id), ms, { start, end })),
+      months.map((ms) => scoreOneMonth(plans, id, logs, ms, { start, end })),
     );
   }
   return out;

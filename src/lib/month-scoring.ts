@@ -3,9 +3,10 @@
 //
 //  - The month view has no weeks, only the calendar month.
 //  - A weekly goal becomes a monthly target: weekly target × days / 7, ROUNDED DOWN (the
-//    goodwill): 2 per week in November = 2 × 30 / 7 = 8.57 → 8. Days of tournament-exempt
-//    weeks don't count, and if the plan changed mid-month each week's share uses the plan of
-//    that week (the same plan the weekly score uses).
+//    goodwill): 2 per week in November = 2 × 30 / 7 = 8.57 → 8. Tournaments have no effect
+//    on the month (they only make their week count as fulfilled in the weekly view). If the
+//    plan changed mid-month each week's share uses the plan of that week (the same plan the
+//    weekly score uses).
 //  - A monthly goal keeps its target as entered.
 //  - Done = DONE sessions dated in the calendar month.
 //  - Month % = reached / target over all goals, each goal capped at its target (overshoot on

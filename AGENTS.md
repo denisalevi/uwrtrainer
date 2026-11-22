@@ -193,7 +193,7 @@ PATH directly** (`/opt/node22/bin`: `node npm npx tsx`). Run tooling commands di
   `missed.ts`) ignores MONTH items. The month/season boards, the dashboard "This month" card and
   the goals API month view use `scoreMonthsForUsers()` in `stats.ts` + pure rules in
   `src/lib/month-scoring.ts` (unit-tested): calendar month, no weeks; weekly goal → floor(Σ
-  weekly target × days of each overlapping week in the month / 7), exempt weeks skipped, plan of
+  weekly target × days of each overlapping week in the month / 7), tournaments have no effect on the month (Denis), plan of
   each week's Sunday; monthly goals from the plan on the month's last day; % = reached/target
   (capped per goal); month points = month % (0–100). Agreed with Denis
   2026-11-22 — don't reintroduce weeks into the month view.
